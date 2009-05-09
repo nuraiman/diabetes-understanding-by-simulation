@@ -57,8 +57,7 @@ endif
 LIBDIR=.
 
 ROOTLIBS=$(shell root-config --glibs) -lMinuit -lMLP -lTreePlayer
-#FCNCLIBS=/usr/lib/libboost_date_time.a 
-FCNCLIBS=/usr/local/lib/libboost_date_time-xgcc40-mt.a /usr/local/lib/libboost_serialization-xgcc40-mt.a
+FCNCLIBS=/usr/local/lib/libboost_date_time-xgcc40-mt.a /usr/local/lib/libboost_serialization-xgcc40-mt.a /usr/local/lib/libgsl.a /usr/local/lib/libgslcblas.a
 
 # Without TSam  (NO_CDF_SAM IS defined)
 # NO Tsam
