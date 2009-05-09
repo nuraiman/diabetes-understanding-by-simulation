@@ -8,6 +8,7 @@
 #include <math.h>  //contains M_PI
 #include <stdlib.h>
 #include <fstream>
+#include <cmath>
 
 //ROOT includes (using root 5.14)
 #include "TSystem.h"
@@ -20,9 +21,17 @@
 #include "TLegend.h"
 #include "TROOT.h"
 #include "TPaveText.h"
+#include "TVirtualFFT.h"
 
 
-//Boost includes (using boost 1.38)
+//GSL includes
+//You may comment out these includes and code will still 
+//  compile (edit Makefile too though), you just can't call spline interpolation
+#include <gsl/gsl_bspline.h>
+#include <gsl/gsl_multifit.h>
+#include <gsl/gsl_rng.h>
+
+//Boost includes (using boost 1.3)
 #include "boost/range.hpp"
 #include "boost/algorithm/string/trim.hpp"
 #include "boost/date_time/gregorian/gregorian.hpp"
@@ -34,7 +43,7 @@
 
 #include "ConsentrationGraph.hh"
 #include "KineticModels.hh"
-
+#include "CgmsDataImport.hh"
 
 using namespace std;
 using namespace boost;
@@ -141,6 +150,7 @@ std::string ConsentrationGraph::getGraphTypeStr() const
     case GlucoseConsentrationGraph:  return "GlucoseConsentrationGraph";
     case GlucoseAbsorbtionRateGraph: return "GlucoseAbsorbtionRateGraph";
     case GlucoseConsumptionGraph:    return "GlucoseConsumptionGraph";
+    case BloodGlucoseConcenDeriv:    return "BloodGlucoseConcenDeriv";
     case NumGraphType:               return "NumGraphType";
   };//switch( m_graphType )
   
@@ -633,6 +643,543 @@ ptime ConsentrationGraph::roundDownToNearest15Minutes( ptime time, int slop )
 
 
 
+double ConsentrationGraph::getMostCommonDt( ) const
+{
+  typedef std::pair<boost::posix_time::ptime, double> TimeValuePair;
+  typedef std::vector< TimeValuePair >                TimeValueVec;
+  
+  TimeValueVec timeValues;
+  
+  foreach( const GraphElement &el, static_cast< set<GraphElement> >(*this) )
+  {
+    ptime baseTime = getAbsoluteTime( el.m_minutes );
+    timeValues.push_back( TimeValuePair(baseTime, el.m_value) );
+  }//foreach( base pair )
+  
+  return CgmsDataImport::getMostCommonDt( timeValues );
+}//double ConsentrationGraph::getMostCommonDt( ) const
+
+
+ConsentrationGraph 
+ConsentrationGraph::getSmoothedGraph( double wavelength, 
+                                      SmoothingAlgo smoothType) const
+{
+  ConsentrationGraph smoothedGraph( *this );
+    
+  switch( smoothType )
+  {
+    case FourierSmoothing: 
+      smoothedGraph.fastFourierSmooth( wavelength );
+      break;
+      
+    case ButterworthSmoothing:
+      smoothedGraph.butterWorthFilter( wavelength, 4 );
+      break;
+      
+    case BSplineSmoothing:
+      #ifndef __GSL_BSPLINE_H__
+        assert(0);
+      #else
+      smoothedGraph.bSplineSmoothOrDeriv( false, wavelength / 2.0, 4 );
+      #endif  //#ifndef __GSL_BSPLINE_H__
+      break;
+      
+    case NoSmoothing:
+      break;
+  };//switch( smoothType )
+  
+  return smoothedGraph;
+}//ConsentrationGraph::getSmoothedGraph
+
+
+ConsentrationGraph 
+ConsentrationGraph::getDerivativeGraph( double wavelength, 
+                                        SmoothingAlgo smoothType) const
+{
+  ConsentrationGraph derivGraph( *this );
+    
+  switch( smoothType )
+  {
+    case FourierSmoothing: 
+      break;
+      
+    case ButterworthSmoothing:
+      break;
+      
+    case BSplineSmoothing:
+      #ifndef __GSL_BSPLINE_H__
+        assert(0);
+      #else
+
+      #endif  //#ifndef __GSL_BSPLINE_H__
+      break;
+      
+    case NoSmoothing:
+      break;
+  };//switch( smoothType )
+  return *this;
+}//ConsentrationGraph::getDerivativeGraph
+
+
+//see below link for good summary of numerical differentiation
+// http://www.physics.arizona.edu/~restrepo/475A/Notes/sourcea/node39.html#dint5
+void 
+ConsentrationGraph::differntiate( int nPoint )
+{
+  removeNonInfoAddingPoints();
+  
+  if( empty() )
+  {
+    m_graphType = BloodGlucoseConcenDeriv;
+    return;
+  }//don't do anything if there is no data
+  
+  if( size() <= nPoint )//we don't need the equal, but so what
+  {
+    cerr << "differntiate(): I can't take " << nPoint 
+         << "-point derivative of a graph with "
+         << size() << " data points" << endl;
+    exit(1);
+  }//if( size() <= nPoint )
+  
+  const double h = getMostCommonDt();
+  const double t0 = begin()->m_minutes;
+  const double tEnd = getOffset( getEndTime() );
+  
+  if( (nPoint != 3) && (nPoint!=5) )
+  {
+    cerr << "You can only choose nPoint=3 or 5 when"
+         << " calling differntiate( nPoint)" << endl;
+    exit(1);
+  }//if( (nPoint != 3) && (nPoint!=5) )
+  
+  if( m_graphType != GlucoseConsentrationGraph )
+  {
+    cerr << "differentiation isn't allowed for grapgsof type "
+         << getGraphTypeStr() << endl;
+    exit(1);
+  }//if( we shouldn't take the derivative )
+    
+  //Change the type of the graph
+  m_graphType = BloodGlucoseConcenDeriv;
+    
+  GraphElementSet theDerivs;
+  
+  const double h0 = (nPoint == 3) ? h : 2.0*h;
+  double deriv = -999.9;
+  
+  //Okay now lets put in derivative of the first point
+  if( nPoint == 3 )
+  {
+    deriv = (-3.0*value(t0) + 4.0*value(t0+h) - value(t0+2.0*h)) / (2.0 * h);
+  }else if( nPoint == 5 )
+  {
+    deriv = ( -25.0*value(t0) + 48.0*value(t0+h) - 36.0*value(t0+2.0*h)
+              + 16.0*value(t0+3.0*h) - 3.0*value(t0+4*h)) / (12.0*h);
+  }else assert(0);
+  
+  theDerivs.insert( GraphElement( t0, deriv ) );
+  
+  //Okay, now loop over the time between the start and end times
+  for( double t = t0+h0; t <= (tEnd-h); t += h0 )
+  {
+    if( nPoint == 3 )
+    {
+      deriv = ( value(t + h) - value(t - h) ) / (2.0*h);
+    }else if( nPoint == 5 )
+    {
+      deriv = ( value(t-(2.0*h)) - 8.0*value(t-h) 
+                + 8.0*value(t+h) - value(t+(2.0*h)) ) / (12.0*h);
+    }else assert(0);
+    
+    theDerivs.insert( GraphElement( t, deriv ) );
+  }//for( loop over all times of graph, except endpoints P
+  
+  
+  //Okay now lets put in derivative of the last point, 
+  //  we have to use 3-point formula
+  deriv = (value(tEnd-2.0*h) - 4.0*value(tEnd-h) + 3.0*value(tEnd)) / (2.0 * h);
+  theDerivs.insert( GraphElement( tEnd, deriv ) );
+    
+  //remove all the current data points
+  clear();
+  
+  foreach( const GraphElement &e, theDerivs ) insert( e.m_minutes, e.m_value );
+  
+}//differntiate( int )
+
+
+
+double 
+ConsentrationGraph::bSplineSmoothOrDeriv(  bool takeDeriv, 
+                                           double knotDist, int splineOrder )
+{
+#ifndef __GSL_BSPLINE_H__
+    cerr << "You may not call bSplineSmoothOrDeriv(...) unless your using GSL" 
+         << endl;
+    assert(0);
+    if( takeDeriv ) knotDist = (double)splineOrder; //Just to keep from geting warnings
+    return 0.0;
+#endif
+  const double readingUncert = 0.025;
+  const double graphDuration = getOffset(getEndTime()) - getOffset(getT0());
+  
+  const size_t n = size();
+  const size_t nKnots = ceil( graphDuration / knotDist );
+  const size_t nbreak = nKnots + 2 - splineOrder;
+       
+  gsl_rng_env_setup();
+  gsl_rng *r = gsl_rng_alloc(gsl_rng_default);
+  gsl_bspline_workspace *bw = gsl_bspline_alloc(splineOrder, nbreak);
+  gsl_vector *B = gsl_vector_alloc(nKnots);
+  gsl_vector *x = gsl_vector_alloc(n);
+  gsl_vector *y = gsl_vector_alloc(n);
+  gsl_matrix *X = gsl_matrix_alloc(n, nKnots);
+  gsl_vector *c = gsl_vector_alloc(nKnots);
+  gsl_vector *w = gsl_vector_alloc(n);
+  gsl_matrix *cov = gsl_matrix_alloc(nKnots, nKnots);
+  gsl_multifit_linear_workspace *mw = gsl_multifit_linear_alloc(n, nKnots);
+  const size_t nCoef = gsl_bspline_ncoeffs( bw );
+  gsl_matrix *dB = gsl_matrix_alloc( nCoef, 2);
+  gsl_vector *derivs = gsl_vector_alloc( nCoef );
+  gsl_bspline_deriv_workspace *derivWS = gsl_bspline_deriv_alloc(splineOrder);
+
+  
+  size_t position = 0;
+  ConstGraphIter iter;
+  for( iter = begin(); iter != end(); ++iter )
+  {
+    double weight = 1.0 / pow( readingUncert*iter->m_value, 2 );
+    gsl_vector_set(x, position, iter->m_minutes);
+    gsl_vector_set(y, position, iter->m_value);
+    gsl_vector_set(w, position, weight);
+    ++position;
+  }//for( loop over base points )
+  
+  // use uniform breakpoints
+  gsl_bspline_knots_uniform(getOffset(getT0()), getOffset(getEndTime()), bw);
+     
+  // construct the fit matrix X 
+  for( size_t i = 0; i < n; ++i )
+  {
+    double xi = gsl_vector_get(x, i);
+    gsl_bspline_eval(xi, B, bw); //compute B_j(xi) for all j
+     
+    for( size_t j = 0; j < nKnots; ++j) //fill in row i of X
+    {
+      double Bj = gsl_vector_get(B, j);
+      gsl_matrix_set(X, i, j, Bj);
+    }//for( loop over the coeficients )
+  }//for( loop over the time points )
+     
+  /* do the fit */
+  double chisq = -999;
+  const double dof = n - nKnots;
+  gsl_multifit_wlinear(X, w, y, c, cov, &chisq, mw);
+  
+    
+  const double dt = getMostCommonDt();
+  const double t0 = begin()->m_minutes;
+  const double tEnd = getOffset(getEndTime());
+  
+  clear(); //removeall data points
+  
+  if( takeDeriv )
+  {
+    insert( t0, 0.0 );
+    for( double time = t0 + 0.5*dt; time < (tEnd - 0.5*dt); time += dt)
+    {
+      double deriv = 0.0; //lets avearge the derivative over the 
+      
+      for( int i=-5; i<=4; ++i )
+      {  
+        double dydt = 0.0, error=0.0;
+        double t = time + dt * i/10.0;
+        gsl_bspline_deriv_eval(t, 1, dB, bw, derivWS);
+        gsl_matrix_get_col(derivs, dB, 1);
+        gsl_multifit_linear_est(derivs, c, cov, &dydt, &error);
+        deriv += dydt;
+      }//for( loop over the sub times )
+      
+      insert( time, deriv/9.0 );
+    }//for( loop over time this graph is defined for )
+  }else
+  {
+    for( double time = t0; time <= tEnd; time += dt)
+    {
+      double val = 0.0, valErr= 0.0;
+      gsl_bspline_eval(time, B, bw);
+      gsl_multifit_linear_est(B, c, cov, &val, &valErr);
+      insert( time, val );
+    }//for( loop over time this graph is defined for )
+  }//if( takeDeriv ) / else
+  
+  gsl_rng_free(r);
+  gsl_vector_free(x);
+  gsl_vector_free(y);
+  gsl_matrix_free(X);
+  gsl_vector_free(w);
+  gsl_multifit_linear_free(mw);
+  gsl_matrix_free(cov);
+  gsl_matrix_free(dB);
+  gsl_vector_free(B);
+  gsl_vector_free(c);
+  gsl_vector_free(derivs);
+  gsl_bspline_free(bw);
+  gsl_bspline_deriv_free( derivWS );
+  
+  
+  if( takeDeriv )
+  {
+    if( m_graphType != GlucoseConsentrationGraph )
+    {
+      cerr << "differentiation isn't allowed for grapgsof type "
+           << getGraphTypeStr() << endl;
+      exit(1);
+    }//if( we shouldn't have taken the derivative )
+    
+    m_graphType = BloodGlucoseConcenDeriv;
+  }//if( takeDeriv )
+  
+  return chisq / dof;
+}//bSplineDerivative
+
+
+
+
+
+
+void ConsentrationGraph::fastFourierSmooth( double lambda_min, double time_window )
+{ 
+  removeNonInfoAddingPoints();
+ 
+  if( empty() ) return;
+  
+  GraphElementSet xFormResult;
+  
+  //Since this is primarily intended for CGMS readings, using a dt of the 
+  //  most common time would be adequate.
+  const double dt = getMostCommonDt();
+  const double freq_max = dt / lambda_min;
+  
+  const double t0 = this->begin()->m_minutes;
+  const double totalTime = getOffset(getEndTime()) - t0;
+ 
+  // if((time_window > totalTime) || (time_window <= 0.0))
+  if(time_window >= 0.0) cout << "I am ignoring your time_window request" << endl;
+  
+  time_window = totalTime;
+
+  const int nPoints = floor( totalTime / dt ); //we might miss a litle info
+  int pointsPerWindow = floor( time_window / dt );
+  const int nWindows = nPoints / pointsPerWindow;  
+    
+  double *xAxis = new double[pointsPerWindow];
+  double *input = new double[pointsPerWindow];
+  double *xformed_real = new double [pointsPerWindow];
+  double *xformed_imag = new double [pointsPerWindow];
+ 
+  
+  for( int window=0; window < nWindows; ++window )
+  {
+    for( int point = 0; point < pointsPerWindow; ++point )
+    {
+      const unsigned int discreetT = point + window*pointsPerWindow;
+      const double t = t0 + discreetT*dt;
+      xAxis[point] = t;
+      input[point] = value(t);
+    }//for
+    
+    
+    TVirtualFFT *fft_own = TVirtualFFT::FFT(1, &pointsPerWindow, "R2C");
+    fft_own->SetPoints(input);
+    fft_own->Transform();
+    fft_own->GetPointsComplex(xformed_real, xformed_imag);
+
+    //Below is just a guess as to how to filter off unwanted frequencies
+    int highestBin = freq_max * pointsPerWindow;
+    // cout << "removing bins>=" << highestBin << endl;
+    for( int point = highestBin; point < pointsPerWindow; ++point )
+    {
+      xformed_real[point] = 0.0;
+      xformed_imag[point] = 0.0;
+    }
+    
+    TVirtualFFT *fft_back = TVirtualFFT::FFT(1, &pointsPerWindow, "C2R");
+    fft_back->SetPointsComplex(xformed_real, xformed_imag);
+    fft_back->Transform();
+    fft_back->GetPoints(input);
+
+    for( int point = 0; point < pointsPerWindow; ++point )
+    {
+      double val = input[point]/pointsPerWindow;
+      xFormResult.insert( GraphElement( xAxis[point], val ) );
+    }//
+  }//for( loop over the time of the graph )
+  
+  // delete fft_own;
+  // delete fft_back;
+  delete [] xAxis;
+  delete [] input;
+  delete [] xformed_real;
+  delete [] xformed_imag;
+ 
+  std::set<GraphElement>::erase( begin(), end() );
+  std::set<GraphElement>::insert( xFormResult.begin(), xFormResult.end() );
+}//void fastFourierSmooth( double ohmega_min = 20.0, double time_window = 180.0 )
+
+
+
+//Butterworth filter adapter from code found at:
+//  http://pagesperso-orange.fr/jean-pierre.moreau/Cplus/tfilters_cpp.txt
+//Calc Butterworth coef
+void ConsentrationGraph::calcButterworthCoef(double cuttOffFrequ, double samplingTime, 
+                                     int filterOrder, Filter_Coef C,
+                                     int *NSections, double *groupDelay )  
+{
+  const double Pi = M_PI; //3.1415926535;
+  
+  *groupDelay=0.0;
+  
+  double Arg = Pi * samplingTime * cuttOffFrequ;
+  
+  if( fabs(samplingTime * cuttOffFrequ) > 2.0 ) 
+  {
+    Arg -= 2.0 * Pi * floor(samplingTime * cuttOffFrequ/2.0);
+    cout << "Butterworth(...): You can't filter at a frequency higher than 1/2"
+         << " the sampling freuency, instead I will filter at" 
+         << Arg / Pi / samplingTime << "Hz" << endl;
+  }//if( asking to filter something higher than one-half the sampling frequency )
+  
+  const double Omega = tan( Arg );   
+  const double OmegaSq = Omega * Omega;
+  const double temp = (filterOrder%2) ? 0.0 : 0.5;
+  
+  int Ns2 = filterOrder/2;
+  *NSections = Ns2 + (filterOrder % 2);
+  
+  if (filterOrder>1) 
+  {
+    for( int i=1; i<Ns2+1; i++ ) 
+    {
+      double Rep = Omega * cos( Pi*(i-temp)/filterOrder );
+      *groupDelay = *groupDelay + (samplingTime * Rep) / OmegaSq;
+      const double W0=2.0*Rep;
+      const double W1=1.0 +W0+OmegaSq;
+      C[1][i] = -2.0*(OmegaSq-1.0)/W1;
+      C[2][i] = -(1.0-W0+OmegaSq)/W1;
+      C[3][i] = 2.0;
+      C[4][i] = 1.0;
+      C[5][i] = OmegaSq/W1;
+    }
+    
+    if( temp == 0.0 ) 
+    {
+      C[1][*NSections]=(1.0-Omega)/(1.0+Omega);
+      C[2][*NSections]= 0.0;
+      C[3][*NSections]= 1.0;
+      C[4][*NSections]= 0.0;
+      C[5][*NSections]= Omega/(1.0+Omega);
+      *groupDelay= *groupDelay+samplingTime/(2.0*Omega);
+    }//if( 1st or 3rd order filter )
+  }//if (filterOrder>1) 
+} // Butterworth()
+
+
+/**********************************************************************
+*          Filtering a signal F(t) by Butterworth method              *
+*             (removing frequencies greater then Fc)                  *
+* ------------------------------------------------------------------- */
+void ConsentrationGraph::butterworthFilter( double *Xs,double Xd, int NSections,
+ 	                                          Filter_Coef C, Memory_Coef D )  
+{
+  double x = Xd;
+  
+  for( int i=1; i<NSections+1; i++) 
+  {
+    double err = x+C[1][i]*D[1][i]+C[2][i]*D[2][i];
+    double y = C[5][i]*(err +C[3][i]*D[1][i]+C[4][i]*D[2][i]);
+    D[2][i]=D[1][i];
+    D[1][i]=err;
+    x=y;
+  }
+  
+  *Xs=x;
+}//butterworthFilter
+
+
+//INIT FILTER PROCEDURE
+void ConsentrationGraph::butterworthInit( double Xdc, Filter_Coef C, 
+                                          int NSections, Memory_Coef D ) 
+{
+  double dc=Xdc;
+  for( int j=1; j<NSections+1; j++) 
+  {
+    D[2][j]=dc/(1-C[1][j]-C[2][j]);
+    D[1][j]=D[2][j];
+    
+    double Csum=0;
+    for( int i=1; i<5; i++) Csum = Csum + C[i][j];
+    
+    dc = C[5][j] * (dc+D[2][j]*Csum);
+  } //j loop
+} // butterworthInit()
+
+
+
+void ConsentrationGraph::butterWorthFilter( double timescale, int filterOrder )
+{
+  removeNonInfoAddingPoints();
+ 
+  if( empty() ) return;
+  
+  GraphElementSet xFormResult;
+  
+  const double dt = getMostCommonDt();
+  const double t0 = this->begin()->m_minutes;
+  const double totalTime = getOffset(getEndTime()) - t0;
+  const int totalPoints = totalTime / dt + 1;
+  
+  double *input = new double[totalPoints+1];
+  
+  for( int point = 0; point <= totalPoints; ++point )
+  {
+    const double t = t0 + point*dt;
+    input[point] = value(t);
+  }//for
+  
+  //input cut off frequencys and order of filter (1 to 4)
+  double cuttOffFreq = 1.0 / timescale; 
+  Filter_Coef C;  //determines how the filter filters
+  Memory_Coef D;  //to storeinfo for use in butterworthFilter(...)
+  int      NSections; //Number of required 2nd order sections (integer)
+  double   timeDelay; //The butter worth filter introduces a timedelay we must corect for
+  
+  
+  // 1. Calculate the filter coefficients
+  calcButterworthCoef( cuttOffFreq, dt, filterOrder, C, &NSections, &timeDelay);
+
+  // 2. Initialize filter memory
+  butterworthInit( value(t0), C, NSections, D);
+
+  // 3. Recursively call Butterworth filter
+  for( int point=0; point<=totalPoints; ++point) 
+  {
+    double val = 0.0;
+    const double t = t0 + point*dt;
+    butterworthFilter(&val, input[point], NSections, C, D);
+    xFormResult.insert( GraphElement( t - timeDelay, val ) );
+  }//for( loop over data points )
+  
+  delete [] input;
+ 
+  std::set<GraphElement>::erase( begin(), end() );
+  std::set<GraphElement>::insert( xFormResult.begin(), xFormResult.end() );
+}//
+
+
+
+
 TGraph *ConsentrationGraph::getTGraph() const
 {
   unsigned int nPoints = size(); //(((int)duration) / 1);
@@ -751,6 +1298,10 @@ TGraph *ConsentrationGraph::getTGraph() const
       graphTitle = "Carbohydrates Consumed" + graphTitle;
     break;
     
+    case BloodGlucoseConcenDeriv:
+      graph->GetYaxis()->SetTitle( "#frac{dG^{blood}}{dt} (mg/dl/min)" ); 
+      // graph->GetYaxis()->SetTitleOffset(0.1);
+      graphTitle = "Change in Glucose Concentration" + graphTitle;
     case NumGraphType:
       graph->GetYaxis()->SetTitle( "" ); 
     break;
@@ -823,6 +1374,9 @@ TGraph* ConsentrationGraph::draw( string options,
     
     case GlucoseConsumptionGraph:
       if( options == "" ) options += "A*";
+    break;
+    
+    case BloodGlucoseConcenDeriv:
     break;
     
     case NumGraphType:
@@ -902,6 +1456,7 @@ AbsFuncPointer ConsentrationGraph::getFunctionPointer(
           
         case BolusGraph:
         case GlucoseConsumptionGraph:
+        case BloodGlucoseConcenDeriv:
         case NumGraphType:
         assert(0);
       };//switch( m_graphType )
