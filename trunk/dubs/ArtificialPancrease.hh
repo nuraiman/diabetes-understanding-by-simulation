@@ -2,8 +2,8 @@
 #define ARTIFICIAL_PANCREASE_HH
 
 //Started Thursday April 23 2009 -- Will Johnson
-#include "boost/function.hpp"
 #include "boost/date_time/posix_time/posix_time.hpp"
+
 
 
 const double kFailValue = -9999.9;
@@ -26,7 +26,16 @@ const boost::posix_time::ptime kGenericT0( boost::gregorian::date(1982,
 
 namespace PersonConstants
 {
-  const double kPersonsWeight = 78.0; //kg
+  extern double kPersonsWeight; //kg, command line '--weight=78', or '-kg 78'
+  extern double kBasalGlucConc; //
 };//namespace PersonConstants
+
+
+namespace ModelDefaults
+{
+  extern double kDefaultCgmsDelay; //minutes, command line '--cgmsdelay=15'
+  extern double kCgmsIndivReadingUncert;
+};//namespace ModelDefaults
+
 
 #endif //ARTIFICIAL_PANCREASE_HH 

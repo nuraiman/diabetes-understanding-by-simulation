@@ -161,6 +161,14 @@ std::string ConsentrationGraph::getGraphTypeStr() const
 double ConsentrationGraph::getDt() const { return m_dt; }
 boost::posix_time::ptime ConsentrationGraph::getT0() const { return m_t0; }
 
+boost::posix_time::ptime ConsentrationGraph::getStartTime() const
+{
+  if( empty() ) return m_t0;
+  
+  return getAbsoluteTime( begin()->m_minutes );
+}//getStartTime
+
+
 
 boost::posix_time::ptime ConsentrationGraph::getEndTime() const
 {
@@ -221,8 +229,8 @@ double ConsentrationGraph::valueUsingOffset( double nOffsetminutes ) const
 
 double ConsentrationGraph::value( double nOffsetminutes ) const
 {
-  if( !size() ) return 0.0;
-  if( nOffsetminutes < 0.0 ) return 0.0;
+  if( empty() ) return 0.0;
+  if( nOffsetminutes < begin()->m_minutes ) return 0.0;
   
   //upper_bound returns element right past where 'nOffsetminutes' would be
   ConstGraphIter lowerBound = GraphElementSet::lower_bound( GraphElement(nOffsetminutes, 0.0) );
@@ -680,7 +688,7 @@ ConsentrationGraph::getSmoothedGraph( double wavelength,
       #ifndef __GSL_BSPLINE_H__
         assert(0);
       #else
-      smoothedGraph.bSplineSmoothOrDeriv( false, wavelength / 2.0, 4 );
+      smoothedGraph.bSplineSmoothOrDeriv( false, wavelength / 2.0, 6 );
       #endif  //#ifndef __GSL_BSPLINE_H__
       break;
       
@@ -701,23 +709,28 @@ ConsentrationGraph::getDerivativeGraph( double wavelength,
   switch( smoothType )
   {
     case FourierSmoothing: 
+      derivGraph.fastFourierSmooth( wavelength );
+      derivGraph.differntiate(5);
       break;
       
     case ButterworthSmoothing:
+      derivGraph.butterWorthFilter( wavelength, 4 );
+      derivGraph.differntiate(5);
       break;
       
     case BSplineSmoothing:
       #ifndef __GSL_BSPLINE_H__
         assert(0);
       #else
-
+      derivGraph.bSplineSmoothOrDeriv( true, wavelength / 2.0, 6 );
       #endif  //#ifndef __GSL_BSPLINE_H__
       break;
       
     case NoSmoothing:
       break;
   };//switch( smoothType )
-  return *this;
+  
+  return derivGraph;
 }//ConsentrationGraph::getDerivativeGraph
 
 
@@ -728,13 +741,17 @@ ConsentrationGraph::differntiate( int nPoint )
 {
   removeNonInfoAddingPoints();
   
+  m_yOffsetForDrawing = 0.0;
+  
+  assert( nPoint > 0 );
+  
   if( empty() )
   {
     m_graphType = BloodGlucoseConcenDeriv;
     return;
   }//don't do anything if there is no data
   
-  if( size() <= nPoint )//we don't need the equal, but so what
+  if( size() <= (unsigned int)nPoint )//we don't need the equal, but so what
   {
     cerr << "differntiate(): I can't take " << nPoint 
          << "-point derivative of a graph with "
@@ -821,7 +838,7 @@ ConsentrationGraph::bSplineSmoothOrDeriv(  bool takeDeriv,
     if( takeDeriv ) knotDist = (double)splineOrder; //Just to keep from geting warnings
     return 0.0;
 #endif
-  const double readingUncert = 0.025;
+  const double readingUncert = ModelDefaults::kCgmsIndivReadingUncert;
   const double graphDuration = getOffset(getEndTime()) - getOffset(getT0());
   
   const size_t n = size();
@@ -886,6 +903,7 @@ ConsentrationGraph::bSplineSmoothOrDeriv(  bool takeDeriv,
   
   if( takeDeriv )
   {
+    m_yOffsetForDrawing = 0.0;
     insert( t0, 0.0 );
     for( double time = t0 + 0.5*dt; time < (tEnd - 0.5*dt); time += dt)
     {
@@ -1325,11 +1343,12 @@ TGraph *ConsentrationGraph::getTGraph() const
 
 
 
-void ConsentrationGraph::setYOffsetForDrawing( double yOffset )
+void ConsentrationGraph::setYOffset( double yOffset )
 {
   m_yOffsetForDrawing = yOffset;
 }//setYOffsetForDrawing
 
+double ConsentrationGraph::getYOffset() const {return m_yOffsetForDrawing;}
 
 
 //Forms a TGraph and draws on current active TPad (gPad)
