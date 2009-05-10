@@ -38,6 +38,9 @@ using namespace boost::posix_time;
 
 extern TApplication *gTheApp;
 
+//To make the code prettier
+#define foreach         BOOST_FOREACH
+#define reverse_foreach BOOST_REVERSE_FOREACH
 
 
 /*
@@ -65,7 +68,7 @@ NLSimple::NLSimple( const NLSimple &rhs ) :
 
 NLSimple::NLSimple( const string &description, double basalUnitsPerKiloPerhour,
                     double basalGlucoseConcen, boost::posix_time::ptime t0 ) :
-     m_description(description), m_cgmsDelay(15.0),
+m_description(description), m_cgmsDelay(ModelDefaults::kDefaultCgmsDelay),
      m_basalInsulinConc( getBasalInsulinConcentration(basalUnitsPerKiloPerhour) ),
      m_basalGlucoseConcentration( basalGlucoseConcen ), 
      m_t0( t0 ),
@@ -523,14 +526,188 @@ double NLSimple::performModelGlucosePrediction( boost::posix_time::ptime t_start
 
 
 
+double NLSimple::getModelChi2( double fracDerivChi2,
+                               boost::posix_time::ptime t_start,
+                               boost::posix_time::ptime t_end )
+{
+  return getChi2ComparedToCgmsData( m_predictedBloodGlucose, fracDerivChi2, t_start, t_end );
+}//getModelChi2
+
+
+
+double NLSimple::getChi2ComparedToCgmsData( ConsentrationGraph &inputData,
+                                            double fracDerivChi2,
+                                            boost::posix_time::ptime t_start,
+                                            boost::posix_time::ptime t_end) 
+{
+  double chi2 = 0.0;
+  
+  const double origInputYOffset = inputData.getYOffset();
+  if( inputData.getYOffset() == 0.0 ) inputData.setYOffset(m_basalInsulinConc);
+  
+  if( fracDerivChi2 != 0.0 )
+  {
+    ConsentrationGraph modelDerivData = inputData.getDerivativeGraph(60.0, BSplineSmoothing);
+    ConsentrationGraph cgmsDerivData = m_cgmsData.getDerivativeGraph(60.0, BSplineSmoothing);
+    
+    double derivChi2 = getDerivativeChi2( modelDerivData, cgmsDerivData, t_start, t_end );
+    
+    chi2 += fracDerivChi2 * derivChi2;
+  }//if( fracDerivChi2 != 0.0 )
+  
+  if( fracDerivChi2 != 1.0 )
+  {
+    double magChi2 = getBgValueChi2( inputData, m_cgmsData, t_start, t_end );
+    chi2 += (1.0 - fracDerivChi2) * magChi2;
+  }//if( fracDerivChi2 != 1.0 )
+  
+  inputData.setYOffset(origInputYOffset);
+  
+  return chi2;
+}//getChi2ComparedToCgmsData(...)
+
+
+double NLSimple::getBgValueChi2( const ConsentrationGraph &modelData,
+                                 const ConsentrationGraph &cgmsData,
+                                 boost::posix_time::ptime t_start,
+                                 boost::posix_time::ptime t_end ) const
+{
+  using namespace boost::gregorian;
+  const double fracUncert = ModelDefaults::kCgmsIndivReadingUncert;
+  
+  const time_duration cgmsDelay = modelData.getAbsoluteTime(m_cgmsDelay)  
+                                   - modelData.getAbsoluteTime(0);
+  
+  const ptime effCgmsStart = cgmsData.getStartTime() - cgmsDelay;
+  const ptime effCgmsEnd = cgmsData.getEndTime() - cgmsDelay;
+  
+  if( t_start == kGenericT0 ) 
+    t_start = max( modelData.getStartTime(), effCgmsStart);
+  
+  if( t_end == kGenericT0 ) 
+    t_end = min( modelData.getEndTime(), effCgmsEnd);
+  
+  
+  if( t_start < effCgmsStart || t_end > effCgmsEnd )
+  {
+    cout << "NLSimple::getBgValueChi2(...): You spefied to start at "
+         << t_start << " but cgms data starts at " << cgmsData.getStartTime()
+         << ", you wnated end time " << t_end << " cgms data ends at "
+         << cgmsData.getEndTime() << endl;
+    exit(1);
+  }//if( bad range of times )
+  
+  if( t_start < modelData.getStartTime() || t_end > modelData.getEndTime() )
+  {
+    cout << "NLSimple::getBgValueChi2(...): Warning, model data doesn't extend"
+         << " for full time of " << t_start << " to " << t_end << " am assuming"
+         << " basal glucose consentrations for these values" << endl;
+  }//if( model data doesnt' extend everywhere )
+  
+  cout << "About to find magnitude based chi2 between " << t_start << " and "
+       << t_end << endl;
+       
+  double chi2 = 0.0;
+  
+  double offset = cgmsData.getOffset(t_start + cgmsDelay);
+  ConstGraphIter start = cgmsData.lower_bound( GraphElement( offset, 0 ) );
+  offset = cgmsData.getOffset(t_end + cgmsDelay);
+  ConstGraphIter end = cgmsData.upper_bound( GraphElement( offset, 0 ) );
+  
+  for( ConstGraphIter iter = start; iter != end; ++iter )
+  {
+    const ptime time = cgmsData.getAbsoluteTime( iter->m_minutes ) - cgmsDelay;
+    const double cgmsValue  = iter->m_value;
+    if( cgmsValue == 0.0 ) continue;
+    const double modelValue =  modelData.value(time); //+modelData.getYOffset()
+    const double uncert = fracUncert*cgmsValue;
+    
+    // cout << time << ": modelValue=" << modelValue << ", cgmsValue=" <<cgmsValue 
+          // << ", uncert=" << uncert << endl;
+    chi2 += pow( (modelValue - cgmsValue) / uncert, 2 );
+  }//for( loop over cgms data points )
+  
+  
+  return chi2;
+}//getBgValueChi2
 
 
 
 
-double NLSimple::getChi2ComparedToCgmsData( const ConsentrationGraph &inputData,
-                                  boost::posix_time::ptime t_start,
-                                  boost::posix_time::ptime t_end) {assert(0);return 1;}
+//Below gives chi^2 based on the differences in derivitaves of graphs
+double NLSimple::getDerivativeChi2( const ConsentrationGraph &modelDerivData,
+                                    const ConsentrationGraph &cgmsDerivData,
+                                    boost::posix_time::ptime t_start,
+                                    boost::posix_time::ptime t_end ) const
+{
+  assert( modelDerivData.getGraphType() == cgmsDerivData.getGraphType() );
+  using namespace boost::gregorian;
+  
+  const time_duration cgmsDelay = modelDerivData.getAbsoluteTime(m_cgmsDelay)  
+                                   - modelDerivData.getAbsoluteTime(0);
+  
+  const ptime effCgmsStart = cgmsDerivData.getStartTime() - cgmsDelay;
+  const ptime effCgmsEnd = cgmsDerivData.getEndTime() - cgmsDelay;
+  
+  if( t_start == kGenericT0 ) 
+    t_start = max( modelDerivData.getStartTime(), effCgmsStart);
+  
+  if( t_end == kGenericT0 ) 
+    t_end = min( modelDerivData.getEndTime(), effCgmsEnd);
 
+  
+  if( modelDerivData.getGraphType() != BloodGlucoseConcenDeriv )
+  {
+    cout << "NLSimple::getDerivativeChi2(...): You passed in graphs of type "
+         << modelDerivData.getGraphTypeStr() << " I need type"
+         << "BloodGlucoseConcenDeriv" << endl;
+    exit(1);
+  }//if( wrong graph type )
+    
+  
+  if( t_start < effCgmsStart || t_end > effCgmsEnd )
+  {
+    cout << "NLSimple::getDerivativeChi2(...): You spefied to start at "
+         << t_start << " but cgms data starts at " << cgmsDerivData.getStartTime()
+         << ", you wnated end time " << t_end << " cgms data ends at "
+         << cgmsDerivData.getEndTime() << endl;
+    exit(1);
+  }//if( bad range of times )
+  
+  if( t_start < modelDerivData.getStartTime() || t_end > modelDerivData.getEndTime() )
+  {
+    cout << "NLSimple::getDerivativeChi2(...): Warning, model data doesn't extend"
+         << " for full time of " << t_start << " to " << t_end << " am assuming"
+         << " basal glucose consentrations for these values" << endl;
+  }//if( model data doesnt' extend everywhere )
+
+  cout << "About to find slope based chi2 between " << t_start << " and "
+       << t_end << endl;
+       
+  const double fracUncert = ModelDefaults::kCgmsIndivReadingUncert;
+  
+  double chi2 = 0.0;
+  
+  double offset = cgmsDerivData.getOffset(t_start + cgmsDelay);
+  ConstGraphIter start = cgmsDerivData.lower_bound( GraphElement( offset, 0 ) );
+  offset = cgmsDerivData.getOffset(t_end + cgmsDelay);
+  ConstGraphIter end = cgmsDerivData.upper_bound( GraphElement( offset, 0 ) );
+  
+  for( ConstGraphIter iter = start; iter != end; ++iter )
+  {
+    const ptime time = cgmsDerivData.getAbsoluteTime( iter->m_minutes ) - cgmsDelay;
+    const double cgmsValue  = iter->m_value;
+    const double modelValue = modelDerivData.value(time);
+    const double uncert = fracUncert*cgmsValue;
+    
+    chi2 += pow( (modelValue - cgmsValue), 2 );
+  }//for( loop over cgms data points )
+  
+  
+  return chi2;
+}//getDerivativeChi2
+    
+    
 double NLSimple::fitModelToData( std::vector<TimeRange> timeRanges ) {assert(0);return 1;}
 
 

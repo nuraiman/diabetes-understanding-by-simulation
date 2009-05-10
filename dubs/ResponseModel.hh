@@ -66,7 +66,7 @@ class NLSimple
     
     NLSimple( const std::string &description = "", 
               double basalUnitsPerKiloPerhour = 0.9,
-              double basalGlucoseConcen = 120.0, 
+              double basalGlucoseConcen = PersonConstants::kBasalGlucConc, 
               boost::posix_time::ptime t0 = kGenericT0 );
     const NLSimple &operator=( const NLSimple &rhs );
     
@@ -113,9 +113,27 @@ class NLSimple
                                           double bloodGlucose_initial = kFailValue,
                                           double bloodX_initial = kFailValue      );
     
-    double getChi2ComparedToCgmsData( const ConsentrationGraph &inputData,
+    double getModelChi2( double fracDerivChi2 = 0.0,
+                         boost::posix_time::ptime t_start = kGenericT0,
+                         boost::posix_time::ptime t_end = kGenericT0 );
+    
+    double getChi2ComparedToCgmsData( ConsentrationGraph &inputData,
+                                      double fracDerivChi2 = 0.0,
                                       boost::posix_time::ptime t_start = kGenericT0,
                                       boost::posix_time::ptime t_end = kGenericT0 );
+    
+    //Below gives chi^2 based only on height differences of graphs
+    double getBgValueChi2( const ConsentrationGraph &modelData,
+                           const ConsentrationGraph &cgmsData,
+                           boost::posix_time::ptime t_start,
+                           boost::posix_time::ptime t_end ) const;
+    //Below gives chi^2 based on the differences in derivitaves of graphs
+    double getDerivativeChi2( const ConsentrationGraph &modelDerivData,
+                              const ConsentrationGraph &cgmsDerivData,
+                              boost::posix_time::ptime t_start,
+                              boost::posix_time::ptime t_end ) const;
+    //want to add a variable binning chi2
+    
     
     double fitModelToData( std::vector<TimeRange> timeRanges = std::vector<TimeRange>(0) );
     

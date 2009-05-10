@@ -282,6 +282,8 @@ double dG_dT( double time,
 {
   assert( G_parameter.size() == 2 );
   
+  I_basal = I_basal; //just to keep compiler from complaining
+  
   double dGdT = (-G_parameter[0]*G) - X*(G + G_basal) + G_parameter[1] * D(time);// + G_parameter[1]*I_basal;
     
   return dGdT;

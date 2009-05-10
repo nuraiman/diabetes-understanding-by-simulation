@@ -39,6 +39,7 @@
 #include "ConsentrationGraph.hh"
 #include "ArtificialPancrease.hh"
 #include "CgmsDataImport.hh"
+#include "ProgramOptions.hh"
 
 TApplication *gTheApp = (TApplication *)NULL;
 
@@ -48,7 +49,14 @@ using namespace std;
 void setStyle();
 
 void testFFT();
+void testSmoothing();
 void saveMar31ThorughApr7GraphsToDisk();
+
+//these variable get values through ProgramOptions
+double PersonConstants::kPersonsWeight  = kFailValue;
+double PersonConstants::kBasalGlucConc  = kFailValue;
+double ModelDefaults::kDefaultCgmsDelay = kFailValue;
+double ModelDefaults::kCgmsIndivReadingUncert = kFailValue;
 
 int main( int argc, char** argv )
 {
@@ -57,70 +65,38 @@ int main( int argc, char** argv )
   using namespace boost::gregorian;
   
   setStyle();
+  ProgramOptions::decodeOptions( argc, argv );
   
-  // void testFFT();
-  
-  const double kMyWieght = 78.0; //kg
-  
+  //void testSmoothing();
+  // void testFFT();  
   // saveMar31ThorughApr7GraphsToDisk();
-  
-  ConsentrationGraph mmData( "../data/mmCgmsData_march31_April7.txt" );
-  
-  ConsentrationGraph bSlpineDiffData = mmData;
-  bSlpineDiffData.bSplineSmoothOrDeriv( true, 30, 6 );
-  
-  ConsentrationGraph bSplineSmoothThenDiffData = mmData;
-  bSplineSmoothThenDiffData.bSplineSmoothOrDeriv( false, 30, 6 );
-  bSplineSmoothThenDiffData.differntiate(5);
-  
-  ConsentrationGraph butterSmoothThenDiffData = mmData;
-  butterSmoothThenDiffData.butterWorthFilter( 60, 4 );
-  butterSmoothThenDiffData.differntiate(5);
-  // new TCanvas();
-  mmData.draw("", "", false, 1);
-  new TCanvas();
-  bSlpineDiffData.draw( "Al", "", false, 1 );
-  bSplineSmoothThenDiffData.draw( "l", "", false, 2 );
-  butterSmoothThenDiffData.draw( "l", "", true, 4 );
-  
-  
-  
-  ConsentrationGraph mmSmoothedData = mmData;
-  ConsentrationGraph mmSmoothedFFT = mmData;
-  
-  
-  
-  // mmData.draw("", "", false, 1);
-  // mmSmoothedData.butterWorthFilter( 60, 4 );
-  mmSmoothedFFT.bSplineSmoothOrDeriv( false, 30, 6 );
-  mmSmoothedFFT.differntiate(3);
-  mmSmoothedFFT.draw("Al", "smoothed", true, 2);
-  
-  mmSmoothedFFT.fastFourierSmooth( 30 );
-  mmSmoothedData.draw("l", "smoothed", false, 2);
-  mmSmoothedFFT.draw("l", "smoothed", true, 3);
-  ConsentrationGraph insulinGraph( "../data/insulinConcentration_march31_April7.txt" );
-  ConsentrationGraph carbAbsortionGraph( "../data/carbAbsorbtion_march31_April7.txt" );
-  ConsentrationGraph meterData1( "../data/meterData_march31_April7.txt" );
-  ConsentrationGraph bolusGraph( "../data/bolusData_march31_April7.txt" );
-  ConsentrationGraph conspumtionGraph( "../data/carbConsumption_march31_April7.txt" );
+  ConsentrationGraph mmData( "../data/mmCgmsData_march31_April7.dub" );
+  ConsentrationGraph insulinGraph( "../data/insulinConcentration_march31_April7.dub" );
+  ConsentrationGraph carbAbsortionGraph( "../data/carbAbsorbtion_march31_April7.dub" );
+  ConsentrationGraph meterData1( "../data/meterData_march31_April7.dub" );
+  ConsentrationGraph bolusGraph( "../data/bolusData_march31_April7.dub" );
+  ConsentrationGraph conspumtionGraph( "../data/carbConsumption_march31_April7.dub" );
   
   ptime t0 = conspumtionGraph.getT0();
   
   NLSimple model( "SimpleModel", 0.8, 120.0, t0 );
   model.addBolusData( bolusGraph );
+  mmData.bSplineSmoothOrDeriv( false, 30, 6 );
   model.addCgmsData( mmData );
   model.addGlucoseAbsorption( carbAbsortionGraph );
       
   vector<double> parms(NLSimple::NumNLSimplePars, 0.0);
   parms[NLSimple::BGMultiplier] = 0.0;
   parms[NLSimple::CarbAbsorbMultiplier] = 30.0 / 9.0;
-  parms[NLSimple::XMultiplier] = 0.035;
+  parms[NLSimple::XMultiplier] = 0.040;
   parms[NLSimple::PlasmaInsulinMultiplier] = 0.00015;
   
   model.setModelParameters( parms );
   model.performModelGlucosePrediction( t0, t0+hours(36) );
+  double chi2 = model.getModelChi2( 0.0 );
+  cout << "chi2=" << chi2 << endl;
   model.draw();
+  
   
   //ConsentrationGraph testGraph( t0, 1.0, InsulinGraph );
   //testGraph.add( 0.8 / kMyWieght, 300.0, NovologAbsorbtion );
@@ -132,7 +108,7 @@ int main( int argc, char** argv )
   static const double timeStep = 1.0;
   
   ConsentrationGraph glucAbs = yatesGlucoseAbsorptionRate( t0, glucose_equiv_carbs, t_assent, t_dessent, v_max, k_gut_absoption, timeStep );
-  ConsentrationGraph insConcen = novologConsentrationGraph( t0, 5.0/kMyWieght, timeStep );
+  ConsentrationGraph insConcen = novologConsentrationGraph( t0, 5.0/PersonConstants::kPersonsWeight, timeStep );
   
   // insConcen.draw();
   // glucAbs.draw();
@@ -181,6 +157,9 @@ int main( int argc, char** argv )
 }//main(...)
 
 
+
+
+
 void saveMar31ThorughApr7GraphsToDisk()
 {
   
@@ -201,7 +180,7 @@ void saveMar31ThorughApr7GraphsToDisk()
                                               // CgmsDataImport::MeterReading,
                                               // time_from_string(startDate),
                                               // time_from_string(endDate) );
-  // meterData.saveToFile( "data/meterData_march31_April7.txt" );
+  // meterData.saveToFile( "data/meterData_march31_April7.dub" );
   // meterData.draw( "A*" );
   
  
@@ -220,16 +199,55 @@ void saveMar31ThorughApr7GraphsToDisk()
   ConsentrationGraph insulinGraph = CgmsDataImport::bolusGraphToInsulinGraph( bolusGraph, PersonConstants::kPersonsWeight );
   ConsentrationGraph carbAbsortionGraph = CgmsDataImport::carbConsumptionToSimpleCarbAbsorbtionGraph( conspumtionGraph );
   
-  mmData.saveToFile( "../data/mmCgmsData_march31_April7.txt" );
-  meterData1.saveToFile( "../data/meterData_march31_April7.txt" );
-  bolusGraph.saveToFile( "../data/bolusData_march31_April7.txt" );
-  insulinGraph.saveToFile( "../data/insulinConcentration_march31_April7.txt" );
-  conspumtionGraph.saveToFile( "../data/carbConsumption_march31_April7.txt" );
-  carbAbsortionGraph.saveToFile( "../data/carbAbsorbtion_march31_April7.txt" );
+  mmData.saveToFile( "../data/mmCgmsData_march31_April7.dub" );
+  meterData1.saveToFile( "../data/meterData_march31_April7.dub" );
+  bolusGraph.saveToFile( "../data/bolusData_march31_April7.dub" );
+  insulinGraph.saveToFile( "../data/insulinConcentration_march31_April7.dub" );
+  conspumtionGraph.saveToFile( "../data/carbConsumption_march31_April7.dub" );
+  carbAbsortionGraph.saveToFile( "../data/carbAbsorbtion_march31_April7.dub" );
 
 }//saveMar31ThorughApr7GraphsToDisk
 
 
+
+void testSmoothing()
+{
+  ConsentrationGraph mmData( "../data/mmCgmsData_march31_April7.dub" );
+  
+  ConsentrationGraph bSlpineDiffData = mmData;
+  bSlpineDiffData.bSplineSmoothOrDeriv( true, 30, 6 );
+  
+  ConsentrationGraph bSplineSmoothThenDiffData = mmData;
+  bSplineSmoothThenDiffData.bSplineSmoothOrDeriv( false, 30, 6 );
+  bSplineSmoothThenDiffData.differntiate(5);
+  
+  ConsentrationGraph butterSmoothThenDiffData = mmData;
+  butterSmoothThenDiffData.butterWorthFilter( 60, 4 );
+  butterSmoothThenDiffData.differntiate(5);
+  // new TCanvas();
+  mmData.draw("", "", false, 1);
+  new TCanvas();
+  bSlpineDiffData.draw( "Al", "", false, 1 );
+  bSplineSmoothThenDiffData.draw( "l", "", false, 2 );
+  butterSmoothThenDiffData.draw( "l", "", true, 4 );
+  
+  
+  
+  ConsentrationGraph mmSmoothedData = mmData;
+  ConsentrationGraph mmSmoothedFFT = mmData;
+  
+  
+  
+  // mmData.draw("", "", false, 1);
+  // mmSmoothedData.butterWorthFilter( 60, 4 );
+  mmSmoothedFFT.bSplineSmoothOrDeriv( false, 30, 6 );
+  mmSmoothedFFT.differntiate(3);
+  mmSmoothedFFT.draw("Al", "smoothed", true, 2);
+  
+  mmSmoothedFFT.fastFourierSmooth( 30 );
+  mmSmoothedData.draw("l", "smoothed", false, 2);
+  mmSmoothedFFT.draw("l", "smoothed", true, 3);
+}//void testSmoothing()
 
 
 void testFFT()

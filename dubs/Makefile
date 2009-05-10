@@ -57,15 +57,12 @@ endif
 LIBDIR=.
 
 ROOTLIBS=$(shell root-config --glibs) -lMinuit -lMLP -lTreePlayer
-FCNCLIBS=/usr/local/lib/libboost_date_time-xgcc40-mt.a /usr/local/lib/libboost_serialization-xgcc40-mt.a /usr/local/lib/libgsl.a /usr/local/lib/libgslcblas.a
+BOOSTLIBS=/usr/local/lib/libboost_date_time-xgcc40-mt.a  /usr/local/lib/libboost_serialization-xgcc40-mt.a /usr/local/lib/libboost_program_options-xgcc40-mt.a
+GSLLIBS=/usr/local/lib/libgsl.a  /usr/local/lib/libgslcblas.a 
 
-# Without TSam  (NO_CDF_SAM IS defined)
-# NO Tsam
 CFLAGS += -D__NO_CDFSOFT__ -D__NO_TSAM__ $(INCS)
-LIBS =  $(FCNCLIBS) $(ROOTLIBS)
 
-LIBS =  $(FCNCLIBS) $(ROOTLIBS) $(SAMLIBS)
-
+LIBS =  $(BOOSTLIBS) $(ROOTLIBS) $(GSLLIBS)
 
 
 SRCS =  $(wildcard *.cc) 

@@ -120,7 +120,7 @@ class ConsentrationGraph : public std::set<GraphElement>
     //  time delta, this is just the default
     double m_dt;
     
-    //only applied to drawn objects
+    //only applied to drawn objects, or model predictions not based at 0
     double m_yOffsetForDrawing;
     
     //The type of Conserntration Graph this is
@@ -180,6 +180,7 @@ class ConsentrationGraph : public std::set<GraphElement>
     GraphType getGraphType() const;
     std::string getGraphTypeStr() const;
     boost::posix_time::ptime getT0() const;
+    boost::posix_time::ptime getStartTime() const;
     boost::posix_time::ptime getEndTime() const;
     
     //To add a single point use addNewDataPoint
@@ -226,8 +227,8 @@ class ConsentrationGraph : public std::set<GraphElement>
 
     void setT0_dontChangeOffsetValues( boost::posix_time::ptime newT0 );
     
-    void setYOffsetForDrawing( double yOffset );
-    
+    void setYOffset( double yOffset );
+    double getYOffset() const;
     
     //Forms a TGraph and draws on current active TPad (gPad)
     TGraph* draw( std::string options = "", 
