@@ -84,7 +84,16 @@ int main( int argc, char** argv )
   mmData.bSplineSmoothOrDeriv( false, 30, 6 );
   model.addCgmsData( mmData );
   model.addGlucoseAbsorption( carbAbsortionGraph );
-      
+  
+  vector<TimeRange> timeRanges( 1, TimeRange(t0, t0+hours(36)) );
+  double minuitChi2 = model.fitModelToDataViaMinuit2( 0.0, timeRanges);
+  double geneticChi2 = model.geneticallyOptimizeModel( 0.0, timeRanges );
+  
+  cout << "Minuit2 found a chi2=" << minuitChi2 << " and the gentic algorithm "
+       << "cound a chi2=" << geneticChi2 << ", drawing genetic results" << endl;
+  
+  model.draw();
+  
   vector<double> parms(NLSimple::NumNLSimplePars, 0.0);
   parms[NLSimple::BGMultiplier] = 0.0;
   parms[NLSimple::CarbAbsorbMultiplier] = 30.0 / 9.0;
@@ -93,7 +102,7 @@ int main( int argc, char** argv )
   
   model.setModelParameters( parms );
   model.performModelGlucosePrediction( t0, t0+hours(36) );
-  double chi2 = model.getModelChi2( 0.0 );
+  double chi2 = model.getModelChi2( 0.93 );
   cout << "chi2=" << chi2 << endl;
   model.draw();
   
@@ -169,7 +178,7 @@ void saveMar31ThorughApr7GraphsToDisk()
   
   string startDate = "2009-03-031 00:00:00.000";
   string endDate = "2009-04-01 19:30:00.000";
-  ConsentrationGraph mmData = CgmsDataImport::importSpreadsheet( "../MM_march1-Apr7.csv", 
+  ConsentrationGraph mmData = CgmsDataImport::importSpreadsheet( "../data/MM_march1-Apr7.csv", 
                                               CgmsDataImport::CgmsReading,
                                               time_from_string(startDate),
                                               time_from_string(endDate) );
@@ -184,15 +193,15 @@ void saveMar31ThorughApr7GraphsToDisk()
   // meterData.draw( "A*" );
   
  
-  ConsentrationGraph meterData1 = CgmsDataImport::importSpreadsheet( "../../march30_apr1st_diabetesLog.csv", 
+  ConsentrationGraph meterData1 = CgmsDataImport::importSpreadsheet( "../data/march30_apr1st_diabetesLog.csv", 
                                               CgmsDataImport::MeterReading,
                                               time_from_string(startDate),
                                               time_from_string(endDate) );
-  ConsentrationGraph bolusGraph = CgmsDataImport::importSpreadsheet( "../../march30_apr1st_diabetesLog.csv", 
+  ConsentrationGraph bolusGraph = CgmsDataImport::importSpreadsheet( "../data/march30_apr1st_diabetesLog.csv", 
                                               CgmsDataImport::BolusTaken,
                                               time_from_string(startDate),
                                               time_from_string(endDate) );
-  ConsentrationGraph conspumtionGraph = CgmsDataImport::importSpreadsheet( "../../march30_apr1st_diabetesLog.csv", 
+  ConsentrationGraph conspumtionGraph = CgmsDataImport::importSpreadsheet( "../data/march30_apr1st_diabetesLog.csv", 
                                               CgmsDataImport::GlucoseEaten,
                                               time_from_string(startDate),
                                               time_from_string(endDate) );

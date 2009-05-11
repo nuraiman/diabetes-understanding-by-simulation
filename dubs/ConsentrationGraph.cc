@@ -905,7 +905,7 @@ ConsentrationGraph::bSplineSmoothOrDeriv(  bool takeDeriv,
   {
     m_yOffsetForDrawing = 0.0;
     insert( t0, 0.0 );
-    for( double time = t0 + 0.5*dt; time < (tEnd - 0.5*dt); time += dt)
+    for( double time = t0 + 0.5*dt; time <= (tEnd - 0.5*dt); time += dt)
     {
       double deriv = 0.0; //lets avearge the derivative over the 
       
@@ -919,8 +919,15 @@ ConsentrationGraph::bSplineSmoothOrDeriv(  bool takeDeriv,
         deriv += dydt;
       }//for( loop over the sub times )
       
-      insert( time, deriv/9.0 );
+      insert( time, deriv/10.0 );
     }//for( loop over time this graph is defined for )
+    
+    //need to catch last point now
+    double dydt = 0.0, error=0.0;
+    gsl_bspline_deriv_eval(tEnd, 1, dB, bw, derivWS);
+    gsl_matrix_get_col(derivs, dB, 1);
+    gsl_multifit_linear_est(derivs, c, cov, &dydt, &error);
+    insert( tEnd, dydt );
   }else
   {
     for( double time = t0; time <= tEnd; time += dt)
