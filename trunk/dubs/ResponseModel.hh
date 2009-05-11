@@ -10,6 +10,11 @@
 #include "ConsentrationGraph.hh"
 #include "ArtificialPancrease.hh" //contains useful typedefs and constants
 
+
+#include "Minuit2/FCNBase.h"
+#include "TMVA/IFitterTarget.h"
+
+
 //Eventually, when I add mmore models, I'll set up a inheritance hiegharchy
 //  to improve organization
 
@@ -25,7 +30,7 @@ class NLSimple
     enum NLSimplePars
     {
       // dGdT = -BGMultiplier*G - X(G + G_basal) + CarbAbsorbMultiplier*CarbAbsorbRate
-      BGMultiplier,   
+      BGMultiplier = 0,   
       CarbAbsorbMultiplier,
       
       // dXT = -XMultiplier*X + PlasmaInsulinMultiplier*I
@@ -36,16 +41,18 @@ class NLSimple
       NumNLSimplePars
     };//enum NLSimplePars
     
-    
+  
+    //begin variable that matter to *this
     std::string m_description;                  //Useful for later checking
     
     double m_cgmsDelay;                         //initially set to 15 minutes
     double m_basalInsulinConc;                  //units per kilo per hour
     double m_basalGlucoseConcentration;
 
-    boost::posix_time::ptime m_t0;
+    boost::posix_time::ptime         m_t0;
     boost::posix_time::time_duration m_dt;
     
+    double              m_effectiveDof; //So Minuit2 can properly interpret errors
     std::vector<double> m_paramaters;           //size == NumNLSimplePars
     std::vector<double> m_paramaterErrorPlus;
     std::vector<double> m_paramaterErrorMinus;
@@ -101,11 +108,14 @@ class NLSimple
     //  passing in glucose absorption rate is preffered method
     void addGlucoseAbsorption( const ConsentrationGraph &newData ); 
     
-    
-    void setModelParameters( std::vector<double> &newPar );
+    void resetPredictions();
+    void setModelParameters( const std::vector<double> &newPar );
     void setModelParameterErrors( std::vector<double> &newParErrorLow, 
                                   std::vector<double> &newParErrorHigh );
     
+    boost::posix_time::ptime findSteadyStateStartTime( 
+                                                  boost::posix_time::ptime t_start,
+                                                  boost::posix_time::ptime t_end );
     void findSteadyStateBeginings( double nHoursNoInsulinForFirstSteadyState = 3.0 );
     
     double performModelGlucosePrediction( boost::posix_time::ptime t_start = kGenericT0,
@@ -134,8 +144,14 @@ class NLSimple
                               boost::posix_time::ptime t_end ) const;
     //want to add a variable binning chi2
     
+    double getFitDof() const;
+    void setFitDof( double dof );
     
-    double fitModelToData( std::vector<TimeRange> timeRanges = std::vector<TimeRange>(0) );
+    double geneticallyOptimizeModel( double fracDerivChi2,
+                std::vector<TimeRange> timeRanges = std::vector<TimeRange>(0) );
+    
+    double fitModelToDataViaMinuit2( double fracDerivChi2,
+                std::vector<TimeRange> timeRanges = std::vector<TimeRange>(0) );
     
     void draw( boost::posix_time::ptime t_start = kGenericT0,
                boost::posix_time::ptime t_end = kGenericT0 );
@@ -143,5 +159,29 @@ class NLSimple
 };//class NLSimple
 
 
+//An interace for NLSimple to Minuit2 and the Genetic Optimizer
+class ModelTestFCN : public ROOT::Minuit2::FCNBase,  public TMVA::IFitterTarget
+{
+  public:
+    //function forMinuit2
+    virtual double operator()(const std::vector<double>& x) const;
+    virtual double Up() const;
+    virtual void SetErrorDef(double dof);
+    
+    //Function for TMVA fitters
+    virtual Double_t EstimatorFunction( std::vector<Double_t>& parameters );
+    
+    ModelTestFCN( NLSimple *modelPtr, 
+                  double fracDerivChi2,
+                  std::vector<TimeRange> timeRanges );
+  
+  private:
+    NLSimple *m_modelPtr;
+    double    m_fracDerivChi2;
+    
+    std::vector<TimeRange> m_timeRanges;
+    boost::posix_time::ptime m_tStart;
+    boost::posix_time::ptime m_tEnd;
+};//
 
 #endif //RESPONSE_MODEL_HH

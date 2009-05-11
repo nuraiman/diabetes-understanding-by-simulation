@@ -56,7 +56,7 @@ endif
 #LIBDIR=../shlib/
 LIBDIR=.
 
-ROOTLIBS=$(shell root-config --glibs) -lMinuit -lMLP -lTreePlayer
+ROOTLIBS=$(shell root-config --glibs) -lMinuit -lMLP -lTreePlayer -lMinuit2 -lTMVA
 BOOSTLIBS=/usr/local/lib/libboost_date_time-xgcc40-mt.a  /usr/local/lib/libboost_serialization-xgcc40-mt.a /usr/local/lib/libboost_program_options-xgcc40-mt.a
 GSLLIBS=/usr/local/lib/libgsl.a  /usr/local/lib/libgslcblas.a 
 
