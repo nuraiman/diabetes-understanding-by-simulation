@@ -38,7 +38,10 @@
 #include "boost/ref.hpp"
 #include "boost/assign/list_of.hpp" //for 'list_of()'
 #include "boost/assign/list_inserter.hpp"
-
+#include <boost/serialization/set.hpp>
+#include <boost/serialization/version.hpp>
+#include <boost/serialization/array.hpp>
+#include <boost/serialization/vector.hpp>
 
 #include "ResponseModel.hh"
 #include "KineticModels.hh"
@@ -103,6 +106,38 @@ m_description(description), m_cgmsDelay(ModelDefaults::kDefaultCgmsDelay),
 }//NLSimple construnctor
 
 
+
+NLSimple::NLSimple( std::string fileName ) :
+     m_description(""), m_cgmsDelay(ModelDefaults::kDefaultCgmsDelay),
+     m_basalInsulinConc( kFailValue ),
+     m_basalGlucoseConcentration( kFailValue ), 
+     m_t0( kGenericT0 ),
+     m_dt( 0, 1, 0, 0),
+     m_effectiveDof(1.0),
+     m_paramaters(NumNLSimplePars, kFailValue),
+     m_paramaterErrorPlus(0), m_paramaterErrorMinus(0),
+     m_cgmsData(kGenericT0, 5.0, GlucoseConsentrationGraph),
+     m_freePlasmaInsulin(kGenericT0, 5.0, InsulinGraph),
+     m_glucoseAbsorbtionRate(kGenericT0, 5.0, GlucoseAbsorbtionRateGraph),
+     m_predictedInsulinX(kGenericT0, 5.0, InsulinGraph),
+     m_predictedBloodGlucose(kGenericT0, 5.0, GlucoseConsentrationGraph),
+     m_startSteadyStateTimes(0)
+{
+  
+  std::ifstream ifs( fileName.c_str() );
+  if( !ifs.is_open() )
+  {
+    cout << "Couldn't open file " << fileName << " for reading" << endl;
+    exit(1);
+  }//if( !ofs.is_open() )
+  
+  boost::archive::text_iarchive ia(ifs);
+  
+  ia >> *this;  // restore from the archive  
+}//NLSimple::NLSimple
+
+
+//if you are updatin this, make sure you updarte the serialize function!!!
 const NLSimple &NLSimple::operator=( const NLSimple &rhs )
 {
   m_description                = rhs.m_description;
@@ -374,7 +409,6 @@ void NLSimple::setModelParameterErrors( std::vector<double> &newParErrorLow,
 
 
 
-
 void NLSimple::findSteadyStateBeginings( double nHoursNoInsulin )
 {
   using namespace gregorian;
@@ -526,6 +560,71 @@ ptime NLSimple::findSteadyStateStartTime( ptime t_start, ptime t_end )
   
   return kGenericT0;
 }//findSteadyStateTime
+
+
+
+ConsentrationGraph NLSimple::glucPredUsingCgms( int nMinutesPredict,  //nMinutes ahead of cgms
+                                                ptime t_start, ptime t_end, 
+                                                double bloodX_initial )
+{
+  using namespace boost::posix_time;
+  ptime startTime = findSteadyStateStartTime( t_start, t_end );
+  ptime endTime = (t_end != kGenericT0) ? t_end : m_cgmsData.getEndTime();
+  
+  if( bloodX_initial != kFailValue )
+  {
+    assert( t_start != kGenericT0 );
+    startTime = t_start;
+  }//if( we have initial conditions )
+  
+  double dt = m_dt.total_nanoseconds() / 60.0 / 1.0E9; 
+  
+  ptime startPredGraph = startTime + minutes(nMinutesPredict);
+  ConsentrationGraph xGraph( startPredGraph, dt, InsulinGraph );
+  ConsentrationGraph predBgGraph( startPredGraph, dt, GlucoseConsentrationGraph );
+  
+  double cgmsX = ( bloodX_initial != kFailValue ) ? bloodX_initial : 0.0;
+  //first thing we have to do is find (and fill in X)
+  for( ptime time = startTime; time <= endTime; time += m_dt )
+  {
+    double doubleTime = xGraph.getOffset( time );
+    ForcingFunction derivFunc 
+    = boost::bind( &NLSimple::dXdT_usingCgmsData, boost::cref(*this), _1, cgmsX );
+    
+    cgmsX = rungeKutta4( doubleTime, cgmsX, dt, derivFunc );
+    
+    xGraph.insert( time, cgmsX );
+  }//for( loop over valid time ranges )
+  
+  RK_DerivFuntion derivFunc = getRKDerivFunc();
+  
+  foreach( const GraphElement &el, (set<GraphElement>)m_cgmsData )
+  {
+    const ptime time = m_cgmsData.getAbsoluteTime(el.m_minutes);
+    const ptime predEndTime = time + minutes(nMinutesPredict);
+    
+    if( time < startTime ) continue;
+    if( (t_end != kGenericT0) &&  (time > predEndTime) ) continue;
+    
+    vector<double> predBgAndX(2);
+    
+    predBgAndX[0] = el.m_value - m_basalGlucoseConcentration ;
+    predBgAndX[1] = xGraph.value( time );
+    
+    for( ptime predTime = time; predTime <= predEndTime; predTime += m_dt )
+    {
+       double timeInOffset = getOffset( time );// + m_cgmsDelay;
+       predBgAndX = rungeKutta4( timeInOffset, predBgAndX, dt, derivFunc );     
+    }//for( loop over prediction time )
+    
+    if( predEndTime < xGraph.getEndTime() )
+      predBgGraph.insert( predEndTime, predBgAndX[0] + m_basalGlucoseConcentration );
+  }//foreach( cgms reading ) 
+  
+  return predBgGraph;
+}//glucPredUsingCgms
+
+
 
 
 double NLSimple::performModelGlucosePrediction( boost::posix_time::ptime t_start,
@@ -823,7 +922,7 @@ double NLSimple::getDerivativeChi2( const ConsentrationGraph &modelDerivData,
     const ptime time = cgmsDerivData.getAbsoluteTime( iter->m_minutes ) - cgmsDelay;
     const double cgmsValue  = iter->m_value;
     double modelValue = modelDerivData.value(time);
-    const double uncert = fracUncert*cgmsValue;
+    // const double uncert = fracUncert*cgmsValue;
     if( modelValue == 0.0 ) modelValue = m_basalGlucoseConcentration;
     
     chi2 += pow( (modelValue - cgmsValue), 2 );
@@ -862,9 +961,9 @@ double NLSimple::geneticallyOptimizeModel( double fracDerivChi2,
   
   vector<TMVA::Interval*> ranges;
   ranges.push_back( new Interval( -0.01, 0.1 )  );
-  ranges.push_back( new Interval( 1.0, 10.0 )  );
+  ranges.push_back( new Interval( 0.1, 10.0 )  );
   ranges.push_back( new Interval( 0.0, 0.1 )  );
-  ranges.push_back( new Interval( 0.0, 0.001 )  );
+  ranges.push_back( new Interval( 0.0, 0.0015 )  );
   
   
   GeneticAlgorithm ga( fittnesFunc, fPopSize, ranges );
@@ -897,6 +996,10 @@ double NLSimple::geneticallyOptimizeModel( double fracDerivChi2,
   std::vector<Double_t> gvec;
   gvec = genes->GetFactors();
 
+  cout << "Final paramaters are: ";
+  foreach( Double_t d, gvec ) cout << d << "  ";
+  cout << endl;
+  
   setModelParameters(gvec);
   
   double chi2 = 0.0;
@@ -919,8 +1022,8 @@ double NLSimple::fitModelToDataViaMinuit2( double fracDerivChi2,
   using namespace ROOT::Minuit2;
   
   vector<double> startingVal( NumNLSimplePars );
-  startingVal[BGMultiplie]              = 0.0;
-  startingVal[CarbAbsorbMultiplier]     = 30.0 / 9.0;
+  startingVal[BGMultiplier]            = 0.0;
+  startingVal[CarbAbsorbMultiplier]    = 30.0 / 9.0;
   startingVal[XMultiplier]             = 0.040;
   startingVal[PlasmaInsulinMultiplier] = 0.00015;
       
@@ -943,12 +1046,12 @@ double NLSimple::fitModelToDataViaMinuit2( double fracDerivChi2,
   modelFCN.SetErrorDef(10.0);
   
   MnUserParameters upar;
-  upar.Add( "BGMult"   , startingVal[BGMultiplie], 0.1 );
+  upar.Add( "BGMult"   , startingVal[BGMultiplier], 0.1 );
   upar.SetLowerLimit(0, -0.01);
   upar.SetUpperLimit(0, 0.1);
   
   upar.Add( "CarbMult" , startingVal[CarbAbsorbMultiplier], 0.1 );
-  upar.SetLowerLimit(1, 1.0);
+  upar.SetLowerLimit(1, 0.1);
   upar.SetUpperLimit(1, 10);
   
   upar.Add( "XMult"    , startingVal[XMultiplier], 0.1 );
@@ -1000,22 +1103,20 @@ double NLSimple::fitModelToDataViaMinuit2( double fracDerivChi2,
 
 
 
-void NLSimple::draw( boost::posix_time::ptime t_start,
+void NLSimple::draw( bool pause,
+                     boost::posix_time::ptime t_start,
                      boost::posix_time::ptime t_end  ) 
 {
   Int_t dummy_arg = 0;
   
   if( !gTheApp ) gTheApp = new TApplication("App", &dummy_arg, (char **)NULL);
   
-  
-  // m_predictedBloodGlucose.setYOffsetForDrawing( m_basalGlucoseConcentration );
-  // m_freePlasmaInsulin.setYOffsetForDrawing( m_basalInsulinConc );
-  
-  TGraph *cgmsBG  = m_cgmsData.getTGraph();
-  TGraph *predBG  = m_predictedBloodGlucose.getTGraph();
-  TGraph *glucAbs = m_glucoseAbsorbtionRate.getTGraph();
-  TGraph *insConc = m_freePlasmaInsulin.getTGraph();
-  TGraph *xPred   = m_predictedInsulinX.getTGraph();
+   
+  TGraph *cgmsBG  = m_cgmsData.getTGraph( t_start, t_end );
+  TGraph *predBG  = m_predictedBloodGlucose.getTGraph( t_start, t_end );
+  TGraph *glucAbs = m_glucoseAbsorbtionRate.getTGraph( t_start, t_end );
+  TGraph *insConc = m_freePlasmaInsulin.getTGraph( t_start, t_end );
+  TGraph *xPred   = m_predictedInsulinX.getTGraph( t_start, t_end );
   
   double maxHeight = std::max( cgmsBG->GetMaximum(), predBG->GetMaximum() );
   double minHeight = std::min( cgmsBG->GetMinimum(), predBG->GetMinimum() );
@@ -1024,10 +1125,8 @@ void NLSimple::draw( boost::posix_time::ptime t_start,
   const double glucMin = glucAbs->GetMinimum();
   
   const double graphRange = maxHeight - minHeight;
-  const double glucRange = glucMax - glucMin;
-  const double glucScale = graphRange / glucRange;//maxHeight / glucMax;
-  const double glucOffset = (minHeight - glucMin);// / glucScale;
-  const double glucNewMin = minHeight;
+  const double glucScale = 0.5 * graphRange / (glucMax - glucMin);
+  const double glucOffset = (minHeight - glucMin) - 0.2*graphRange;
   
   //Scale glucose absorbtion rate to be viewable
   for( int i=0; i<glucAbs->GetN(); ++i )
@@ -1037,38 +1136,31 @@ void NLSimple::draw( boost::posix_time::ptime t_start,
     glucAbs->SetPoint( i, x, glucScale * (y-glucMin) + glucOffset);
   }//for( loop over glucAbs points )
   
+  
   const double insulinMax = insConc->GetMaximum();
   const double insulinMin = insConc->GetMinimum();
-  
-  cout << "Insulin concen max=" << insulinMax << ", min=" << insulinMin << endl;
-  
-  const double insulinScale = maxHeight / insulinMax;
-  const double insulinOffset = (minHeight - insulinMin) / insulinScale;
-  const double insulinNewMin = minHeight;
-  
-  cout << "insulinOffset=" << insulinOffset << ", insulinScale=" << insulinScale << endl;
+  const double insulinScale = 0.25 * graphRange / (insulinMax - insulinMin);
+  const double insulinOffset = (minHeight - insulinMin) - 0.2*graphRange;
   
   //Scale insulin concentration to be viewable
   for( int i=0; i<insConc->GetN(); ++i )
   {
     double x=0.0, y=0.0;
     insConc->GetPoint( i, x, y );
-    insConc->SetPoint( i, x, insulinScale * y - insulinOffset);
+    insConc->SetPoint( i, x, insulinScale * (y-insulinMin) + insulinOffset);
   }//for( loop over glucAbs points )
   
-  
-  
+    
   const double xMax = xPred->GetMaximum();
   const double xMin = xPred->GetMinimum();
-  const double xScale = maxHeight / xMax;
-  const double xOffset = (minHeight - xMin) / xScale;
-  const double xNewMin = minHeight;
+  const double xScale = 0.25 * graphRange / (xMax - xMin);
+  const double xOffset = (minHeight - xMin) - 0.2*graphRange;
   
   for( int i=0; i<xPred->GetN(); ++i )
   {
     double x=0.0, y=0.0;
     xPred->GetPoint( i, x, y );
-    xPred->SetPoint( i, x, xScale * y - xOffset);
+    xPred->SetPoint( i, x, xScale * (y-xMin) + xOffset);
   }//for( loop over glucAbs points )
   
   //Now adjust for the time of CGMS
@@ -1080,7 +1172,8 @@ void NLSimple::draw( boost::posix_time::ptime t_start,
   }//for( loop over glucAbs points )
   
   
-  minHeight -= 0.1 * abs(minHeight);
+  // minHeight -= 0.2 * abs(minHeight);
+  minHeight -= 0.25 * graphRange; 
   maxHeight += 0.23 * abs(maxHeight);
 
   cgmsBG->SetMinimum( minHeight );
@@ -1098,8 +1191,8 @@ void NLSimple::draw( boost::posix_time::ptime t_start,
   cgmsBG->SetLineWidth(2);
   predBG->SetLineWidth(2);
   glucAbs->SetLineWidth(2);
-  insConc->SetLineWidth(2);
-  xPred->SetLineWidth(2);
+  insConc->SetLineWidth(1);
+  xPred->SetLineWidth(1);
   
   insConc->SetLineStyle( 5 );
   
@@ -1113,13 +1206,14 @@ void NLSimple::draw( boost::posix_time::ptime t_start,
   xPred->Draw( "l" );
   insConc->Draw( "l" );
   
-  TGaxis *axis = new TGaxis(gPad->GetUxmax(),gPad->GetUymin(),
-                            gPad->GetUxmax(), gPad->GetUymax(), glucNewMin, maxHeight,510,"+L");
-  axis->SetLineColor( 4 );
-  axis->SetLabelColor( 4 );
-  axis->SetTitleColor( 4 );
-  axis->SetTitle( "Glucose Absorption Rate (mg/dL/min)" );
-  axis->Draw();
+  // TGaxis *axis = new TGaxis(gPad->GetUxmax(),gPad->GetUymin(),
+                            // gPad->GetUxmax(), gPad->GetUymax(), 
+                            // glucNewMin, maxHeight,510,"+L");
+  // axis->SetLineColor( 4 );
+  // axis->SetLabelColor( 4 );
+  // axis->SetTitleColor( 4 );
+  // axis->SetTitle( "Glucose Absorption Rate (mg/dL/min)" );
+  // axis->Draw();
   
   TLegend *leg = new TLegend( 0.65, 0.6, 0.95, 0.90);
   leg->SetBorderSize(0);
@@ -1130,15 +1224,72 @@ void NLSimple::draw( boost::posix_time::ptime t_start,
   leg->AddEntry( glucAbs, "Rate Of Glucose Absorbtion", "l" );
   leg->Draw();
   
-  
-  gTheApp->Run(kTRUE);
-  delete gPad;
-  delete cgmsBG;
-  delete predBG;
-  delete glucAbs;
-  delete insConc;
-  delete axis;
+  if( pause )
+  {
+    gTheApp->Run(kTRUE);
+    delete gPad;
+    delete cgmsBG;
+    delete predBG;
+    delete glucAbs;
+    delete insConc;
+    // delete axis;
+  }//if( pause )
 }//draw()
+
+
+template<class Archive>
+void NLSimple::serialize( Archive &ar, const unsigned int version )
+{
+  unsigned int ver = version; //keep compiler from complaining
+  ver = ver;
+      
+  ar & m_t0;
+  ar & m_description;                  //Useful for later checking
+    
+  ar & m_cgmsDelay;                         //initially set to 15 minutes
+  ar & m_basalInsulinConc;                  //units per kilo per hour
+  ar & m_basalGlucoseConcentration;
+
+  ar & m_t0;
+  ar & m_dt;
+    
+  ar & m_effectiveDof; //So Minuit2 can properly interpret errors
+  ar & m_paramaters;           //size == NumNLSimplePars
+  ar & m_paramaterErrorPlus;
+  ar & m_paramaterErrorMinus;
+    
+  ar & m_currCgmsCorrFactor;
+    
+  ar & m_cgmsData;
+  ar & m_freePlasmaInsulin;
+  ar & m_glucoseAbsorbtionRate;
+    
+  ar & m_predictedInsulinX;
+  ar & m_predictedBloodGlucose;
+      
+  ar & m_startSteadyStateTimes;
+}//NLSimple::serialize
+    
+
+
+
+bool NLSimple::saveToFile( std::string filename )
+{
+  std::ofstream ofs( filename.c_str() );
+  
+  if( !ofs.is_open() )
+  {
+    cout << "Couldn't open file " << filename << " for writing" << endl;
+    exit(1);
+  }//if( !ofs.is_open() )
+  
+  boost::archive::text_oarchive oa(ofs);
+  
+  oa << *this;
+  
+  return true;
+}//bool ConsentrationGraph::saveToFile( std::string filename )
+
 
 
 

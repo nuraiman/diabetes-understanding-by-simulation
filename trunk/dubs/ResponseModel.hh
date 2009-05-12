@@ -5,6 +5,10 @@
 #include <utility> //for pair<,>
 #include "boost/function.hpp"
 #include "boost/date_time/posix_time/posix_time.hpp"
+#include <boost/serialization/set.hpp>
+#include <boost/serialization/version.hpp>
+#include <boost/serialization/string.hpp>
+
 
 #include "KineticModels.hh"
 #include "ConsentrationGraph.hh"
@@ -71,8 +75,10 @@ class NLSimple
     
     std::vector<boost::posix_time::ptime> m_startSteadyStateTimes;
     
-    NLSimple( const std::string &description = "", 
-              double basalUnitsPerKiloPerhour = 0.9,
+    
+    NLSimple( std::string fileName );
+    NLSimple( const std::string &description, 
+              double basalUnitsPerKiloPerhour,
               double basalGlucoseConcen = PersonConstants::kBasalGlucConc, 
               boost::posix_time::ptime t0 = kGenericT0 );
     const NLSimple &operator=( const NLSimple &rhs );
@@ -118,10 +124,17 @@ class NLSimple
                                                   boost::posix_time::ptime t_end );
     void findSteadyStateBeginings( double nHoursNoInsulinForFirstSteadyState = 3.0 );
     
+    
+    ConsentrationGraph glucPredUsingCgms( int nMinutesPredict,  //nMinutes ahead of cgms
+                                          boost::posix_time::ptime t_start = kGenericT0,
+                                          boost::posix_time::ptime t_end = kGenericT0,
+                                          double bloodX_initial = kFailValue );
+    
+    
     double performModelGlucosePrediction( boost::posix_time::ptime t_start = kGenericT0,
                                           boost::posix_time::ptime t_end = kGenericT0,
                                           double bloodGlucose_initial = kFailValue,
-                                          double bloodX_initial = kFailValue      );
+                                          double bloodX_initial = kFailValue );
     
     double getModelChi2( double fracDerivChi2 = 0.0,
                          boost::posix_time::ptime t_start = kGenericT0,
@@ -153,10 +166,19 @@ class NLSimple
     double fitModelToDataViaMinuit2( double fracDerivChi2,
                 std::vector<TimeRange> timeRanges = std::vector<TimeRange>(0) );
     
-    void draw( boost::posix_time::ptime t_start = kGenericT0,
+    void draw( bool pause = true,
+               boost::posix_time::ptime t_start = kGenericT0,
                boost::posix_time::ptime t_end = kGenericT0 );
     
+    bool saveToFile( std::string filename );
+    
+    //Will leave serialization funtion in header
+    friend class boost::serialization::access;
+    template<class Archive>
+    void serialize( Archive &ar, const unsigned int version );
 };//class NLSimple
+
+BOOST_CLASS_VERSION(NLSimple, 0)
 
 
 //An interace for NLSimple to Minuit2 and the Genetic Optimizer
@@ -182,6 +204,6 @@ class ModelTestFCN : public ROOT::Minuit2::FCNBase,  public TMVA::IFitterTarget
     std::vector<TimeRange> m_timeRanges;
     boost::posix_time::ptime m_tStart;
     boost::posix_time::ptime m_tEnd;
-};//
+};//class ModelTestFCN
 
 #endif //RESPONSE_MODEL_HH

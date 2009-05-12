@@ -48,8 +48,10 @@ using namespace std;
 //foward declaration
 void setStyle();
 
+NLSimple createMar31Model();
 void testFFT();
 void testSmoothing();
+void testKineticModels();
 void saveMar31ThorughApr7GraphsToDisk();
 
 //these variable get values through ProgramOptions
@@ -67,9 +69,32 @@ int main( int argc, char** argv )
   setStyle();
   ProgramOptions::decodeOptions( argc, argv );
   
+  // NLSimple model = createMar31Model();
   //void testSmoothing();
+  // void testKineticModels();
   // void testFFT();  
   // saveMar31ThorughApr7GraphsToDisk();
+  
+  
+  ConsentrationGraph conspumtionGraph( "../data/carbConsumption_march31_April7.dub" );
+  ptime t0 = conspumtionGraph.getT0();
+  
+  NLSimple model( "../data/optimizedMarch31ThroughApril1Model.dub" );
+  
+  ConsentrationGraph thirtyMinPred = model.glucPredUsingCgms( 60, t0, t0+hours(36) );
+  model.draw( false );
+  thirtyMinPred.draw("l", "", true, 6); 
+  
+}//main(...)
+
+
+
+NLSimple createMar31Model()
+{
+  using namespace boost;
+  using namespace boost::posix_time;
+  using namespace boost::gregorian;
+  
   ConsentrationGraph mmData( "../data/mmCgmsData_march31_April7.dub" );
   ConsentrationGraph insulinGraph( "../data/insulinConcentration_march31_April7.dub" );
   ConsentrationGraph carbAbsortionGraph( "../data/carbAbsorbtion_march31_April7.dub" );
@@ -85,87 +110,33 @@ int main( int argc, char** argv )
   model.addCgmsData( mmData );
   model.addGlucoseAbsorption( carbAbsortionGraph );
   
-  vector<TimeRange> timeRanges( 1, TimeRange(t0, t0+hours(36)) );
-  double minuitChi2 = model.fitModelToDataViaMinuit2( 0.0, timeRanges);
-  double geneticChi2 = model.geneticallyOptimizeModel( 0.0, timeRanges );
-  
-  cout << "Minuit2 found a chi2=" << minuitChi2 << " and the gentic algorithm "
-       << "cound a chi2=" << geneticChi2 << ", drawing genetic results" << endl;
-  
-  model.draw();
+  // vector<TimeRange> timeRanges( 1, TimeRange(t0, t0+hours(36)) );
+  // double minuitChi2 = model.fitModelToDataViaMinuit2( 0.0, timeRanges);
+  // double geneticChi2 = model.geneticallyOptimizeModel( 0.0, timeRanges );
+  // double secondMinuitChi2 = model.fitModelToDataViaMinuit2( 0.0, timeRanges);
+  // cout << "Minuit2 found a chi2=" << minuitChi2 << " and the gentic algorithm "
+       // << "cound a chi2=" << geneticChi2 << ", drawing genetic results," 
+       // << " which minuit then gets chi2=" << secondMinuitChi2 << endl;
+  // model.draw();
   
   vector<double> parms(NLSimple::NumNLSimplePars, 0.0);
-  parms[NLSimple::BGMultiplier] = 0.0;
-  parms[NLSimple::CarbAbsorbMultiplier] = 30.0 / 9.0;
-  parms[NLSimple::XMultiplier] = 0.040;
-  parms[NLSimple::PlasmaInsulinMultiplier] = 0.00015;
-  
+  parms[NLSimple::BGMultiplier]            = 0.0099618359;
+  parms[NLSimple::CarbAbsorbMultiplier]    = 0.71765017;
+  parms[NLSimple::XMultiplier]             = 0.0065179818;
+  parms[NLSimple::PlasmaInsulinMultiplier] = 1.0017923e-05;
+        
   model.setModelParameters( parms );
   model.performModelGlucosePrediction( t0, t0+hours(36) );
+  model.saveToFile( "../data/optimizedMarch31ThroughApril1Model.dub" );
+  ConsentrationGraph thirtyMinPred = model.glucPredUsingCgms( 45, t0, t0+hours(36) );
+  model.draw( false );
+  thirtyMinPred.draw("l", "", true, 6);
+  
   double chi2 = model.getModelChi2( 0.93 );
   cout << "chi2=" << chi2 << endl;
-  model.draw();
-  
-  
-  //ConsentrationGraph testGraph( t0, 1.0, InsulinGraph );
-  //testGraph.add( 0.8 / kMyWieght, 300.0, NovologAbsorbtion );
-  double glucose_equiv_carbs = 45.0;
-  static const double t_assent = 40.0;
-  static const double t_dessent = 6.0;
-  static const double v_max = 0.9;
-  static const double k_gut_absoption = 0.1;
-  static const double timeStep = 1.0;
-  
-  ConsentrationGraph glucAbs = yatesGlucoseAbsorptionRate( t0, glucose_equiv_carbs, t_assent, t_dessent, v_max, k_gut_absoption, timeStep );
-  ConsentrationGraph insConcen = novologConsentrationGraph( t0, 5.0/PersonConstants::kPersonsWeight, timeStep );
-  
-  // insConcen.draw();
-  // glucAbs.draw();
-  
-  ForcingFunction foodEaten = boost::bind( &ConsentrationGraph::valueUsingOffset, glucAbs, _1 );
-  ForcingFunction insulinTaken = boost::bind( &ConsentrationGraph::valueUsingOffset, insConcen, _1 );
-  
-  double time = 0.0;
-  double G_basal = 100.0;  //g/dL
-  double I_basal = 100.0; //mU/L
-  std::vector<double> GAndX(2, 0.0);
-  std::vector<double> G_parameters(2, 0.0);
-  std::vector<double> X_parameters(2, 0.0);
-  
-  G_parameters[0] = 0.0;
-  G_parameters[1] = 30.0 / 9.0;
-  X_parameters[0] = 0.025;
-  X_parameters[1] = 0.0002;
-  RK_DerivFuntion dGdTdXdT = boost::bind( dGdT_and_dXdT, _1, _2, 
-                                          G_basal, I_basal, 
-                                          G_parameters, X_parameters,
-                                          foodEaten,
-                                          insulinTaken 
-                                        );
-  vector<double> y0(2, 0.0);
 
-  vector<ConsentrationGraph> answers( 2, ConsentrationGraph( t0, timeStep, GlucoseConsentrationGraph ) );
-  
-  integrateRungeKutta4( 0, 240, timeStep, y0, dGdTdXdT, answers );
-
-  answers[0].draw();
-  answers[1].draw();
-  
-  GAndX = rungeKutta4( time, GAndX, timeStep, dGdTdXdT );
-  
-  
-  
-  //body mass index 26.2 +- 4.9 kg /m^2
-  ConsentrationGraph testGraph( t0, 1.0, GlucoseAbsorbtionRateGraph );
-  testGraph.add( 100.0, 0.0,  MediumCarbAbsorbtionRate );
-  // testGraph.draw();
-  
-  testGraph.add( 20.0, 120.0,  FastCarbAbsorbtionRate );
-  
-  testGraph.draw();
-}//main(...)
-
-
+  return model;
+}//NLSimple createMar31Model();
 
 
 
@@ -305,6 +276,65 @@ void testFFT()
 }//void testFFT()
 
 
+
+void testKineticModels()
+{
+  
+  //ConsentrationGraph testGraph( t0, 1.0, InsulinGraph );
+  //testGraph.add( 0.8 / kMyWieght, 300.0, NovologAbsorbtion );
+  double glucose_equiv_carbs = 45.0;
+  static const double t_assent = 40.0;
+  static const double t_dessent = 6.0;
+  static const double v_max = 0.9;
+  static const double k_gut_absoption = 0.1;
+  static const double timeStep = 1.0;
+  
+  ConsentrationGraph glucAbs = yatesGlucoseAbsorptionRate( kGenericT0, glucose_equiv_carbs, t_assent, t_dessent, v_max, k_gut_absoption, timeStep );
+  ConsentrationGraph insConcen = novologConsentrationGraph( kGenericT0, 5.0/PersonConstants::kPersonsWeight, timeStep );
+  
+  // insConcen.draw();
+  // glucAbs.draw();
+  
+  ForcingFunction foodEaten = boost::bind( &ConsentrationGraph::valueUsingOffset, glucAbs, _1 );
+  ForcingFunction insulinTaken = boost::bind( &ConsentrationGraph::valueUsingOffset, insConcen, _1 );
+  
+  double time = 0.0;
+  double G_basal = 100.0;  //g/dL
+  double I_basal = 100.0; //mU/L
+  std::vector<double> GAndX(2, 0.0);
+  std::vector<double> G_parameters(2, 0.0);
+  std::vector<double> X_parameters(2, 0.0);
+  
+  G_parameters[0] = 0.0;
+  G_parameters[1] = 30.0 / 9.0;
+  X_parameters[0] = 0.025;
+  X_parameters[1] = 0.0002;
+  RK_DerivFuntion dGdTdXdT = boost::bind( dGdT_and_dXdT, _1, _2, 
+                                          G_basal, I_basal, 
+                                          G_parameters, X_parameters,
+                                          foodEaten,
+                                          insulinTaken 
+                                        );
+  vector<double> y0(2, 0.0);
+
+  vector<ConsentrationGraph> answers( 2, ConsentrationGraph( kGenericT0, timeStep, GlucoseConsentrationGraph ) );
+  
+  integrateRungeKutta4( 0, 240, timeStep, y0, dGdTdXdT, answers );
+
+  answers[0].draw();
+  answers[1].draw();
+  
+  GAndX = rungeKutta4( time, GAndX, timeStep, dGdTdXdT );
+  
+  //body mass index 26.2 +- 4.9 kg /m^2
+  ConsentrationGraph testGraph( kGenericT0, 1.0, GlucoseAbsorbtionRateGraph );
+  testGraph.add( 100.0, 0.0,  MediumCarbAbsorbtionRate );
+  // testGraph.draw();
+  
+  testGraph.add( 20.0, 120.0,  FastCarbAbsorbtionRate );
+  
+  testGraph.draw();
+}//testKineticModels
 
 
 void setStyle()
