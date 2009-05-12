@@ -1205,7 +1205,8 @@ void ConsentrationGraph::butterWorthFilter( double timescale, int filterOrder )
 
 
 
-TGraph *ConsentrationGraph::getTGraph() const
+TGraph *ConsentrationGraph::getTGraph( boost::posix_time::ptime t_start,
+                                       boost::posix_time::ptime t_end  ) const
 {
   unsigned int nPoints = size(); //(((int)duration) / 1);
   
@@ -1230,6 +1231,11 @@ TGraph *ConsentrationGraph::getTGraph() const
   nPoints = 0;
   foreach( const GraphElement &el, static_cast<GraphElementSet>(*this) )
   {
+    const ptime t = getAbsoluteTime( el.m_minutes );
+    
+    if( t_start != kGenericT0 && t < t_start ) continue;
+    if( t_end   != kGenericT0 && t > t_end   ) continue;
+    
     xAxis[nPoints] = el.m_minutes;
     yAxis[nPoints] = el.m_value + m_yOffsetForDrawing;
     ++nPoints;
@@ -1426,6 +1432,22 @@ TGraph* ConsentrationGraph::draw( string options,
 }//draw(...)
     
 
+
+template<class Archive>
+void ConsentrationGraph::serialize( Archive &ar, const unsigned int version )
+{
+  unsigned int ver = version; //keep compiler from complaining
+  ver = ver;
+      
+  ar & m_t0;
+  ar & m_dt;
+  ar & m_yOffsetForDrawing;
+  ar & m_graphType;
+  ar & boost::serialization::base_object< std::set<GraphElement> >(*this);
+}//serialize
+
+
+
 ConsentrationGraph ConsentrationGraph::loadFromFile( std::string filename )
 {
   std::ifstream ifs( filename.c_str() );
@@ -1495,9 +1517,6 @@ AbsFuncPointer ConsentrationGraph::getFunctionPointer(
 
 
     
-
-
-
 
 
 

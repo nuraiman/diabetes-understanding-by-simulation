@@ -235,7 +235,8 @@ class ConsentrationGraph : public std::set<GraphElement>
                   std::string title = "", 
                   bool pause = true,
                   int color = 0 ) const;
-    TGraph *ConsentrationGraph::getTGraph() const;
+    TGraph *ConsentrationGraph::getTGraph( boost::posix_time::ptime t_start = kGenericT0,
+                                           boost::posix_time::ptime t_end = kGenericT0  ) const;
     
     //Some funcitons to aid in drawing the graph
     static std::string getDate( boost::posix_time::ptime time );
@@ -265,21 +266,10 @@ class ConsentrationGraph : public std::set<GraphElement>
  	                                          Filter_Coef C, Memory_Coef D );
     
     
-    //Serialize function has to be in the header since it's a template
+    //Will leave serialization funtion in header
     friend class boost::serialization::access;
     template<class Archive>
-    void serialize( Archive &ar, const unsigned int version )
-    {
-      unsigned int ver = version; //keep compiler from complaining
-      ver = ver;
-      
-      ar & m_t0;
-      ar & m_dt;
-      ar & m_yOffsetForDrawing;
-      ar & m_graphType;
-      ar & boost::serialization::base_object< std::set<GraphElement> >(*this);
-      // ar & (*static_cast< std::set<GraphElement> *>(this));
-    }//serialize
+    void serialize( Archive &ar, const unsigned int version );
     
 };//class ConsentrationGraph
 
@@ -287,20 +277,32 @@ BOOST_CLASS_VERSION(ConsentrationGraph, 0)
 
 
 //We need to be able to serialize ptime, so we can save ConsentrationGraph.
+//  functions must be in header or compiler complains when using these 
+//  serializtions for other classes
 namespace boost {
   namespace serialization {
-    //serialize(...) has to write and read the time, so it's a bit awkward
+    //serialize(...) has to write and read the time, so it's a bit awkward, but 
+    //  I don't care to do it properly right now, this works
     template<class Archive>
-     void serialize(Archive & ar, boost::posix_time::ptime &time, const unsigned int version)
+    void serialize(Archive & ar, boost::posix_time::ptime &time, const unsigned int version)
     {
-      unsigned int vers = version; //to keep compiler from complaining
-      vers = vers;
-      
+      assert( version==version ); //to keep compiler from complaining
       std::string ts = boost::posix_time::to_simple_string(time);
       
       ar & ts;
       
       time = boost::posix_time::time_from_string(ts);
+    }//
+    
+    template<class Archive>
+    void serialize(Archive & ar, boost::posix_time::time_duration &td, const unsigned int version)
+    {
+      assert( version==version ); //to keep compiler from complaining
+      std::string ts = boost::posix_time::to_simple_string(td);
+      
+      ar & ts;
+      
+      td = boost::posix_time::duration_from_string(ts);
     }
   } // namespace serialization
 } // namespace boost
