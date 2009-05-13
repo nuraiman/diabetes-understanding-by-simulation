@@ -87,7 +87,7 @@ NLSimple::NLSimple( const NLSimple &rhs ) :
 
 NLSimple::NLSimple( const string &description, double basalUnitsPerKiloPerhour,
                     double basalGlucoseConcen, boost::posix_time::ptime t0 ) :
-m_description(description), m_cgmsDelay(ModelDefaults::kDefaultCgmsDelay),
+m_description(description), m_cgmsDelay( toTimeDuration(ModelDefaults::kDefaultCgmsDelay) ),
      m_basalInsulinConc( getBasalInsulinConcentration(basalUnitsPerKiloPerhour) ),
      m_basalGlucoseConcentration( basalGlucoseConcen ), 
      m_t0( t0 ),
@@ -108,7 +108,7 @@ m_description(description), m_cgmsDelay(ModelDefaults::kDefaultCgmsDelay),
 
 
 NLSimple::NLSimple( std::string fileName ) :
-     m_description(""), m_cgmsDelay(ModelDefaults::kDefaultCgmsDelay),
+     m_description(""), m_cgmsDelay( toTimeDuration(ModelDefaults::kDefaultCgmsDelay) ),
      m_basalInsulinConc( kFailValue ),
      m_basalGlucoseConcentration( kFailValue ), 
      m_t0( kGenericT0 ),
@@ -178,18 +178,12 @@ double NLSimple::getOffset( const boost::posix_time::ptime &absoluteTime ) const
 }//getOffset
 
 
-
 ptime NLSimple::getAbsoluteTime( double nOffsetMinutes ) const
 {
-  long mins = (long) nOffsetMinutes;
-  nOffsetMinutes -= mins;
-  nOffsetMinutes *= 60.0;
-  long secs = (long)nOffsetMinutes;
-  
-  time_duration td = minutes(mins) + seconds(secs);
-  
-  return m_t0 + td;
+  return m_t0 + toTimeDuration(nOffsetMinutes);
 }//ptime getAbsoluteTime( double nOffsetMinutes ) const;
+
+
 
 
 
@@ -227,14 +221,12 @@ double NLSimple::dXdT( const ptime &time, double G, double X ) const
 }//dXdT
 
 
-double NLSimple::dXdT_usingCgmsData( double time, double X ) const
+double NLSimple::dXdT_usingCgmsData( const ptime &time, double X ) const
 {
-  // double cgmsTime = time + m_cgmsDelay;
-  // const ptime absCgmsPTime = getAbsoluteTime(cgmsTime);
-  const ptime absTime = getAbsoluteTime(time);
+  // const ptime absCgmsPTime = time + m_cgmsDelay;
   
   //The 10 is for convertin U/L, to U/dL
-  const double insulin= (m_freePlasmaInsulin.value( absTime ) / 10.0);
+  const double insulin= (m_freePlasmaInsulin.value( time ) / 10.0);
   
   double dXdT = -X * m_paramaters[XMultiplier]
                 + insulin * m_paramaters[PlasmaInsulinMultiplier];
@@ -246,22 +238,23 @@ double NLSimple::dXdT_usingCgmsData( double time, double X ) const
     
 
 
-vector<double> NLSimple::dGdT_and_dXdT( double time, vector<double> G_and_X ) const
+vector<double> NLSimple::dGdT_and_dXdT( const boost::posix_time::ptime &time, 
+                                        const std::vector<double> &G_and_X ) const
 {
   assert( G_and_X.size() == 2 );
-  const ptime properTime = getAbsoluteTime(time);
-  
+
   const double G = G_and_X[0];
   const double X = G_and_X[1];
   
-  G_and_X[0] = dGdT(properTime, G, X );
-  G_and_X[1] = dXdT(properTime, G, X );
+  vector<double> rVal(2);
+  rVal[0] = dGdT(time, G, X );
+  rVal[1] = dXdT(time, G, X );
   
-  return G_and_X;
+  return rVal;
 }//dGdT_and_dXdT
 
 
-RK_DerivFuntion NLSimple::getRKDerivFunc() const
+RK_PTimeDFunc NLSimple::getRKDerivFunc() const
 {
   return bind( &NLSimple::dGdT_and_dXdT, boost::cref(*this), _1, _2 );
 }//getRKDerivFunc()
@@ -392,6 +385,7 @@ void NLSimple::setModelParameters( const std::vector<double> &newPar )
 {
   assert( newPar.size() == NumNLSimplePars || newPar.empty() );
   
+  resetPredictions();
   m_paramaters = newPar;
 }//setModelParameters
 
@@ -421,18 +415,16 @@ void NLSimple::findSteadyStateBeginings( double nHoursNoInsulin )
   
   const time_duration noInsulinDur = getAbsoluteTime( 60.0 * nHoursNoInsulin ) 
                                      - getAbsoluteTime(0);
-  const time_duration cgmsDelay = getAbsoluteTime( m_cgmsDelay ) 
-                                  - getAbsoluteTime(0);
                                   
-  const ptime cgmsEndTime =  m_cgmsData.getEndTime() - cgmsDelay;
+  const ptime cgmsEndTime =  m_cgmsData.getEndTime() - m_cgmsDelay;
   const ptime insulinEndTime = m_freePlasmaInsulin.getEndTime();
   
   const ptime endTime   = std::min(cgmsEndTime, insulinEndTime);
   const ptime startTime = std::max(cgmsStartTime, insulinStartTime);
-  const double endRelTime = getOffset(endTime);
-  const double startRelTime = getOffset(startTime);
+  // const double endRelTime = getOffset(endTime);
+  // const double startRelTime = getOffset(startTime);
  
-  const double dt = 1.0;
+  const time_duration dt(0, 1, 0, 0);
   
   double X_max = 0.0;
   double X = 0.0;
@@ -484,9 +476,9 @@ void NLSimple::findSteadyStateBeginings( double nHoursNoInsulin )
     cout <<endl;
   }
   
-  for( double time = startRelTime; time < endRelTime; time += dt )
+  for( ptime time = startTime; time < endTime; time += dt )
   {
-    ForcingFunction derivFunc 
+    PTimeForcingFunction derivFunc 
     = boost::bind( &NLSimple::dXdT_usingCgmsData, boost::cref(*this), _1, X );
     
     X = rungeKutta4( time, X, dt, derivFunc );
@@ -517,7 +509,7 @@ void NLSimple::findSteadyStateBeginings( double nHoursNoInsulin )
       if( xValue[mins] < X_max )
       {
         isZeroX = true;
-        const ptime time = getAbsoluteTime( startRelTime + mins );
+        const ptime time = startTime + toTimeDuration( (double)mins);
         m_startSteadyStateTimes.push_back( time );
         cout << "Found model dependant start of steady state at " << time << endl;
       }//if( has become zero )
@@ -564,65 +556,85 @@ ptime NLSimple::findSteadyStateStartTime( ptime t_start, ptime t_end )
 
 
 ConsentrationGraph NLSimple::glucPredUsingCgms( int nMinutesPredict,  //nMinutes ahead of cgms
-                                                ptime t_start, ptime t_end, 
-                                                double bloodX_initial )
+                                                ptime t_start, ptime t_end )
 {
   using namespace boost::posix_time;
   ptime startTime = findSteadyStateStartTime( t_start, t_end );
+  
   ptime endTime = (t_end != kGenericT0) ? t_end : m_cgmsData.getEndTime();
   
-  if( bloodX_initial != kFailValue )
-  {
-    assert( t_start != kGenericT0 );
-    startTime = t_start;
-  }//if( we have initial conditions )
+  const double dt = toNMinutes(m_dt);
   
-  double dt = m_dt.total_nanoseconds() / 60.0 / 1.0E9; 
-  
-  ptime startPredGraph = startTime + minutes(nMinutesPredict);
+  ptime startPredGraph = startTime + minutes(nMinutesPredict) + m_cgmsDelay;
   ConsentrationGraph xGraph( startPredGraph, dt, InsulinGraph );
   ConsentrationGraph predBgGraph( startPredGraph, dt, GlucoseConsentrationGraph );
   
-  double cgmsX = ( bloodX_initial != kFailValue ) ? bloodX_initial : 0.0;
-  //first thing we have to do is find (and fill in X)
-  for( ptime time = startTime; time <= endTime; time += m_dt )
-  {
-    double doubleTime = xGraph.getOffset( time );
-    ForcingFunction derivFunc 
-    = boost::bind( &NLSimple::dXdT_usingCgmsData, boost::cref(*this), _1, cgmsX );
-    
-    cgmsX = rungeKutta4( doubleTime, cgmsX, dt, derivFunc );
-    
-    xGraph.insert( time, cgmsX );
-  }//for( loop over valid time ranges )
+  updateXUsingCgmsInfo();
   
-  RK_DerivFuntion derivFunc = getRKDerivFunc();
+  RK_PTimeDFunc derivFunc = getRKDerivFunc();  
   
-  foreach( const GraphElement &el, (set<GraphElement>)m_cgmsData )
+  for( ptime time = startTime+m_cgmsDelay; time < (endTime+m_dt); time += m_dt )
   {
-    const ptime time = m_cgmsData.getAbsoluteTime(el.m_minutes);
     const ptime predEndTime = time + minutes(nMinutesPredict);
-    
-    if( time < startTime ) continue;
-    if( (t_end != kGenericT0) &&  (time > predEndTime) ) continue;
     
     vector<double> predBgAndX(2);
     
-    predBgAndX[0] = el.m_value - m_basalGlucoseConcentration ;
-    predBgAndX[1] = xGraph.value( time );
+    predBgAndX[0] = m_cgmsData.value( time ) - m_basalGlucoseConcentration ;
+    predBgAndX[1] = xGraph.value( time - m_cgmsDelay );
     
-    for( ptime predTime = time; predTime <= predEndTime; predTime += m_dt )
+    ptime predTime;
+    for( predTime = time; predTime <= predEndTime; predTime += m_dt )
     {
-       double timeInOffset = getOffset( time );// + m_cgmsDelay;
-       predBgAndX = rungeKutta4( timeInOffset, predBgAndX, dt, derivFunc );     
+       predBgAndX = rungeKutta4( time - m_cgmsDelay, predBgAndX, m_dt, derivFunc );     
     }//for( loop over prediction time )
     
-    if( predEndTime < xGraph.getEndTime() )
-      predBgGraph.insert( predEndTime, predBgAndX[0] + m_basalGlucoseConcentration );
-  }//foreach( cgms reading ) 
+    predTime -= m_dt;
+    predBgGraph.insert( predTime, predBgAndX[0] + m_basalGlucoseConcentration );
+  }//for
   
   return predBgGraph;
 }//glucPredUsingCgms
+
+
+
+
+void NLSimple::updateXUsingCgmsInfo()
+{
+  const ptime steadyTime = findSteadyStateStartTime( kGenericT0, kGenericT0 );
+  const double lastXMinutes = !m_predictedInsulinX.empty() ? 
+                              (--m_predictedInsulinX.end())->m_minutes : 
+                              kFailValue;
+  const ptime lastXTime = m_predictedInsulinX.getAbsoluteTime( lastXMinutes );
+  const ptime startTime = m_predictedInsulinX.empty() ? steadyTime : lastXTime;
+  const ptime endTime = m_cgmsData.getEndTime() - m_cgmsDelay;
+  
+  double prevX = kFailValue;  //purely as a double checky
+  
+  for( ptime time = startTime; time <= endTime; time += m_dt )
+  {
+    double cgmsX = m_predictedInsulinX.value(time) / 10.0;
+    
+    //Just to checlk nothing is going wrong with Concentration graph
+    if( prevX != kFailValue ) 
+    {
+      if( fabs(cgmsX - prevX) > 10E-9 ) 
+      {
+        cout << "updateXUsingCgmsInfo:: " << cgmsX << " != " << prevX << endl;
+        assert( fabs(cgmsX - prevX) < 10E-8 );
+      }//
+    }//if( prevX != kFailValue ) 
+    
+    
+    PTimeForcingFunction derivFunc 
+    = boost::bind( &NLSimple::dXdT_usingCgmsData, boost::cref(*this), _1, cgmsX );
+    
+    double newCgmsX = rungeKutta4( time, cgmsX, m_dt, derivFunc );
+    prevX = newCgmsX;
+
+    //the 10.0 below is to go from U/L to U/DL
+    m_predictedInsulinX.insert( time + m_dt, 10.0 * newCgmsX );
+  }//for( loop over valid time ranges )
+}//void updateXUsingCgmsInfo();
 
 
 
@@ -632,8 +644,12 @@ double NLSimple::performModelGlucosePrediction( boost::posix_time::ptime t_start
                                                 double bloodGlucose_initial,
                                                 double bloodX_initial )
 {    
+  cout << "Warning, performModelGlucosePrediction(....) needs some work, use"
+       << " with caution" << endl;
   boost::posix_time::ptime endTime   = t_end;
   boost::posix_time::ptime startTime = findSteadyStateStartTime( t_start, t_end );
+  
+  //if x and cgms data start at t_start, then be are all good, else we nee
   
   
   if( bloodGlucose_initial > 0.0 && t_start==kGenericT0 )
@@ -647,17 +663,13 @@ double NLSimple::performModelGlucosePrediction( boost::posix_time::ptime t_start
   if( bloodX_initial != kFailValue ) startTime = t_start;
   else bloodX_initial = 0.0;
     
-  time_duration cgmsDelay;
-  cgmsDelay = getAbsoluteTime( getOffset(m_t0) + m_cgmsDelay ) - m_t0;
     
-  bloodGlucose_initial = m_cgmsData.value( startTime + cgmsDelay );
+  bloodGlucose_initial = m_cgmsData.value( startTime + m_cgmsDelay );
   if( bloodGlucose_initial < 1 )
   {
     cout << "double NLSimple::performModelGlucosePrediction(...):"
-         << " I only have cgms data through "
-         << to_simple_string( m_cgmsData.getEndTime() )
-         << " and the initial time is " 
-         << to_simple_string(startTime) << endl;
+         << " I only have cgms data through " << m_cgmsData.getEndTime() 
+         << " and the initial time is "  << startTime << endl;
     exit(1);
   }//if( bloodGlucose_initial < 30 )
 
@@ -715,22 +727,18 @@ double NLSimple::performModelGlucosePrediction( boost::posix_time::ptime t_start
   }//if( !m_predictedBloodGlucose.empty() )
   
   
-  const double dtInMin = m_dt.total_microseconds() / 1.0E6 / 60.0;
   vector<double> gAndX(2);
   gAndX[0] = bloodGlucose_initial - m_basalGlucoseConcentration;
   gAndX[1] = bloodX_initial;
-  RK_DerivFuntion derivFunc = getRKDerivFunc();
-  
+  RK_PTimeDFunc derivFunc = getRKDerivFunc();
   
   // cout << "About to start integrating between " << to_simple_string(startTime) 
        // << " and  " << to_simple_string(endTime) 
        // << ", With G_0=" << gAndX[0] << " and X_0=" << gAndX[1] << endl;
   
   for( ptime time = startTime; time <= endTime; time += m_dt )
-  {
-     double timeInOffset = getOffset( time );
-     
-     gAndX = rungeKutta4( timeInOffset, gAndX, dtInMin, derivFunc );
+  {     
+     gAndX = rungeKutta4( time, gAndX, m_dt, derivFunc );
      
      m_predictedBloodGlucose.insert( time, gAndX[0] + m_basalGlucoseConcentration );
      
@@ -795,11 +803,8 @@ double NLSimple::getBgValueChi2( const ConsentrationGraph &modelData,
   using namespace boost::gregorian;
   const double fracUncert = ModelDefaults::kCgmsIndivReadingUncert;
   
-  const time_duration cgmsDelay = modelData.getAbsoluteTime(m_cgmsDelay)  
-                                   - modelData.getAbsoluteTime(0);
-  
-  const ptime effCgmsStart = cgmsData.getStartTime() - cgmsDelay;
-  const ptime effCgmsEnd = cgmsData.getEndTime() - cgmsDelay;
+  const ptime effCgmsStart = cgmsData.getStartTime() - m_cgmsDelay;
+  const ptime effCgmsEnd = cgmsData.getEndTime() - m_cgmsDelay;
   
   if( t_start == kGenericT0 ) 
     t_start = max( modelData.getStartTime(), effCgmsStart);
@@ -831,14 +836,14 @@ double NLSimple::getBgValueChi2( const ConsentrationGraph &modelData,
        
   double chi2 = 0.0;
   
-  double offset = cgmsData.getOffset(t_start + cgmsDelay);
+  double offset = cgmsData.getOffset(t_start + m_cgmsDelay);
   ConstGraphIter start = cgmsData.lower_bound( GraphElement( offset, 0 ) );
-  offset = cgmsData.getOffset(t_end + cgmsDelay);
+  offset = cgmsData.getOffset(t_end + m_cgmsDelay);
   ConstGraphIter end = cgmsData.upper_bound( GraphElement( offset, 0 ) );
   
   for( ConstGraphIter iter = start; iter != end; ++iter )
   {
-    const ptime time = cgmsData.getAbsoluteTime( iter->m_minutes ) - cgmsDelay;
+    const ptime time = cgmsData.getAbsoluteTime( iter->m_minutes ) - m_cgmsDelay;
     const double cgmsValue  = iter->m_value;
     if( cgmsValue == 0.0 ) continue;
     double modelValue =  modelData.value(time); //+modelData.getYOffset()
@@ -864,12 +869,9 @@ double NLSimple::getDerivativeChi2( const ConsentrationGraph &modelDerivData,
 {
   assert( modelDerivData.getGraphType() == cgmsDerivData.getGraphType() );
   using namespace boost::gregorian;
-  
-  const time_duration cgmsDelay = modelDerivData.getAbsoluteTime(m_cgmsDelay)  
-                                   - modelDerivData.getAbsoluteTime(0);
-  
-  const ptime effCgmsStart = cgmsDerivData.getStartTime() - cgmsDelay;
-  const ptime effCgmsEnd = cgmsDerivData.getEndTime() - cgmsDelay;
+
+  const ptime effCgmsStart = cgmsDerivData.getStartTime() - m_cgmsDelay;
+  const ptime effCgmsEnd = cgmsDerivData.getEndTime() - m_cgmsDelay;
   
   if( t_start == kGenericT0 ) 
     t_start = max( modelDerivData.getStartTime(), effCgmsStart);
@@ -912,14 +914,14 @@ double NLSimple::getDerivativeChi2( const ConsentrationGraph &modelDerivData,
   
   double chi2 = 0.0;
   
-  double offset = cgmsDerivData.getOffset(t_start + cgmsDelay);
+  double offset = cgmsDerivData.getOffset(t_start + m_cgmsDelay);
   ConstGraphIter start = cgmsDerivData.lower_bound( GraphElement( offset, 0 ) );
-  offset = cgmsDerivData.getOffset(t_end + cgmsDelay);
+  offset = cgmsDerivData.getOffset(t_end + m_cgmsDelay);
   ConstGraphIter end = cgmsDerivData.upper_bound( GraphElement( offset, 0 ) );
   
   for( ConstGraphIter iter = start; iter != end; ++iter )
   {
-    const ptime time = cgmsDerivData.getAbsoluteTime( iter->m_minutes ) - cgmsDelay;
+    const ptime time = cgmsDerivData.getAbsoluteTime( iter->m_minutes ) - m_cgmsDelay;
     const double cgmsValue  = iter->m_value;
     double modelValue = modelDerivData.value(time);
     // const double uncert = fracUncert*cgmsValue;
@@ -934,6 +936,7 @@ double NLSimple::getDerivativeChi2( const ConsentrationGraph &modelDerivData,
 
 
 double NLSimple::geneticallyOptimizeModel( double fracDerivChi2,
+                                           double nMinutesPredict,
                                            vector<TimeRange> timeRanges )
 {
   using namespace TMVA;
@@ -942,7 +945,7 @@ double NLSimple::geneticallyOptimizeModel( double fracDerivChi2,
   resetPredictions();
   findSteadyStateBeginings(3);
   
-  Int_t fPopSize      = 200;
+  Int_t fPopSize      = 100;
   Int_t fNsteps       = 10;
   Int_t fSC_steps     = 6;
   Int_t fSC_rate      = 3;
@@ -956,7 +959,7 @@ double NLSimple::geneticallyOptimizeModel( double fracDerivChi2,
   //If convergence hasn't improvedmore than fConvCrit in the last
   //  fNsteps, then consider minimization complete
   
-  ModelTestFCN fittnesFunc( this, fracDerivChi2, timeRanges );
+  ModelTestFCN fittnesFunc( this, fracDerivChi2, nMinutesPredict, timeRanges );
   fittnesFunc.SetErrorDef(10.0);
   
   vector<TMVA::Interval*> ranges;
@@ -1000,16 +1003,18 @@ double NLSimple::geneticallyOptimizeModel( double fracDerivChi2,
   foreach( Double_t d, gvec ) cout << d << "  ";
   cout << endl;
   
+  double chi2 = fittnesFunc(gvec);
+  
   setModelParameters(gvec);
   
-  double chi2 = 0.0;
-  foreach( const TimeRange &tr, timeRanges )
-  {
-    ptime tStart = findSteadyStateStartTime( tr.first, tr.second );
-    
-    performModelGlucosePrediction( tStart, tr.second );
-    chi2 += getModelChi2( fracDerivChi2, tStart, tr.second );
-  }//foeach(...)  
+  // double chi2 = 0.0;
+  // foreach( const TimeRange &tr, timeRanges )
+  // {
+    // ptime tStart = findSteadyStateStartTime( tr.first, tr.second );
+    // 
+    // performModelGlucosePrediction( tStart, tr.second );
+    // chi2 += getModelChi2( fracDerivChi2, tStart, tr.second );
+  // }//foeach(...)  
   
   return chi2;
 }//geneticallyOptimizeModel
@@ -1017,6 +1022,7 @@ double NLSimple::geneticallyOptimizeModel( double fracDerivChi2,
 
     
 double NLSimple::fitModelToDataViaMinuit2( double fracDerivChi2, 
+                                           double nMinutesPredict,
                                            vector<TimeRange> timeRanges ) 
 {  
   using namespace ROOT::Minuit2;
@@ -1042,7 +1048,7 @@ double NLSimple::fitModelToDataViaMinuit2( double fracDerivChi2,
   resetPredictions();
   findSteadyStateBeginings(3);
   
-  ModelTestFCN modelFCN( this, fracDerivChi2, timeRanges );
+  ModelTestFCN modelFCN( this, fracDerivChi2, nMinutesPredict, timeRanges );
   modelFCN.SetErrorDef(10.0);
   
   MnUserParameters upar;
@@ -1168,7 +1174,7 @@ void NLSimple::draw( bool pause,
   {
     double x=0.0, y=0.0;
     cgmsBG->GetPoint( i, x, y );
-    cgmsBG->SetPoint( i, x - m_cgmsDelay, y);
+    cgmsBG->SetPoint( i, x - toNMinutes(m_cgmsDelay), y);
   }//for( loop over glucAbs points )
   
   
@@ -1302,10 +1308,13 @@ void ModelTestFCN::SetErrorDef(double dof) {  m_modelPtr->setFitDof(dof); }
 
 ModelTestFCN::ModelTestFCN( NLSimple *modelPtr, 
                             double fracDerivChi2,
+                            double chi2PredNMinutes,
                             std::vector<TimeRange> timeRanges  ) 
-  : m_modelPtr( modelPtr ), m_fracDerivChi2(fracDerivChi2), m_timeRanges( timeRanges )
+  : m_modelPtr( modelPtr ), m_fracDerivChi2(fracDerivChi2), 
+    m_chi2PredNMinutes( chi2PredNMinutes ), m_timeRanges( timeRanges )
 {
   assert( m_modelPtr );  
+  assert( fracDerivChi2 >=0.0 && fracDerivChi2 <=1.0 );
   
   if( m_timeRanges.empty() ) 
     m_timeRanges.push_back( TimeRange( kGenericT0, kGenericT0 ) );
@@ -1322,7 +1331,11 @@ Double_t ModelTestFCN::EstimatorFunction( std::vector<Double_t>& parameters )
 
 double ModelTestFCN::operator()(const std::vector<double>& x) const
 {
-  m_modelPtr->resetPredictions();
+  const time_duration cgmsDelay = m_modelPtr->m_cgmsDelay;
+  const time_duration predTime = (m_chi2PredNMinutes>0.0) ? 
+                                 toTimeDuration(m_chi2PredNMinutes) :
+                                 time_duration(0,0,0,0);
+  
   m_modelPtr->setModelParameters( x );
   
   double chi2 = 0.0;
@@ -1333,12 +1346,21 @@ double ModelTestFCN::operator()(const std::vector<double>& x) const
   foreach( const TimeRange &tr, m_timeRanges )
   {
     ptime tStart = m_modelPtr->findSteadyStateStartTime( tr.first, tr.second );
-    
-    m_modelPtr->performModelGlucosePrediction( tStart, tr.second );
-    chi2 += m_modelPtr->getModelChi2( m_fracDerivChi2, tStart, tr.second );
+    if( m_chi2PredNMinutes > 0.0 )
+    {
+      ConsentrationGraph 
+      predGluc =  m_modelPtr->glucPredUsingCgms( m_chi2PredNMinutes,
+                                                 tStart, tr.second );
+      chi2 += m_modelPtr->getChi2ComparedToCgmsData( predGluc, m_fracDerivChi2, 
+                                                     tStart + predTime + cgmsDelay, 
+                                                     tr.second );
+    } else
+    {
+      m_modelPtr->performModelGlucosePrediction( tStart, tr.second );
+      chi2 += m_modelPtr->getModelChi2( m_fracDerivChi2, tStart, tr.second );
+    }//if( usePredictedChi2 ) else 
   }//foeach(...)
   
-  m_modelPtr->resetPredictions();
   m_modelPtr->setModelParameters( std::vector<double>(0) );
   
   return chi2;

@@ -1,10 +1,15 @@
 
+#include "ArtificialPancrease.hh"
 #include "RungeKuttaIntegrater.hh"
 
 
 #include "boost/bind.hpp"
 #include "boost/function.hpp"
+#include "boost/date_time/posix_time/posix_time.hpp"
 
+using namespace std;
+using namespace boost;
+using namespace boost::posix_time;
 
 /******************************************************************************/
 /* rungeKutta4()
@@ -54,12 +59,32 @@
  * 
  */
 
-std::vector<double> rungeKutta4(
-		double xi,
-		std::vector<double> yi,
-		double dx,
-		RK_DerivFuntion derivatives ) {
-	
+ 
+double toNMinutes( const boost::posix_time::time_duration &timeDuration )
+{
+  return timeDuration.total_nanoseconds() / 60.0 / 1.0E9; 
+}//toNMinutes
+
+
+
+boost::posix_time::time_duration toTimeDuration( double nMinutes )
+{
+  long mins = (long) nMinutes;
+  nMinutes -= mins;
+  nMinutes *= 60.0;
+  long microsecs = (long) 1.0E6 * nMinutes;
+  
+  time_duration td = minutes(mins) + microseconds(microsecs);
+  
+  return td;
+}//toTimeDuration
+
+
+
+
+std::vector<double> rungeKutta4( double xi, std::vector<double> yi,
+		                             double dx, RK_DerivFuntion derivatives ) 
+{	
 	//	total number of elements in the vector
 	int n=yi.size();
 	
@@ -113,6 +138,65 @@ std::vector<double> rungeKutta4(
 
 
 
+std::vector<double> rungeKutta4( const boost::posix_time::ptime &time,
+                                 const std::vector<double> &yi,
+                                 const boost::posix_time::time_duration &dt,
+                                 RK_PTimeDFunc derivatives )
+{  
+	//	total number of elements in the vector
+	int n = yi.size();
+	const double dx = toNMinutes(dt);
+  
+	//	first step
+	std::vector<double> k1;
+	k1=derivatives(time, yi);
+	for (int i=0; i<n; ++i) {
+		k1.at(i)*=dx;
+	}
+	
+	//	second step
+	std::vector<double> k2(yi);
+	for (int i=0; i<n; ++i) {
+		k2.at(i)+=k1.at(i)/2.0;
+	}
+	k2=derivatives(time + (dt/2.0),k2);
+	for (int i=0; i<n; ++i) {
+		k2.at(i)*=dx;
+	}
+	
+	//	third step
+	std::vector<double> k3(yi);
+	for (int i=0; i<n; ++i) {
+		k3.at(i)+=k2.at(i)/2.0;
+	}
+	k3=derivatives(time+(dt/2.0),k3);
+	for (int i=0; i<n; ++i) {
+		k3.at(i)*=dx;
+	}
+	
+	
+	//	fourth step
+	std::vector<double> k4(yi);
+	for (int i=0; i<n; ++i) {
+		k4.at(i)+=k3.at(i);
+	}
+	k4=derivatives(time+dt,k4);
+	for (int i=0; i<n; ++i) {
+		k4.at(i)*=dx;
+	}
+	
+	
+	//	sum the weighted steps into yf and return the final y values
+	std::vector<double> yf(yi);
+	for (int i=0; i<n; ++i) {
+		yf.at(i)+=(k1.at(i)/6.0)+(k2.at(i)/3.0)+(k3.at(i)/3.0)+(k4.at(i)/6.0);
+	}
+	
+	return yf;
+}
+
+
+
 
 
 
@@ -127,6 +211,18 @@ double rungeKutta4( double x, double y, double dx, ForcingFunction derivativeFun
   return y1[0];
 }//rungeKutta4
 
+
+double rungeKutta4( const boost::posix_time::ptime &time, 
+                    double y, const boost::posix_time::time_duration &dt, 
+                    PTimeForcingFunction derivativeFunction )
+{
+  std::vector<double> y1(1, y);
+  RK_PTimeDFunc func = boost::bind( PTimeSingleVariableWrapperFunction, _1, _2, derivativeFunction );
+ 
+  y1 = rungeKutta4( time, y1, dt, func );
+  return y1[0];
+}//rungeKutta4
+
 //A wrapper used by the above
 std::vector<double> SingleVariableWrapperFunction( double x, std::vector<double> y, ForcingFunction func )
 {
@@ -134,6 +230,13 @@ std::vector<double> SingleVariableWrapperFunction( double x, std::vector<double>
   return y;
 }//
 
+std::vector<double> 
+PTimeSingleVariableWrapperFunction( const ptime &time, std::vector<double> y, 
+                                   PTimeForcingFunction func )
+{
+  y[0] = func(time); //keep from getting compiler warnings
+  return y;
+}//
 
 
 double integrateRungeKutta4( ForcingFunction func, 
@@ -147,11 +250,13 @@ double integrateRungeKutta4( ForcingFunction func,
   return f;
 }//integrateRungeKutta4
 
+
+
 //Integrate in the range t0 to t1 in 
 int integrateRungeKutta4( double t0, double t1, double dt, 
-                                                      std::vector<double> y0,  //starting values
-                                                      RK_DerivFuntion derivatives,
-                                                      std::vector<ConsentrationGraph> &answers
+                          std::vector<double> y0,  //starting values
+                          RK_DerivFuntion derivatives,
+                          std::vector<ConsentrationGraph> &answers
                                                      )
 {
   assert( y0.size() == answers.size() );
