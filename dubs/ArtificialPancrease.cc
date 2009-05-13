@@ -69,7 +69,7 @@ int main( int argc, char** argv )
   setStyle();
   ProgramOptions::decodeOptions( argc, argv );
   
-  // NLSimple model = createMar31Model();
+  // NLSimple model1 = createMar31Model();
   //void testSmoothing();
   // void testKineticModels();
   // void testFFT();  
@@ -80,7 +80,12 @@ int main( int argc, char** argv )
   ptime t0 = conspumtionGraph.getT0();
   
   NLSimple model( "../data/optimizedMarch31ThroughApril1Model.dub" );
-  
+  vector<TimeRange> timeRanges( 1, TimeRange(t0, t0+hours(36)) );
+  double geneticChi2 = model.geneticallyOptimizeModel( 0.0, 60, timeRanges);
+  double minuitChi2 = model.fitModelToDataViaMinuit2( 0.0, 60, timeRanges);
+  cout << "Genetic optimization gave chi2=" << geneticChi2 << " minuit2 improved"
+       << " this to " << minuitChi2 << endl;
+  model.saveToFile( "../data/predictionOptimizedMarch31ThroughApril1Model.dub" );
   ConsentrationGraph thirtyMinPred = model.glucPredUsingCgms( 60, t0, t0+hours(36) );
   model.draw( false );
   thirtyMinPred.draw("l", "", true, 6); 
@@ -297,43 +302,7 @@ void testKineticModels()
   
   ForcingFunction foodEaten = boost::bind( &ConsentrationGraph::valueUsingOffset, glucAbs, _1 );
   ForcingFunction insulinTaken = boost::bind( &ConsentrationGraph::valueUsingOffset, insConcen, _1 );
-  
-  double time = 0.0;
-  double G_basal = 100.0;  //g/dL
-  double I_basal = 100.0; //mU/L
-  std::vector<double> GAndX(2, 0.0);
-  std::vector<double> G_parameters(2, 0.0);
-  std::vector<double> X_parameters(2, 0.0);
-  
-  G_parameters[0] = 0.0;
-  G_parameters[1] = 30.0 / 9.0;
-  X_parameters[0] = 0.025;
-  X_parameters[1] = 0.0002;
-  RK_DerivFuntion dGdTdXdT = boost::bind( dGdT_and_dXdT, _1, _2, 
-                                          G_basal, I_basal, 
-                                          G_parameters, X_parameters,
-                                          foodEaten,
-                                          insulinTaken 
-                                        );
-  vector<double> y0(2, 0.0);
 
-  vector<ConsentrationGraph> answers( 2, ConsentrationGraph( kGenericT0, timeStep, GlucoseConsentrationGraph ) );
-  
-  integrateRungeKutta4( 0, 240, timeStep, y0, dGdTdXdT, answers );
-
-  answers[0].draw();
-  answers[1].draw();
-  
-  GAndX = rungeKutta4( time, GAndX, timeStep, dGdTdXdT );
-  
-  //body mass index 26.2 +- 4.9 kg /m^2
-  ConsentrationGraph testGraph( kGenericT0, 1.0, GlucoseAbsorbtionRateGraph );
-  testGraph.add( 100.0, 0.0,  MediumCarbAbsorbtionRate );
-  // testGraph.draw();
-  
-  testGraph.add( 20.0, 120.0,  FastCarbAbsorbtionRate );
-  
-  testGraph.draw();
 }//testKineticModels
 
 

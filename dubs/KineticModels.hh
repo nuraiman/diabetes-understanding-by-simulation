@@ -63,55 +63,6 @@ yatesCarbsEnterAndLeaveGutRate( double t,
                            ForcingFunction stomachToGutRate,
                            double k_gut_absoption );
 
-
-
-/*-------------> Now for models of how a human responds to inputs <-----------*/
-
-//This is my modification oto the Non-Linear Type I Diabetes Bergman Model
-//I use variable naming convention thats in the literature
-
-//  G is blood glucose consentration, relative to basal (mg/dL)
-//    G_basal is steady state blood glucose consentration, ~100 (mg/dL)
-//  I is blood-plasma insulin consentration above basal (mU/L)
-//    in this model it is a forcing function (pre-determined)
-//    I_basal is steady state insulin consentration (mU/L)
-//  X is Effective insulin  ( 1/min multiplied by constant 1*min*mg/dL )
-//  D is rate of glucose change in blood-stream (mg/dL/min)
-//    due to either carb-intake, or things like excersize, a forcing function.
-//  G_parameter[0] multiplies G; g_parameter[1] unused//multiplies I_basal
-//  X_parameter[0] multiplies X, X_parameter[1] multiplies I;  others unused now
-
-double dG_dT( double time, 
-              double X,    //This is 
-              double G, 
-              double G_basal, 
-              double I_basal, 
-              std::vector<double> G_parameter, //currently chould be of size 2
-              ForcingFunction D  //this is a function you supply, created via:
-                                 //ConsentrationGraph foodEaten(...)
-                                  // ForcingFunction D = boost::bind( &ConsentrationGraph::value, foodEaten, _1 )
-            );
-
-
-double dX_dT( double time, 
-              double X,
-              double G,
-              std::vector<double> X_parameters, //currently chould be of size 2
-              ForcingFunction I   //Similar to D, but for insulin
-            );
-
-
-//Now we need a wrapper function for 'dG_dT' and 'dX_dT' for the 
-//  RungeKutta integration.  We actually need a function with a signature
-//  vector<double> f(double, vector<double>), but we can use boost::bind 
-//  to achieve this for the below
-std::vector<double> dGdT_and_dXdT( double time, std::vector<double> G_and_X, 
-                                   double G_basal, double I_basal, 
-                                   std::vector<double> G_parameters,  //should be size==1
-                                   std::vector<double> X_parameters,  //should be size==2
-                                   ForcingFunction D,
-                                   ForcingFunction I
-                                 );
   
   
 #endif //KINETIC_MODEL_HH

@@ -22,8 +22,24 @@
 //Eventually, when I add mmore models, I'll set up a inheritance hiegharchy
 //  to improve organization
 
+/*******************************************************************************
+* To Do
+*  Move all logic for finding start/stop times for predictions into seperate function
+*  Generally clean up the  integrator functions
+*  Convert to using a matrix for errors, instead/in-addtion-to vectors
+*  add option to options_namespace for {default m_dt, 
+*  get rid of boost::posix_time:: in all the headers, add some typedefs
+*  work on the the chi2 def by throwing random numbers and looking at dist.
+*  make the model more more sophisticated
+*  add ability to find amount of insulin to take for a meal, maybe this should
+*     be a function outside of this class
+*  Make it so time reffers to real time everywhere, and delayed cgms time is explicity named so
+*  add ability to guess what went wrong in the previous 3 hours
+*  add auto correlation function to find cgms delay
+*******************************************************************************/
 
-typedef std::pair<boost::posix_time::ptime, boost::posix_time::ptime> TimeRange;
+
+
 
 //My non-linear simple model, it is a inspired by the Bergman model
 class NLSimple
@@ -49,8 +65,8 @@ class NLSimple
     //begin variable that matter to *this
     std::string m_description;                  //Useful for later checking
     
-    double m_cgmsDelay;                         //initially set to 15 minutes
-    double m_basalInsulinConc;                  //units per kilo per hour
+    boost::posix_time::time_duration m_cgmsDelay; //initially set to 15 minutes
+    double m_basalInsulinConc;                    //units per kilo per hour
     double m_basalGlucoseConcentration;
 
     boost::posix_time::ptime         m_t0;
@@ -73,7 +89,7 @@ class NLSimple
     ConsentrationGraph m_predictedBloodGlucose;
     
     
-    std::vector<boost::posix_time::ptime> m_startSteadyStateTimes;
+    PTimeVec m_startSteadyStateTimes;
     
     
     NLSimple( std::string fileName );
@@ -88,14 +104,16 @@ class NLSimple
     double getOffset( const boost::posix_time::ptime &absoluteTime ) const;
     boost::posix_time::ptime getAbsoluteTime( double nOffsetMinutes ) const;
     
+
     
     //Functions for integrating the kinetic equations
     double dGdT( const boost::posix_time::ptime &time, double G, double X ) const;
     double dXdT( const boost::posix_time::ptime &time, double G, double X ) const;
-    double dXdT_usingCgmsData( double time, double X ) const;
+    double dXdT_usingCgmsData( const boost::posix_time::ptime &time, double X ) const;
     
-    std::vector<double> dGdT_and_dXdT( double time, std::vector<double> G_and_X ) const;
-    RK_DerivFuntion getRKDerivFunc() const;
+    std::vector<double> dGdT_and_dXdT( const boost::posix_time::ptime &time, 
+                                       const std::vector<double> &G_and_X ) const;
+    RK_PTimeDFunc getRKDerivFunc() const;
     
     static double getBasalInsulinConcentration( double unitesPerKiloPerhour );
     void addCgmsData( const ConsentrationGraph &newData, 
@@ -127,9 +145,9 @@ class NLSimple
     
     ConsentrationGraph glucPredUsingCgms( int nMinutesPredict,  //nMinutes ahead of cgms
                                           boost::posix_time::ptime t_start = kGenericT0,
-                                          boost::posix_time::ptime t_end = kGenericT0,
-                                          double bloodX_initial = kFailValue );
+                                          boost::posix_time::ptime t_end   = kGenericT0 );
     
+    void updateXUsingCgmsInfo();
     
     double performModelGlucosePrediction( boost::posix_time::ptime t_start = kGenericT0,
                                           boost::posix_time::ptime t_end = kGenericT0,
@@ -160,11 +178,16 @@ class NLSimple
     double getFitDof() const;
     void setFitDof( double dof );
     
-    double geneticallyOptimizeModel( double fracDerivChi2,
-                std::vector<TimeRange> timeRanges = std::vector<TimeRange>(0) );
+    
+    //For model fiiting, specifying nMinutesPredict<=0.0 means don't use cgms 
+    //  data tomake predictions
+    double geneticallyOptimizeModel( double fracDerivChi2, 
+                                     double nMinutesPredict,
+                                     TimeRangeVec timeRanges = TimeRangeVec(0) );
     
     double fitModelToDataViaMinuit2( double fracDerivChi2,
-                std::vector<TimeRange> timeRanges = std::vector<TimeRange>(0) );
+                                     double nMinutesPredict,
+                                     TimeRangeVec timeRanges = TimeRangeVec(0) );
     
     void draw( bool pause = true,
                boost::posix_time::ptime t_start = kGenericT0,
@@ -195,11 +218,13 @@ class ModelTestFCN : public ROOT::Minuit2::FCNBase,  public TMVA::IFitterTarget
     
     ModelTestFCN( NLSimple *modelPtr, 
                   double fracDerivChi2,
+                  double chi2PredNMinutes,  // <=0.0 means don't use cgms data to make predictions
                   std::vector<TimeRange> timeRanges );
   
   private:
     NLSimple *m_modelPtr;
     double    m_fracDerivChi2;
+    double    m_chi2PredNMinutes;
     
     std::vector<TimeRange> m_timeRanges;
     boost::posix_time::ptime m_tStart;

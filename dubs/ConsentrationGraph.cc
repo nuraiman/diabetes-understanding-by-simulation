@@ -44,6 +44,8 @@
 #include "ConsentrationGraph.hh"
 #include "KineticModels.hh"
 #include "CgmsDataImport.hh"
+#include "RungeKuttaIntegrater.hh"
+
 
 using namespace std;
 using namespace boost;
@@ -128,14 +130,7 @@ void ConsentrationGraph::setT0_dontChangeOffsetValues( ptime newT0 )
 
 double ConsentrationGraph::getDt( const ptime &t0, const ptime &t1 )
 {
-  time_duration td = t1 - t0;
-  //I'm sure theres a better wasy to do this, but I don't have boost
-  //  documentation in front of me
-  const int nSecondsTotal = td.total_seconds();
- 
-  const double nMinutes = nSecondsTotal / 60.0;
-  
-  return nMinutes;
+  return toNMinutes( t1 - t0 );
 }//static double getDt( ptime t0, ptime t1 ) const
 
 
@@ -242,7 +237,8 @@ double ConsentrationGraph::value( double nOffsetminutes ) const
   //  unless time matches exactly, which we already would have
   if( m_graphType == BolusGraph ) return 0.0;
   
-  ConstGraphIter prevElement = --lowerBound;
+  ConstGraphIter prevElement = lowerBound;
+  --prevElement;
   
   const double thisDt = lowerBound->m_minutes - prevElement->m_minutes;
   const double thisDConsen = lowerBound->m_value - prevElement->m_value;
