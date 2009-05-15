@@ -566,21 +566,36 @@ ConsentrationGraph NLSimple::glucPredUsingCgms( int nMinutesPredict,  //nMinutes
   const double dt = toNMinutes(m_dt);
   
   ptime startPredGraph = startTime + minutes(nMinutesPredict) + m_cgmsDelay;
-  ConsentrationGraph xGraph( startPredGraph, dt, InsulinGraph );
+  // ConsentrationGraph xGraph( startPredGraph, dt, InsulinGraph );
   ConsentrationGraph predBgGraph( startPredGraph, dt, GlucoseConsentrationGraph );
   
   updateXUsingCgmsInfo();
+  assert( !m_predictedInsulinX.empty() );
+  const double lastXMinutes = (--m_predictedInsulinX.end())->m_minutes;
+  const ptime lastXTime = m_predictedInsulinX.getAbsoluteTime( lastXMinutes );
+  
   
   RK_PTimeDFunc derivFunc = getRKDerivFunc();  
   
   for( ptime time = startTime+m_cgmsDelay; time < (endTime+m_dt); time += m_dt )
   {
+    if( time > lastXTime )
+    {
+      cout << "You need to update glucPredUsingCgms(...) to calculate X too" << endl;
+      assert(0);
+    }
+    
     const ptime predEndTime = time + minutes(nMinutesPredict);
     
     vector<double> predBgAndX(2);
     
     predBgAndX[0] = m_cgmsData.value( time ) - m_basalGlucoseConcentration ;
-    predBgAndX[1] = xGraph.value( time - m_cgmsDelay );
+    predBgAndX[1] = m_predictedInsulinX.value( time - m_cgmsDelay );
+    
+    // if( time > time_from_string("2009-Apr-01 07:00:00") 
+      // && time < time_from_string("2009-Apr-01 11:00:00") )
+    // cout << "At " << time << " starting with g=" << predBgAndX[0] + m_basalGlucoseConcentration 
+         // << " and X=" << predBgAndX[1] << endl;
     
     ptime predTime;
     for( predTime = time; predTime <= predEndTime; predTime += m_dt )
@@ -590,6 +605,11 @@ ConsentrationGraph NLSimple::glucPredUsingCgms( int nMinutesPredict,  //nMinutes
     
     predTime -= m_dt;
     predBgGraph.insert( predTime, predBgAndX[0] + m_basalGlucoseConcentration );
+    
+    // if( time > time_from_string("2009-Apr-01 07:00:00") 
+      // && time < time_from_string("2009-Apr-01 11:00:00") )
+    // cout << " and ending up with g=" << predBgAndX[0] + m_basalGlucoseConcentration
+         // << " at " << predTime << endl;
   }//for
   
   return predBgGraph;
@@ -598,8 +618,9 @@ ConsentrationGraph NLSimple::glucPredUsingCgms( int nMinutesPredict,  //nMinutes
 
 
 
-void NLSimple::updateXUsingCgmsInfo()
+void NLSimple::updateXUsingCgmsInfo( bool recomputeAll )
 {
+  if( recomputeAll ) m_predictedInsulinX.clear();
   const ptime steadyTime = findSteadyStateStartTime( kGenericT0, kGenericT0 );
   const double lastXMinutes = !m_predictedInsulinX.empty() ? 
                               (--m_predictedInsulinX.end())->m_minutes : 
@@ -609,6 +630,9 @@ void NLSimple::updateXUsingCgmsInfo()
   const ptime endTime = m_cgmsData.getEndTime() - m_cgmsDelay;
   
   double prevX = kFailValue;  //purely as a double checky
+  
+  // if( startTime < endTime )
+    // cout << "Updating X using CGMS from " << startTime << " to " << endTime << endl;
   
   for( ptime time = startTime; time <= endTime; time += m_dt )
   {
@@ -633,6 +657,10 @@ void NLSimple::updateXUsingCgmsInfo()
 
     //the 10.0 below is to go from U/L to U/DL
     m_predictedInsulinX.insert( time + m_dt, 10.0 * newCgmsX );
+    
+    // if( time > time_from_string("2009-Apr-01 07:00:00") 
+      // && time < time_from_string("2009-Apr-01 11:00:00") ) 
+    // cout << "insert into X at time " << time+m_dt << " a value " << 10.0*newCgmsX << endl;
   }//for( loop over valid time ranges )
 }//void updateXUsingCgmsInfo();
 
@@ -950,7 +978,7 @@ double NLSimple::geneticallyOptimizeModel( double fracDerivChi2,
   Int_t fSC_steps     = 6;
   Int_t fSC_rate      = 3;
   Double_t fSC_factor = 0.5;
-  Double_t fConvCrit  = 1.0;
+  Double_t fConvCrit  = 5.0;
   //When the number of improvments within the last fSC_steps
   // a) smaller than fSC_rate, then divide present sigma by fSC_factor
   // b) equal, do nothing
@@ -987,6 +1015,8 @@ double NLSimple::geneticallyOptimizeModel( double fracDerivChi2,
     double currFitness = fittnesFunc.EstimatorFunction( currentPars );
     cout << "Current fitness is " << currFitness << " fitness" << endl << endl << endl;
     
+    fConvCrit = 0.008 * currFitness;
+    
     // reduce the population size to the initially defined one
     ga.GetGeneticPopulation().TrimPopulation(); 
     
@@ -1019,7 +1049,48 @@ double NLSimple::geneticallyOptimizeModel( double fracDerivChi2,
   return chi2;
 }//geneticallyOptimizeModel
 
-
+//returns true  if all information is updated to time
+bool NLSimple::removeInfoAfter( const boost::posix_time::ptime &cgmsEndTime )
+{
+  //I think maybe 
+  const ptime time = cgmsEndTime - m_cgmsDelay; ;
+  GraphElement lastCgmsValue( m_cgmsData.getOffset(cgmsEndTime), kFailValue );
+  GraphElement lastXValue( m_predictedInsulinX.getOffset(time), kFailValue );
+  GraphElement lastPredValue( m_predictedBloodGlucose.getOffset(time), kFailValue );
+  
+  ConstGraphIter lastCgmsPoint = m_cgmsData.lower_bound( lastCgmsValue );
+  ConstGraphIter lastXPoint    = m_predictedInsulinX.lower_bound( lastXValue );
+  ConstGraphIter lastPBGPoint  = m_predictedBloodGlucose.lower_bound( lastPredValue );
+    
+  unsigned int nUpdated = 0;
+  if( lastCgmsPoint != m_cgmsData.end() )
+  {
+    ++nUpdated;
+    const double val = m_cgmsData.value(time);
+    m_cgmsData.erase( lastCgmsPoint, m_cgmsData.end() );
+    m_cgmsData.insert( time, val );
+  }//if( lastCgmsPoint != m_cgmsData.end() )
+  
+  if( lastXPoint != m_predictedInsulinX.end() )
+  {
+    ++nUpdated;
+    const double val = m_predictedInsulinX.value(time);
+    m_predictedInsulinX.erase( lastXPoint, m_predictedInsulinX.end() );
+    m_predictedInsulinX.insert( time, val );
+  }//if( lastXPoint != m_predictedInsulinX.end() )
+  
+  if( lastPBGPoint != m_predictedBloodGlucose.end() )
+  {
+    ++nUpdated;
+    const double val = m_predictedBloodGlucose.value(time);
+    m_predictedBloodGlucose.erase(lastPBGPoint, m_predictedBloodGlucose.end() );
+    m_predictedBloodGlucose.insert( time, val );
+  }//if( lastPBGPoint != m_predictedBloodGlucose.end() )
+  
+  return (nUpdated == 3);
+}//removeInfoAfter
+    
+    
     
 double NLSimple::fitModelToDataViaMinuit2( double fracDerivChi2, 
                                            double nMinutesPredict,

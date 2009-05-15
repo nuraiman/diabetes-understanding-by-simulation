@@ -24,7 +24,7 @@ double SlowCarbAbsorbtionFunc( double nCarbs, double nMinutes );
 
 
 ConsentrationGraph novologConsentrationGraph( 
-                   boost::posix_time::ptime t0,
+                   PosixTime t0,
                    double unitsPerKilogram, double timeStep );
 
 
@@ -38,7 +38,7 @@ ConsentrationGraph novologConsentrationGraph(
 //    * amount of glucose in gut
 //right now just using simple numerical integration
 ConsentrationGraph yatesGlucoseAbsorptionRate( 
-                   boost::posix_time::ptime t0,
+                   PosixTime t0,
                    double glucose_equiv_carbs,//Number of carbohydrates
                    double t_assent,  //how long to get to max-stomach-absorption rate (minutes)
                    double t_dessent, //stomach-absorption rate tapper off time (minutes)

@@ -28,7 +28,6 @@
 *  Generally clean up the  integrator functions
 *  Convert to using a matrix for errors, instead/in-addtion-to vectors
 *  add option to options_namespace for {default m_dt, 
-*  get rid of boost::posix_time:: in all the headers, add some typedefs
 *  work on the the chi2 def by throwing random numbers and looking at dist.
 *  make the model more more sophisticated
 *  add ability to find amount of insulin to take for a meal, maybe this should
@@ -38,7 +37,18 @@
 *  add auto correlation function to find cgms delay
 *******************************************************************************/
 
+class NLSimple;
 
+typedef std::pair<PosixTime,double> FoodConsumption;
+typedef std::pair<PosixTime,double> InsulinInjection;
+
+
+//lets find the amount of insulin to be taken between startTime 
+//  and startTime & endTime such that when X->2% of it's max, 
+//  B.G. will be at basal
+// InsulinInjection findInsulinCorrection( const NLSimple &model, 
+                                        // const PosixTime &startTime,
+                                        // const PosixTime &endTime);
 
 
 //My non-linear simple model, it is a inspired by the Bergman model
@@ -65,12 +75,12 @@ class NLSimple
     //begin variable that matter to *this
     std::string m_description;                  //Useful for later checking
     
-    boost::posix_time::time_duration m_cgmsDelay; //initially set to 15 minutes
+    TimeDuration m_cgmsDelay; //initially set to 15 minutes
     double m_basalInsulinConc;                    //units per kilo per hour
     double m_basalGlucoseConcentration;
 
-    boost::posix_time::ptime         m_t0;
-    boost::posix_time::time_duration m_dt;
+    PosixTime         m_t0;
+    TimeDuration m_dt;
     
     double              m_effectiveDof; //So Minuit2 can properly interpret errors
     std::vector<double> m_paramaters;           //size == NumNLSimplePars
@@ -96,7 +106,7 @@ class NLSimple
     NLSimple( const std::string &description, 
               double basalUnitsPerKiloPerhour,
               double basalGlucoseConcen = PersonConstants::kBasalGlucConc, 
-              boost::posix_time::ptime t0 = kGenericT0 );
+              PosixTime t0 = kGenericT0 );
     const NLSimple &operator=( const NLSimple &rhs );
     
     ~NLSimple() {};
@@ -107,18 +117,18 @@ class NLSimple
 
     
     //Functions for integrating the kinetic equations
-    double dGdT( const boost::posix_time::ptime &time, double G, double X ) const;
-    double dXdT( const boost::posix_time::ptime &time, double G, double X ) const;
-    double dXdT_usingCgmsData( const boost::posix_time::ptime &time, double X ) const;
+    double dGdT( const PosixTime &time, double G, double X ) const;
+    double dXdT( const PosixTime &time, double G, double X ) const;
+    double dXdT_usingCgmsData( const PosixTime &time, double X ) const;
     
-    std::vector<double> dGdT_and_dXdT( const boost::posix_time::ptime &time, 
+    std::vector<double> dGdT_and_dXdT( const PosixTime &time, 
                                        const std::vector<double> &G_and_X ) const;
     RK_PTimeDFunc getRKDerivFunc() const;
     
     static double getBasalInsulinConcentration( double unitesPerKiloPerhour );
     void addCgmsData( const ConsentrationGraph &newData, 
                         bool findNewSteadyState = false );
-    void addCgmsData( boost::posix_time::ptime, double value );
+    void addCgmsData( PosixTime, double value );
     void addCgmsDataFromIsig( const ConsentrationGraph &isigData,
                               const ConsentrationGraph &calibrationData,
                               bool findNewSteadyState = false );
@@ -126,7 +136,7 @@ class NLSimple
                        bool finNewSteadyStates = false );
     
     //uses default absorption rates
-    void addConsumedGlucose( boost::posix_time::ptime time, double amount ); 
+    void addConsumedGlucose( PosixTime time, double amount ); 
     
     //if you pass in carbs consumed, just uses default absorption rate
     //  passing in glucose absorption rate is preffered method
@@ -137,42 +147,44 @@ class NLSimple
     void setModelParameterErrors( std::vector<double> &newParErrorLow, 
                                   std::vector<double> &newParErrorHigh );
     
-    boost::posix_time::ptime findSteadyStateStartTime( 
-                                                  boost::posix_time::ptime t_start,
-                                                  boost::posix_time::ptime t_end );
+    PosixTime findSteadyStateStartTime( PosixTime t_start, PosixTime t_end );
     void findSteadyStateBeginings( double nHoursNoInsulinForFirstSteadyState = 3.0 );
     
     
     ConsentrationGraph glucPredUsingCgms( int nMinutesPredict,  //nMinutes ahead of cgms
-                                          boost::posix_time::ptime t_start = kGenericT0,
-                                          boost::posix_time::ptime t_end   = kGenericT0 );
+                                          PosixTime t_start = kGenericT0,
+                                          PosixTime t_end   = kGenericT0 );
     
-    void updateXUsingCgmsInfo();
+    //returns true  if all information is updated to time
+    //  Only modifes cgmsData, X, and predictedGlucose graphs
+    //  X and predictedGlucose will end at cgmsEndTime - m_cgmsDelay
+    bool removeInfoAfter( const PosixTime &cgmsEndTime );
     
-    double performModelGlucosePrediction( boost::posix_time::ptime t_start = kGenericT0,
-                                          boost::posix_time::ptime t_end = kGenericT0,
+    void updateXUsingCgmsInfo( bool recomputeAll = true );
+    
+    double performModelGlucosePrediction( PosixTime t_start = kGenericT0,
+                                          PosixTime t_end = kGenericT0,
                                           double bloodGlucose_initial = kFailValue,
                                           double bloodX_initial = kFailValue );
     
     double getModelChi2( double fracDerivChi2 = 0.0,
-                         boost::posix_time::ptime t_start = kGenericT0,
-                         boost::posix_time::ptime t_end = kGenericT0 );
+                         PosixTime t_start = kGenericT0,
+                         PosixTime t_end = kGenericT0 );
     
     double getChi2ComparedToCgmsData( ConsentrationGraph &inputData,
                                       double fracDerivChi2 = 0.0,
-                                      boost::posix_time::ptime t_start = kGenericT0,
-                                      boost::posix_time::ptime t_end = kGenericT0 );
+                                      PosixTime t_start = kGenericT0,
+                                      PosixTime t_end = kGenericT0 );
     
     //Below gives chi^2 based only on height differences of graphs
     double getBgValueChi2( const ConsentrationGraph &modelData,
                            const ConsentrationGraph &cgmsData,
-                           boost::posix_time::ptime t_start,
-                           boost::posix_time::ptime t_end ) const;
+                           PosixTime t_start, PosixTime t_end ) const;
+    
     //Below gives chi^2 based on the differences in derivitaves of graphs
     double getDerivativeChi2( const ConsentrationGraph &modelDerivData,
                               const ConsentrationGraph &cgmsDerivData,
-                              boost::posix_time::ptime t_start,
-                              boost::posix_time::ptime t_end ) const;
+                              PosixTime t_start, PosixTime t_end ) const;
     //want to add a variable binning chi2
     
     double getFitDof() const;
@@ -189,13 +201,11 @@ class NLSimple
                                      double nMinutesPredict,
                                      TimeRangeVec timeRanges = TimeRangeVec(0) );
     
-    void draw( bool pause = true,
-               boost::posix_time::ptime t_start = kGenericT0,
-               boost::posix_time::ptime t_end = kGenericT0 );
+    void draw( bool pause = true, PosixTime t_start = kGenericT0,
+               PosixTime t_end = kGenericT0 );
     
     bool saveToFile( std::string filename );
     
-    //Will leave serialization funtion in header
     friend class boost::serialization::access;
     template<class Archive>
     void serialize( Archive &ar, const unsigned int version );
