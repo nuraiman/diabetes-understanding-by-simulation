@@ -84,8 +84,9 @@ int main( int argc, char** argv )
   double geneticChi2 = model.geneticallyOptimizeModel( 0.0, 60, timeRanges);
   double minuitChi2 = model.fitModelToDataViaMinuit2( 0.0, 60, timeRanges);
   cout << "Genetic optimization gave chi2=" << geneticChi2 << " minuit2 improved"
-       << " this to " << minuitChi2 << endl;
+        << " this to " << minuitChi2 << endl;
   model.saveToFile( "../data/predictionOptimizedMarch31ThroughApril1Model.dub" );
+  //may 13th, this gave: 0.0134896  0.741119  0.043758  8.96854e-05
   ConsentrationGraph thirtyMinPred = model.glucPredUsingCgms( 60, t0, t0+hours(36) );
   model.draw( false );
   thirtyMinPred.draw("l", "", true, 6); 
@@ -125,10 +126,10 @@ NLSimple createMar31Model()
   // model.draw();
   
   vector<double> parms(NLSimple::NumNLSimplePars, 0.0);
-  parms[NLSimple::BGMultiplier]            = 0.0099618359;
-  parms[NLSimple::CarbAbsorbMultiplier]    = 0.71765017;
-  parms[NLSimple::XMultiplier]             = 0.0065179818;
-  parms[NLSimple::PlasmaInsulinMultiplier] = 1.0017923e-05;
+  parms[NLSimple::BGMultiplier]            = 0.0134896;
+  parms[NLSimple::CarbAbsorbMultiplier]    = 0.741119;
+  parms[NLSimple::XMultiplier]             = 0.043758;
+  parms[NLSimple::PlasmaInsulinMultiplier] = 8.96854e-05;
         
   model.setModelParameters( parms );
   model.performModelGlucosePrediction( t0, t0+hours(36) );

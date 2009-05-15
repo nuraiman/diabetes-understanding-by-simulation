@@ -113,7 +113,7 @@ class ConsentrationGraph : public std::set<GraphElement>
 {
   private:
     //The time GraphElement.m_minutes is relative to
-    boost::posix_time::ptime m_t0;
+    PosixTime m_t0;
     
     //The default time step, in minutes
     //  The elements in the base GraphElementSet MAY have a smaller
@@ -130,23 +130,23 @@ class ConsentrationGraph : public std::set<GraphElement>
     //Initializers
     ConsentrationGraph( const ConsentrationGraph &lhs );
     ConsentrationGraph( const std::string &savedFileName );
-    ConsentrationGraph( boost::posix_time::ptime t0, double dt, GraphType graphType );
+    ConsentrationGraph( PosixTime t0, double dt, GraphType graphType );
     
     const ConsentrationGraph &operator=( const ConsentrationGraph &rhs );
     
     //Internal Methods
-    double getOffset( const boost::posix_time::ptime &absoluteTime ) const;  //offset from m_t0 in minutes 
-    static double getDt( const boost::posix_time::ptime &t0, const boost::posix_time::ptime &t1 );  //time diff in minutes 
-    boost::posix_time::ptime getAbsoluteTime( double nOffsetMinutes ) const;
-    bool containsTime( boost::posix_time::ptime absoluteTime ) const;
+    double getOffset( const PosixTime &absoluteTime ) const;  //offset from m_t0 in minutes 
+    static double getDt( const PosixTime &t0, const PosixTime &t1 );  //time diff in minutes 
+    PosixTime getAbsoluteTime( double nOffsetMinutes ) const;
+    bool containsTime( PosixTime absoluteTime ) const;
     bool containsTime( double nMinutesOffset ) const;
      
     
     //If the base GraphElementSet doesn't have the exact time you want,
     //  value(...) will just use linear interpolation to find the value
     double value( double nOffsetminutes ) const;
-    double value( boost::posix_time::ptime absTime ) const;
-    double value( boost::posix_time::time_duration offset ) const;
+    double value( PosixTime absTime ) const;
+    double value( TimeDuration offset ) const;
     double valueUsingOffset( double nOffsetminutes ) const;  //just a synonym for value(double)
     
     //To obtain the derivative or smoothed version of this graph 
@@ -179,19 +179,19 @@ class ConsentrationGraph : public std::set<GraphElement>
     double getDt() const;
     GraphType getGraphType() const;
     std::string getGraphTypeStr() const;
-    boost::posix_time::ptime getT0() const;
-    boost::posix_time::ptime getStartTime() const;
-    boost::posix_time::ptime getEndTime() const;
+    PosixTime getT0() const;
+    PosixTime getStartTime() const;
+    PosixTime getEndTime() const;
     
     //To add a single point use addNewDataPoint
     //  however, use of this function is mildly unsafe if you have previously
     //  used an add(...) function
     ConstGraphIter addNewDataPoint( double offset, double value );
-    ConstGraphIter addNewDataPoint( boost::posix_time::ptime time, double value );
+    ConstGraphIter addNewDataPoint( PosixTime time, double value );
     
     //cals above
     ConstGraphIter insert( double offsetTime, double value );
-    ConstGraphIter insert( const boost::posix_time::ptime &absoluteTime, double value );
+    ConstGraphIter insert( const PosixTime &absoluteTime, double value );
    
     double getMostCommonDt() const;
     
@@ -219,13 +219,13 @@ class ConsentrationGraph : public std::set<GraphElement>
 
     ConsentrationGraph getTotal( const ConsentrationGraph &rhs, 
                                  const double weight = 1.0 ) const;
-    ConsentrationGraph getTotal( double amountPerVol, boost::posix_time::ptime functionT0, 
+    ConsentrationGraph getTotal( double amountPerVol, PosixTime functionT0, 
                                  AbsFuncPointer ) const;
-    ConsentrationGraph getTotal( double amountPerVol, boost::posix_time::ptime functionT0, 
+    ConsentrationGraph getTotal( double amountPerVol, PosixTime functionT0, 
                      AbsorbtionFunction absFunc = NumAbsorbtionFunctions) const;
 
 
-    void setT0_dontChangeOffsetValues( boost::posix_time::ptime newT0 );
+    void setT0_dontChangeOffsetValues( PosixTime newT0 );
     
     void setYOffset( double yOffset );
     double getYOffset() const;
@@ -235,16 +235,15 @@ class ConsentrationGraph : public std::set<GraphElement>
                   std::string title = "", 
                   bool pause = true,
                   int color = 0 ) const;
-    TGraph *ConsentrationGraph::getTGraph( boost::posix_time::ptime t_start = kGenericT0,
-                                           boost::posix_time::ptime t_end = kGenericT0  ) const;
+    TGraph *ConsentrationGraph::getTGraph( PosixTime t_start = kGenericT0,
+                                           PosixTime t_end = kGenericT0  ) const;
     
     //Some funcitons to aid in drawing the graph
-    static std::string getDate( boost::posix_time::ptime time );
-    static std::string getDateForGraphTitle( boost::posix_time::ptime time );
-    static std::string getTimeNoDate( boost::posix_time::ptime time );
-    static std::string getTimeAndDate( boost::posix_time::ptime time );
-    static boost::posix_time::ptime roundDownToNearest15Minutes( 
-                                   boost::posix_time::ptime time, int slop = 15); //slop is number of minutes
+    static std::string getDate( PosixTime time );
+    static std::string getDateForGraphTitle( PosixTime time );
+    static std::string getTimeNoDate( PosixTime time );
+    static std::string getTimeAndDate( PosixTime time );
+    static PosixTime roundDownToNearest15Minutes( PosixTime time, int slop = 15); //slop is number of minutes
                                                                               // of rounding allowed
     
     
@@ -284,7 +283,7 @@ namespace boost {
     //serialize(...) has to write and read the time, so it's a bit awkward, but 
     //  I don't care to do it properly right now, this works
     template<class Archive>
-    void serialize(Archive & ar, boost::posix_time::ptime &time, const unsigned int version)
+    void serialize(Archive & ar, PosixTime &time, const unsigned int version)
     {
       assert( version==version ); //to keep compiler from complaining
       std::string ts = boost::posix_time::to_simple_string(time);
@@ -295,7 +294,7 @@ namespace boost {
     }//
     
     template<class Archive>
-    void serialize(Archive & ar, boost::posix_time::time_duration &td, const unsigned int version)
+    void serialize(Archive & ar, TimeDuration &td, const unsigned int version)
     {
       assert( version==version ); //to keep compiler from complaining
       std::string ts = boost::posix_time::to_simple_string(td);

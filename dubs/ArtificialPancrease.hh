@@ -9,24 +9,27 @@
 
 const double kFailValue = -9999.9;
 
-typedef std::vector<boost::posix_time::ptime> PTimeVec;
-typedef std::pair<boost::posix_time::ptime, boost::posix_time::ptime> TimeRange;
-typedef std::vector<TimeRange> TimeRangeVec;
+typedef std::vector<double>               DVec;
+typedef boost::posix_time::ptime          PosixTime;
+typedef boost::posix_time::time_duration  TimeDuration;
+typedef std::vector<PosixTime>            PTimeVec;
+typedef std::pair<PosixTime, PosixTime>   TimeRange;
+typedef std::vector<TimeRange>            TimeRangeVec;
 
 //A typedef for functions that take only one argument
 typedef boost::function< double(double time) > ForcingFunction;
-typedef boost::function< double(const boost::posix_time::ptime &time) > PTimeForcingFunction;
+typedef boost::function< double(const PosixTime &time) > PTimeForcingFunction;
 // typedef boost::function< double(double time, double val) > ODEDerivFunction;
 
 
 //A typedef needed to interface to the Runge-Kutta integrator
-typedef boost::function< std::vector<double> (double x, std::vector<double> y) > RK_DerivFuntion;
-typedef boost::function< std::vector<double> (const boost::posix_time::ptime &time, const std::vector<double> &yi) > RK_PTimeDFunc;
+typedef boost::function< DVec (double x, DVec y) > RK_DerivFuntion;
+typedef boost::function< DVec (const PosixTime &time, const DVec &yi) > RK_PTimeDFunc;
 
 
-const boost::posix_time::ptime kGenericT0( boost::gregorian::date(1982, 
-                                             boost::gregorian::Jul, 28), 
-                                 boost::posix_time::time_duration( 0, 0, 0, 0));
+const PosixTime kGenericT0( boost::gregorian::date(1982, 
+                            boost::gregorian::Jul, 28), 
+                            TimeDuration( 0, 0, 0, 0));
 
 
 namespace PersonConstants
