@@ -41,9 +41,6 @@ endif
 
 # MacOS X 10.4.5 (gcc 4.0)
 ifeq ($(ARCH),macosx)
-ifndef MACOSX_DEPLOYMENT_TARGET
-$(error You must define MACOSX_DEPLOYMENT_TARGET first, e.g. "export MACOSX_DEPLOYMENT_TARGET=10.4")
-endif
 MACOSX_DEPLOYMENT_TARGET = 10.4
 DllSuf            = dylib
 CXX               = g++
@@ -60,7 +57,7 @@ ROOTLIBS=$(shell root-config --glibs) -lMinuit -lMLP -lTreePlayer -lMinuit2 -lTM
 BOOSTLIBS=/usr/local/lib/libboost_date_time-xgcc40-mt.a  /usr/local/lib/libboost_serialization-xgcc40-mt.a /usr/local/lib/libboost_program_options-xgcc40-mt.a
 GSLLIBS=/usr/local/lib/libgsl.a  /usr/local/lib/libgslcblas.a 
 
-CFLAGS += -D__NO_CDFSOFT__ -D__NO_TSAM__ $(INCS)
+CFLAGS += $(INCS)
 
 LIBS =  $(BOOSTLIBS) $(ROOTLIBS) $(GSLLIBS)
 

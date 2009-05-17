@@ -34,7 +34,13 @@ void ProgramOptions::declareOptions()
           "one immediately before or after it" )
         ( "basal_blood_glucose,bbg",
           po::value<double>(&PersonConstants::kBasalGlucConc)->default_value(120.0),
-          "The target basal blood glucose concentration (mg/dl)");
+          "The target basal blood glucose concentration (mg/dl)")
+        ( "predictahead,pa",
+          po::value<double>(&ModelDefaults::kPredictAhead)->default_value(45.0),
+          "How far ahead of the cgms the model should try to predict, in minutes" )
+        ("dt",
+          po::value<double>(&ModelDefaults::kIntegrationDt)->default_value(1.0),
+          "Integration timestep in minutes" );
   ns_posDescripton.add( "weight", 0 );
 }//void declareOptions()
 

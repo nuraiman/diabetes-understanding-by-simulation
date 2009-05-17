@@ -20,6 +20,7 @@
 #include "boost/format.hpp"
 
 #include "CgmsDataImport.hh"
+#include "RungeKuttaIntegrater.hh" //for toNMinutes()
 
 using namespace std;
 using namespace boost;
@@ -124,9 +125,19 @@ CgmsDataImport::importSpreadsheet( string filename, InfoType type,
 
 
 
+
 double CgmsDataImport::getMostCommonDt( const TimeValueVec &timeValues )
 {
-  if( timeValues.empty() ) return 5.0;
+  const TimeDuration dt = getMostCommonPosixDt(timeValues);
+  
+  return toNMinutes(dt);
+}//getMostCommonDt
+
+
+
+TimeDuration CgmsDataImport::getMostCommonPosixDt( const TimeValueVec &timeValues )
+{
+  if( timeValues.empty() ) return TimeDuration(0,5,0,0);
   
   double dt = 0.0;
   
@@ -176,8 +187,8 @@ double CgmsDataImport::getMostCommonDt( const TimeValueVec &timeValues )
   
   dt = td_dt.total_microseconds() / 1000000.0 / 60.0;
        
-  return dt;
-}//getMostCommonDt
+  return td_dt;
+}//getMostCommonPosixDt
 
 
 
