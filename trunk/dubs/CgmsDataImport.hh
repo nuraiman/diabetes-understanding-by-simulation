@@ -90,6 +90,8 @@ namespace CgmsDataImport
                                  SpreadSheetSource source );
   
   double getMostCommonDt( const TimeValueVec &timeValues );
+  TimeDuration getMostCommonPosixDt( const TimeValueVec &timeValues );
+  
   
   //convert time given by day-month-am/pm to ISO standard format
   std::string sanitizeDateAndTimeInput( std::string time, SpreadSheetSource source );

@@ -19,7 +19,7 @@
 #include "TMVA/IFitterTarget.h"
 
 
-//Eventually, when I add mmore models, I'll set up a inheritance hiegharchy
+//Eventually, when I add more models, I'll set up a inheritance hiegharchy
 //  to improve organization
 
 /*******************************************************************************
@@ -32,9 +32,10 @@
 *  make the model more more sophisticated
 *  add ability to find amount of insulin to take for a meal, maybe this should
 *     be a function outside of this class
-*  Make it so time reffers to real time everywhere, and delayed cgms time is explicity named so
 *  add ability to guess what went wrong in the previous 3 hours
 *  add auto correlation function to find cgms delay
+*  add function to find all possible time-ranges to make predictions in
+*  add a debug setting that can be turned on/off/different-levels
 *******************************************************************************/
 
 class NLSimple;
@@ -75,12 +76,16 @@ class NLSimple
     //begin variable that matter to *this
     std::string m_description;                  //Useful for later checking
     
-    TimeDuration m_cgmsDelay; //initially set to 15 minutes
-    double m_basalInsulinConc;                    //units per kilo per hour
+    TimeDuration m_cgmsDelay;                     //initially set to 15 minutes
+    double m_basalInsulinConc;                    //units per hour
     double m_basalGlucoseConcentration;
 
-    PosixTime         m_t0;
-    TimeDuration m_dt;
+    PosixTime      m_t0;
+    TimeDuration   m_dt;
+    TimeDuration   m_predictAhead; //how far predictions should be ahead of cgms
+                                   //if set to less than 0, then optimization
+                                   //routines use absolute prediction, not cgms
+                                   //based prediction
     
     double              m_effectiveDof; //So Minuit2 can properly interpret errors
     std::vector<double> m_paramaters;           //size == NumNLSimplePars
@@ -112,7 +117,7 @@ class NLSimple
     ~NLSimple() {};
     
     double getOffset( const boost::posix_time::ptime &absoluteTime ) const;
-    boost::posix_time::ptime getAbsoluteTime( double nOffsetMinutes ) const;
+    PosixTime getAbsoluteTime( double nOffsetMinutes ) const;
     
 
     
@@ -151,7 +156,8 @@ class NLSimple
     void findSteadyStateBeginings( double nHoursNoInsulinForFirstSteadyState = 3.0 );
     
     
-    ConsentrationGraph glucPredUsingCgms( int nMinutesPredict,  //nMinutes ahead of cgms
+    ConsentrationGraph glucPredUsingCgms( int nMinutesPredict = -1,  //nMinutes ahead of cgms
+                                                                     //if <=0, uses m_predictAhead
                                           PosixTime t_start = kGenericT0,
                                           PosixTime t_end   = kGenericT0 );
     
@@ -193,13 +199,14 @@ class NLSimple
     
     //For model fiiting, specifying nMinutesPredict<=0.0 means don't use cgms 
     //  data tomake predictions
-    double geneticallyOptimizeModel( double fracDerivChi2, 
-                                     double nMinutesPredict,
+    double geneticallyOptimizeModel( double fracDerivChi2,
                                      TimeRangeVec timeRanges = TimeRangeVec(0) );
     
     double fitModelToDataViaMinuit2( double fracDerivChi2,
-                                     double nMinutesPredict,
                                      TimeRangeVec timeRanges = TimeRangeVec(0) );
+    
+    DVec chi2DofStudy( double fracDerivChi2,
+                             TimeRangeVec timeRanges = TimeRangeVec(0) ) const;
     
     void draw( bool pause = true, PosixTime t_start = kGenericT0,
                PosixTime t_end = kGenericT0 );
@@ -228,17 +235,15 @@ class ModelTestFCN : public ROOT::Minuit2::FCNBase,  public TMVA::IFitterTarget
     
     ModelTestFCN( NLSimple *modelPtr, 
                   double fracDerivChi2,
-                  double chi2PredNMinutes,  // <=0.0 means don't use cgms data to make predictions
                   std::vector<TimeRange> timeRanges );
   
   private:
     NLSimple *m_modelPtr;
     double    m_fracDerivChi2;
-    double    m_chi2PredNMinutes;
     
     std::vector<TimeRange> m_timeRanges;
-    boost::posix_time::ptime m_tStart;
-    boost::posix_time::ptime m_tEnd;
+    PosixTime m_tStart;
+    PosixTime m_tEnd;
 };//class ModelTestFCN
 
 #endif //RESPONSE_MODEL_HH

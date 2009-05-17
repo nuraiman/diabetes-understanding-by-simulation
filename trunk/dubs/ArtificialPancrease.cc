@@ -59,6 +59,8 @@ double PersonConstants::kPersonsWeight  = kFailValue;
 double PersonConstants::kBasalGlucConc  = kFailValue;
 double ModelDefaults::kDefaultCgmsDelay = kFailValue;
 double ModelDefaults::kCgmsIndivReadingUncert = kFailValue;
+double ModelDefaults::kPredictAhead = kFailValue;
+double ModelDefaults::kIntegrationDt = kFailValue;
 
 int main( int argc, char** argv )
 {
@@ -77,12 +79,23 @@ int main( int argc, char** argv )
   
   
   ConsentrationGraph conspumtionGraph( "../data/carbConsumption_march31_April7.dub" );
-  ptime t0 = conspumtionGraph.getT0();
+  // conspumtionGraph.draw();
+  PosixTime t0 = conspumtionGraph.getT0();
   
-  NLSimple model( "../data/optimizedMarch31ThroughApril1Model.dub" );
   vector<TimeRange> timeRanges( 1, TimeRange(t0, t0+hours(36)) );
-  double geneticChi2 = model.geneticallyOptimizeModel( 0.0, 60, timeRanges);
-  double minuitChi2 = model.fitModelToDataViaMinuit2( 0.0, 60, timeRanges);
+  NLSimple model( "../data/optimizedMarch31ThroughApril1Model.dub" );
+  // double origMinuitChi2 = model.fitModelToDataViaMinuit2( 0.0, timeRanges);
+  // cout << "Minut minimized to a chi2 of " << origMinuitChi2 << endl;
+  ConsentrationGraph predGraph = model.glucPredUsingCgms();
+  model.m_predictedBloodGlucose = predGraph;
+  model.draw(true);
+  // predGraph.draw( "l", "", true, 5 );
+  model.chi2DofStudy( 0.0 );
+  
+  
+  model.m_predictAhead = TimeDuration( 1,0,0,0); //1 hour
+  double geneticChi2 = model.geneticallyOptimizeModel( 0.0, timeRanges);
+  double minuitChi2 = model.fitModelToDataViaMinuit2( 0.0, timeRanges);
   cout << "Genetic optimization gave chi2=" << geneticChi2 << " minuit2 improved"
         << " this to " << minuitChi2 << endl;
   model.saveToFile( "../data/predictionOptimizedMarch31ThroughApril1Model.dub" );
@@ -115,7 +128,7 @@ NLSimple createMar31Model()
   mmData.bSplineSmoothOrDeriv( false, 30, 6 );
   model.addCgmsData( mmData );
   model.addGlucoseAbsorption( carbAbsortionGraph );
-  
+  // model.draw();
   // vector<TimeRange> timeRanges( 1, TimeRange(t0, t0+hours(36)) );
   // double minuitChi2 = model.fitModelToDataViaMinuit2( 0.0, timeRanges);
   // double geneticChi2 = model.geneticallyOptimizeModel( 0.0, timeRanges );
@@ -126,11 +139,11 @@ NLSimple createMar31Model()
   // model.draw();
   
   vector<double> parms(NLSimple::NumNLSimplePars, 0.0);
-  parms[NLSimple::BGMultiplier]            = 0.0134896;
-  parms[NLSimple::CarbAbsorbMultiplier]    = 0.741119;
-  parms[NLSimple::XMultiplier]             = 0.043758;
-  parms[NLSimple::PlasmaInsulinMultiplier] = 8.96854e-05;
-        
+  parms[NLSimple::BGMultiplier]            = 0.0154566;
+  parms[NLSimple::CarbAbsorbMultiplier]    = 0.718228;
+  parms[NLSimple::XMultiplier]             = 0.0690305;
+  parms[NLSimple::PlasmaInsulinMultiplier] = 4.51138e-05;
+              
   model.setModelParameters( parms );
   model.performModelGlucosePrediction( t0, t0+hours(36) );
   model.saveToFile( "../data/optimizedMarch31ThroughApril1Model.dub" );
@@ -309,10 +322,16 @@ void testKineticModels()
 
 void setStyle()
 {
+  Int_t dummy_arg = 0;
+  gTheApp = new TApplication("App", &dummy_arg, (char **)NULL);
+  
+  
   TStyle *myStyle = gROOT->GetStyle("Plain"); //base style on Plain
    
   myStyle->SetPalette(1,0); // pretty color palette
 
+  TH1::AddDirectory(kFALSE);
+  
    // use plain black on white colors
   myStyle->SetFrameBorderMode(0);
   myStyle->SetTitleBorderSize(0);

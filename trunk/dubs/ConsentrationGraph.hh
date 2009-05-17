@@ -138,9 +138,9 @@ class ConsentrationGraph : public std::set<GraphElement>
     double getOffset( const PosixTime &absoluteTime ) const;  //offset from m_t0 in minutes 
     static double getDt( const PosixTime &t0, const PosixTime &t1 );  //time diff in minutes 
     PosixTime getAbsoluteTime( double nOffsetMinutes ) const;
-    bool containsTime( PosixTime absoluteTime ) const;
-    bool containsTime( double nMinutesOffset ) const;
-     
+    bool containsTime( PosixTime absoluteTime ) const; //caution doesn't work like you think
+    bool containsTime( double nMinutesOffset ) const;  //  returns true if the base set<> 
+                                                       //  contains the exact time
     
     //If the base GraphElementSet doesn't have the exact time you want,
     //  value(...) will just use linear interpolation to find the value
@@ -193,8 +193,11 @@ class ConsentrationGraph : public std::set<GraphElement>
     ConstGraphIter insert( double offsetTime, double value );
     ConstGraphIter insert( const PosixTime &absoluteTime, double value );
    
-    double getMostCommonDt() const;
+    ConstGraphIter lower_bound( const PosixTime &time ) const;
+    ConstGraphIter upper_bound( const PosixTime &time ) const;
     
+    double getMostCommonDt() const;
+    TimeDuration getMostCommonPosixDt() const;
     
     //You probably should not call the folowing 2 functions, 
     //  instead call 'getSmoothedGraph(...)'
@@ -231,6 +234,7 @@ class ConsentrationGraph : public std::set<GraphElement>
     double getYOffset() const;
     
     //Forms a TGraph and draws on current active TPad (gPad)
+    //  if pause is true, then gPad will be deleted upon File->exit
     TGraph* draw( std::string options = "", 
                   std::string title = "", 
                   bool pause = true,

@@ -4,10 +4,17 @@
 //Started Thursday April 23 2009 -- Will Johnson
 #include <vector>
 #include "boost/date_time/posix_time/posix_time.hpp"
-
+#include "boost/foreach.hpp"
 
 
 const double kFailValue = -9999.9;
+
+class TApplication;
+extern TApplication *gTheApp; //I think I cold get rid of this and just us gApplication
+
+//To make the code prettier
+#define foreach         BOOST_FOREACH
+#define reverse_foreach BOOST_REVERSE_FOREACH
 
 typedef std::vector<double>               DVec;
 typedef boost::posix_time::ptime          PosixTime;
@@ -43,6 +50,8 @@ namespace ModelDefaults
 {
   extern double kDefaultCgmsDelay; //minutes, command line '--cgmsdelay=15'
   extern double kCgmsIndivReadingUncert;
+  extern double kPredictAhead; //default how far to predict ahead of cgms
+  extern double kIntegrationDt;  //
 };//namespace ModelDefaults
 
 

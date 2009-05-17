@@ -274,6 +274,20 @@ ConstGraphIter ConsentrationGraph::insert( const ptime &absTime, double value )
 }//insert
 
 
+ConstGraphIter ConsentrationGraph::lower_bound( const PosixTime &time ) const
+{
+  const double offset = getOffset( time );
+  return GraphElementSet::lower_bound( GraphElement(offset, kFailValue) );
+}//lower_bound( ptime )
+
+ConstGraphIter ConsentrationGraph::upper_bound( const PosixTime &time ) const
+{
+  const double offset = getOffset( time );
+  return GraphElementSet::upper_bound( GraphElement(offset, kFailValue) );
+}//upper_bound( ptime )
+
+
+
 double ConsentrationGraph::value( ptime absTime ) const
 {
   return value( getOffset(absTime) );
@@ -649,6 +663,15 @@ ptime ConsentrationGraph::roundDownToNearest15Minutes( ptime time, int slop )
 
 double ConsentrationGraph::getMostCommonDt( ) const
 {
+  TimeDuration dt = getMostCommonPosixDt();
+  
+  return toNMinutes(dt);
+}//double ConsentrationGraph::getMostCommonDt( ) const
+
+
+
+TimeDuration ConsentrationGraph::getMostCommonPosixDt() const
+{
   typedef std::pair<boost::posix_time::ptime, double> TimeValuePair;
   typedef std::vector< TimeValuePair >                TimeValueVec;
   
@@ -660,8 +683,10 @@ double ConsentrationGraph::getMostCommonDt( ) const
     timeValues.push_back( TimeValuePair(baseTime, el.m_value) );
   }//foreach( base pair )
   
-  return CgmsDataImport::getMostCommonDt( timeValues );
-}//double ConsentrationGraph::getMostCommonDt( ) const
+  return CgmsDataImport::getMostCommonPosixDt( timeValues );
+}//getMostCommonPosixDt
+
+
 
 
 ConsentrationGraph 
@@ -1263,6 +1288,8 @@ TGraph *ConsentrationGraph::getTGraph( boost::posix_time::ptime t_start,
   
   TGraph *graph = new TGraph( nPoints, xAxis, yAxis );
   
+  if( nPoints < 4 ) return graph;
+  
   //Figure out how sparce to make the labels
   size_t nLabelSkip = 1;
   
@@ -1373,8 +1400,9 @@ TGraph* ConsentrationGraph::draw( string options,
   }//if( !size() )
   
   
-  Int_t dummy_arg = 0;
-  if( !gTheApp ) gTheApp = new TApplication("App", &dummy_arg, (char **)NULL);
+  assert(gTheApp);
+  // Int_t dummy_arg = 0;
+  // if( !gTheApp ) gTheApp = new TApplication("App", &dummy_arg, (char **)NULL);
   
   if( !gPad ) new TCanvas();
   
