@@ -71,7 +71,7 @@ int main( int argc, char** argv )
   setStyle();
   ProgramOptions::decodeOptions( argc, argv );
   
-  // NLSimple model1 = createMar31Model();
+  // NLSimple model1 = createMar31Model();  
   //void testSmoothing();
   // void testKineticModels();
   // void testFFT();  
@@ -82,15 +82,21 @@ int main( int argc, char** argv )
   // conspumtionGraph.draw();
   PosixTime t0 = conspumtionGraph.getT0();
   
-  vector<TimeRange> timeRanges( 1, TimeRange(t0, t0+hours(36)) );
+  vector<TimeRange> timeRanges( 1, TimeRange(t0+minutes(3), t0+hours(36)) );
   NLSimple model( "../data/optimizedMarch31ThroughApril1Model.dub" );
-  // double origMinuitChi2 = model.fitModelToDataViaMinuit2( 0.0, timeRanges);
-  // cout << "Minut minimized to a chi2 of " << origMinuitChi2 << endl;
+  // model.m_cgmsData.trim( t0, t0+hours(36) );
+  cout << "cgms data starets at " << model.m_cgmsData.getStartTime() << endl;
+  model.getGraphOfMaxTimePredictions( model.m_predictedBloodGlucose, t0+minutes(3), t0+hours(36), 0.5 );
+  model.draw();
+  // return 1;
+  
+  double origMinuitChi2 = model.fitModelToDataViaMinuit2( 0.5, timeRanges);
+  cout << "Minut minimized to a chi2 of " << origMinuitChi2 << endl;
   ConsentrationGraph predGraph = model.glucPredUsingCgms();
   model.m_predictedBloodGlucose = predGraph;
   model.draw(true);
   // predGraph.draw( "l", "", true, 5 );
-  model.chi2DofStudy( 0.0 );
+  // model.chi2DofStudy( 0.0 );
   
   
   model.m_predictAhead = TimeDuration( 1,0,0,0); //1 hour
@@ -100,7 +106,7 @@ int main( int argc, char** argv )
         << " this to " << minuitChi2 << endl;
   model.saveToFile( "../data/predictionOptimizedMarch31ThroughApril1Model.dub" );
   //may 13th, this gave: 0.0134896  0.741119  0.043758  8.96854e-05
-  ConsentrationGraph thirtyMinPred = model.glucPredUsingCgms( 60, t0, t0+hours(36) );
+  ConsentrationGraph thirtyMinPred = model.glucPredUsingCgms( 30, t0, t0+hours(36) );
   model.draw( false );
   thirtyMinPred.draw("l", "", true, 6); 
   

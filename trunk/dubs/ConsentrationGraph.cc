@@ -51,8 +51,6 @@ using namespace std;
 using namespace boost;
 using namespace boost::posix_time;
 
-extern TApplication *gTheApp;
-
 //To make the code prettier
 #define foreach         BOOST_FOREACH
 #define reverse_foreach BOOST_REVERSE_FOREACH
@@ -188,22 +186,80 @@ double ConsentrationGraph::getOffset( const ptime &absoluteTime ) const
 
 ptime ConsentrationGraph::getAbsoluteTime( double nOffsetMinutes ) const
 {
-  long mins = (long) nOffsetMinutes;
-  nOffsetMinutes -= mins;
-  nOffsetMinutes *= 60.0;
-  long secs = (long)nOffsetMinutes;
-  
-  time_duration td = minutes(mins) + seconds(secs);
+  time_duration td = toTimeDuration(nOffsetMinutes) ;
   
   return m_t0 + td;
 }//ptime getAbsoluteTime( double nOffsetMinutes ) const;
 
 
 
+void ConsentrationGraph::trim( const PosixTime &t_start, const PosixTime &t_end )
+{
+  
+  if( t_start != kGenericT0 )
+  {
+    ConstGraphIter ub = upper_bound(t_start);
+    ConstGraphIter lb = lower_bound(t_start);
+    
+    if( lb == end() ) 
+    {
+      cout << "ConsentrationGraph::trim(...): Warning, you are to removing"
+           << " all data, t_start (" << t_start 
+           << ") is after the last data point (" << getEndTime() << ")" << endl;
+    }// if( lb == end() ) 
+    
+    
+    if( lb == ub )//the set<> does not exactly contain this time
+    {
+      double val = value(t_start);
+      GraphElementSet::erase( begin(), lb );
+      insert( t_start, val );
+    }else //the set<> exactly contains this time
+    {
+      GraphElementSet::erase( begin(), lb );
+    }//
+  }//if( remove begining )
+  
+  if( t_end != kGenericT0 )
+  {
+    ConstGraphIter ub = upper_bound(t_start);
+    ConstGraphIter lb = lower_bound(t_start);
+    
+    if( ub == begin() ) 
+    {
+      cout << "ConsentrationGraph::trim(...): Warning, you are to removing"
+           << " all data, t_end (" << t_end
+           << ") is before first data point (" << getStartTime() << ")" << endl;
+    }// if( lb == end() ) 
+    
+    
+    if( lb == ub )//the set<> does not exactly contain this time
+    {
+      double val = value(t_end);
+      GraphElementSet::erase( ub, end() );
+      insert( t_end, val );
+    }else //the set<> exactly contains this time
+    {
+      GraphElementSet::erase( begin(), ub );
+    }//
+    
+  }//if( remove begining )
+  
+  if( (t_start == kGenericT0) && (t_end == kGenericT0) )
+  {
+    cout << "ConsentrationGraph::trim(...): Warning, you made a useless call\n";
+  }//
+  
+}//trim
+
+
 bool ConsentrationGraph::containsTime( ptime absoluteTime ) const
 {
   return containsTime( getOffset(absoluteTime) );
 }//containsTime(...)
+
+
+void trim( PosixTime t_start, PosixTime t_end );
 
 
 bool ConsentrationGraph::containsTime( double nMinutesOffset ) const
