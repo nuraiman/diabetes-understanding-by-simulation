@@ -25,17 +25,32 @@
 /*******************************************************************************
 * To Do
 *  Move all logic for finding start/stop times for predictions into seperate function
-*  Generally clean up the  integrator functions
 *  Convert to using a matrix for errors, instead/in-addtion-to vectors
 *  add option to options_namespace for {default m_dt, 
 *  work on the the chi2 def by throwing random numbers and looking at dist.
 *  make the model more more sophisticated
+*    maybe a ANN like thing that depends on history
 *  add ability to find amount of insulin to take for a meal, maybe this should
 *     be a function outside of this class
 *  add ability to guess what went wrong in the previous 3 hours
 *  add auto correlation function to find cgms delay
 *  add function to find all possible time-ranges to make predictions in
 *  add a debug setting that can be turned on/off/different-levels
+*
+*  Make NLSimple be a 2-mode class
+*    --Mode 1 is research
+*    --Mode 2 is predict
+*      --In this mode Inject and Consume functions will update predictions
+*      --also update cgms readings will also update predictions
+*        --so will need a automatic function to remove ending of X and pred
+*    --To do this, I should just re-write predicttion methods (i hate them now)
+*      --Also make m_predictAhead be time ahead of current time, instead ofcgms
+*  Make a class (or function to NLSimple) that takes a NLSimple and performs
+*     'real-time' analasys.
+*  Add a belowBgBasalSigma, and aboveBgBasalSigma to BLSimple Class
+*    --to be used in the 'Solver' that solves what correction needs to be taken
+*  The 'Solver' should decide what correction should be taken (maybe make a correction class)
+*      to describe what correction should be taken
 *******************************************************************************/
 
 class NLSimple;
@@ -100,13 +115,13 @@ class NLSimple
     ConsentrationGraph m_freePlasmaInsulin;
     ConsentrationGraph m_glucoseAbsorbtionRate;
     
-    ConsentrationGraph m_predictedInsulinX;
+    ConsentrationGraph m_predictedInsulinX;       //currently stored 10x what I use, bug waiting to happen, should be changed some time
     ConsentrationGraph m_predictedBloodGlucose;
     
     
     PTimeVec m_startSteadyStateTimes;
     
-    
+    //Start constructors/member-functions
     NLSimple( std::string fileName );
     NLSimple( const std::string &description, 
               double basalUnitsPerKiloPerhour,
@@ -155,11 +170,48 @@ class NLSimple
     PosixTime findSteadyStateStartTime( PosixTime t_start, PosixTime t_end );
     void findSteadyStateBeginings( double nHoursNoInsulinForFirstSteadyState = 3.0 );
     
+    //makeGlucosePredFromLastCgms(...) 
+    //  updates predX if it needs to cmgsEndTime-m_cgmsDelay
+    //  makes prediction starting at cmgsEndTime+m_dt, and ending at
+    //  cmgsEndTime+m_predictAhead.
+    //  The concentration graph you pass in will be cleared before use
+    //  *Note* for this funciton predictions are made m_predictAhead time ahead
+    //         of the latest cgms measurment, so really the predictions are
+    //         m_predictAhead + m_cgmsDelay ahead of last known BG
+    void makeGlucosePredFromLastCgms( ConsentrationGraph &predBg, 
+                                      PosixTime simulateCgmsEndTime = kGenericT0 );
     
+    //getGraphOfMaxTimePredictions(...)
+    //  calls makeGlucosePredFromLastCgms(...) to make a graph showing what 
+    //  the predictions are/were for m_predictAhead of cgms readings.
+    //  The result will go from firstCgmsTime+m_predictAhead 
+    //  to lastCgmsTime+m_predictAhead.  if firstCgmsTime not specified, will
+    //  start at first steadyState X point, 
+    //  LastCgmsTime not specified, end at last m_cgmsData point+m_predictAhead
+    //  The concentration graph you pass in will be cleared before use
+    //  If lastPointChi2Weight between 0.0 and 1.0 is specified, then a
+    //  chi2 will be computed, were 0.0 gives every point of every prediction
+    //  equal weight, and 1.0 only gives the last point any weight
+    double getGraphOfMaxTimePredictions( ConsentrationGraph &predBg,
+                                       PosixTime firstCgmsTime = kGenericT0,
+                                       PosixTime lastCgmsTime = kGenericT0,
+                                       double lastPointChi2Weight = kFailValue );
+    
+    
+    
+    //Dont't use glucPredUsingCgms or performModelGlucosePrediction,
+    //  these have been surplanted by makeGlucosePredFromLastCgms(...) and 
+    //  getGraphOfMaxTimePredictions(...)
     ConsentrationGraph glucPredUsingCgms( int nMinutesPredict = -1,  //nMinutes ahead of cgms
                                                                      //if <=0, uses m_predictAhead
                                           PosixTime t_start = kGenericT0,
                                           PosixTime t_end   = kGenericT0 );
+    
+    ConsentrationGraph performModelGlucosePrediction( 
+                                          PosixTime t_start = kGenericT0,
+                                          PosixTime t_end = kGenericT0,
+                                          double bloodGlucose_initial = kFailValue,
+                                          double bloodX_initial = kFailValue );
     
     //returns true  if all information is updated to time
     //  Only modifes cgmsData, X, and predictedGlucose graphs
@@ -167,11 +219,6 @@ class NLSimple
     bool removeInfoAfter( const PosixTime &cgmsEndTime );
     
     void updateXUsingCgmsInfo( bool recomputeAll = true );
-    
-    double performModelGlucosePrediction( PosixTime t_start = kGenericT0,
-                                          PosixTime t_end = kGenericT0,
-                                          double bloodGlucose_initial = kFailValue,
-                                          double bloodX_initial = kFailValue );
     
     double getModelChi2( double fracDerivChi2 = 0.0,
                          PosixTime t_start = kGenericT0,
@@ -197,15 +244,16 @@ class NLSimple
     void setFitDof( double dof );
     
     
-    //For model fiiting, specifying nMinutesPredict<=0.0 means don't use cgms 
-    //  data tomake predictions
-    double geneticallyOptimizeModel( double fracDerivChi2,
+    //For model fiting, specifying nMinutesPredict<=0.0 means don't use cgms 
+    //  data tomake predictions, in which case endPredChi2Weight is predicted
+    //  as what weight to give to the derivative based chi2
+    double geneticallyOptimizeModel( double endPredChi2Weight,
                                      TimeRangeVec timeRanges = TimeRangeVec(0) );
     
-    double fitModelToDataViaMinuit2( double fracDerivChi2,
+    double fitModelToDataViaMinuit2( double endPredChi2Weight,
                                      TimeRangeVec timeRanges = TimeRangeVec(0) );
     
-    DVec chi2DofStudy( double fracDerivChi2,
+    DVec chi2DofStudy( double endPredChi2Weight,
                              TimeRangeVec timeRanges = TimeRangeVec(0) ) const;
     
     void draw( bool pause = true, PosixTime t_start = kGenericT0,
@@ -234,12 +282,12 @@ class ModelTestFCN : public ROOT::Minuit2::FCNBase,  public TMVA::IFitterTarget
     virtual Double_t EstimatorFunction( std::vector<Double_t>& parameters );
     
     ModelTestFCN( NLSimple *modelPtr, 
-                  double fracDerivChi2,
+                  double endPredChi2Weight,
                   std::vector<TimeRange> timeRanges );
   
   private:
     NLSimple *m_modelPtr;
-    double    m_fracDerivChi2;
+    double    m_endPredChi2Weight;
     
     std::vector<TimeRange> m_timeRanges;
     PosixTime m_tStart;
