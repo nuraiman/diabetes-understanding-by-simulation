@@ -47,6 +47,7 @@
 #include <boost/serialization/version.hpp>
 #include <boost/serialization/array.hpp>
 #include <boost/serialization/vector.hpp>
+#include "boost/format.hpp"
 
 #include "ResponseModel.hh"
 #include "KineticModels.hh"
@@ -80,7 +81,7 @@ NLSimple::NLSimple( const NLSimple &rhs ) :
      m_glucoseAbsorbtionRate( rhs.m_glucoseAbsorbtionRate ),
      m_predictedInsulinX( rhs.m_predictedInsulinX ),
      m_predictedBloodGlucose( rhs.m_predictedBloodGlucose ),
-     m_startSteadyStateTimes( rhs.m_startSteadyStateTimes )
+     m_startSteadyStateTimes( rhs.m_startSteadyStateTimes ), m_gui(NULL)
 {
   m_currCgmsCorrFactor[0]      = rhs.m_currCgmsCorrFactor[0];
   m_currCgmsCorrFactor[1]      = rhs.m_currCgmsCorrFactor[1];
@@ -103,7 +104,8 @@ m_description(description), m_cgmsDelay( toTimeDuration(ModelDefaults::kDefaultC
      m_glucoseAbsorbtionRate(t0, 5.0, GlucoseAbsorbtionRateGraph),
      m_predictedInsulinX(t0, 5.0, InsulinGraph),
      m_predictedBloodGlucose(t0, 5.0, GlucoseConsentrationGraph),
-     m_startSteadyStateTimes(0)
+     m_startSteadyStateTimes(0),
+     m_gui(NULL)
 {
   m_currCgmsCorrFactor[0] = m_currCgmsCorrFactor[1] = kFailValue;
 }//NLSimple construnctor
@@ -125,7 +127,8 @@ NLSimple::NLSimple( std::string fileName ) :
      m_glucoseAbsorbtionRate(kGenericT0, 5.0, GlucoseAbsorbtionRateGraph),
      m_predictedInsulinX(kGenericT0, 5.0, InsulinGraph),
      m_predictedBloodGlucose(kGenericT0, 5.0, GlucoseConsentrationGraph),
-     m_startSteadyStateTimes(0)
+     m_startSteadyStateTimes(0), 
+     m_gui(NULL)
 {
   
   std::ifstream ifs( fileName.c_str() );
@@ -175,6 +178,8 @@ const NLSimple &NLSimple::operator=( const NLSimple &rhs )
  
   m_startSteadyStateTimes      = rhs.m_startSteadyStateTimes;
     
+  m_gui = NULL; 
+  
   return *this;
 }//operator=
 
@@ -627,8 +632,8 @@ void NLSimple::makeGlucosePredFromLastCgms( ConsentrationGraph &predBg,
   {
     assert( time < (cgmsEndTime + m_predictAhead) );
     TimeDuration dt = cgmsEndTime + m_predictAhead - time;
-    // cout << "makeGlucosePredFromLastCgms(...): Filling in one last point, using dt=" 
-          // << dt << endl;
+    cout << "makeGlucosePredFromLastCgms(...): Filling in one last point, using dt=" 
+          << dt << endl;
     gAndX = rungeKutta4( time, gAndX, dt, func );
     const double actualGlucoseValue = gAndX[0]+m_basalGlucoseConcentration;
     predBg.insert( time+m_dt, actualGlucoseValue );
@@ -747,9 +752,9 @@ double NLSimple::getGraphOfMaxTimePredictions( ConsentrationGraph &predBg,
   
   if( predBg.getEndTime() < (lastCgmsTime+m_predictAhead) )
   {
-    cout << "getGraphOfMaxTimePredictions(..): Filling in one last point," 
-         << " from " << predBg.getEndTime() << " to " 
-         << lastCgmsTime+m_predictAhead << endl;
+    // cout << "getGraphOfMaxTimePredictions(..): Filling in one last point," 
+         // << " from " << predBg.getEndTime() << " to " 
+         // << lastCgmsTime+m_predictAhead << endl;
     
     ConsentrationGraph currPred( m_t0, toNMinutes(m_dt), GlucoseConsentrationGraph );
     makeGlucosePredFromLastCgms( currPred, lastCgmsTime );
@@ -1383,6 +1388,26 @@ double NLSimple::geneticallyOptimizeModel( double endPredChi2Weight,
     double currFitness = fittnesFunc.EstimatorFunction( currentPars );
     cout << "Current fitness is " << currFitness << " fitness" << endl << endl << endl;
     
+    //This can be cleaned up a lot later
+    if( m_gui ) 
+    {
+      setModelParameters( currentPars );
+      vector<TimeRange> trV = timeRanges;
+      if( trV.empty() ) trV.push_back( TimeRange(kGenericT0,kGenericT0) );
+      
+      foreach( const TimeRange &tr, trV )
+      {
+        ptime tStart = findSteadyStateStartTime( tr.first, tr.second );
+        if( !m_predictAhead.is_negative() )
+          getGraphOfMaxTimePredictions( m_predictedBloodGlucose, tr.first, tr.second, endPredChi2Weight );
+        else
+          m_predictedBloodGlucose = performModelGlucosePrediction( tStart, tr.second );
+      }//foreach
+      m_gui->drawModel();
+      m_gui->drawEquations();
+    }//if( m_gui )
+      
+      
     fConvCrit = 0.008 * currFitness;
     
     // reduce the population size to the initially defined one
@@ -1821,6 +1846,36 @@ void NLSimple::draw( bool pause,
   }//if( pause )
 }//draw()
 
+void NLSimple::runGui()
+{
+  assert( !m_gui );
+  
+  m_gui = new NLSimpleGui( this );
+  gApplication->Run();
+  
+  delete m_gui;
+  m_gui = NULL;
+}//runGui
+
+
+std::vector<std::string> NLSimple::getEquationDescription() const
+{
+  vector<string> descrip(2);
+ 
+  if( m_paramaters.size() != NumNLSimplePars ) return descrip;
+      
+  descrip[1] = (format("#frac{#partial G}{#partial t} = -%d G - X(G - %d) + %d Carb(t)") 
+                     % m_paramaters[BGMultiplier] % m_basalGlucoseConcentration
+                     % m_paramaters[CarbAbsorbMultiplier]).str();
+  descrip[0] = (format("#frac{#partial X}{#partial t} = -%d X + %d I(t)") 
+                     % m_paramaters[XMultiplier] 
+                     % m_paramaters[PlasmaInsulinMultiplier]).str();
+  return descrip;
+}//getEquationDescription
+
+
+
+
 
 template<class Archive>
 void NLSimple::serialize( Archive &ar, const unsigned int version )
@@ -1965,5 +2020,8 @@ double ModelTestFCN::operator()(const std::vector<double>& x) const
   
   return chi2;
 }//operator()
+
+
+
 
 
