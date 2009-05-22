@@ -6,6 +6,8 @@
 #include "boost/date_time/posix_time/posix_time.hpp"
 #include "boost/foreach.hpp"
 
+//To install ROOT and QT4, just use the INSTALL_QTROOT.sh script at:
+//  http://root.bnl.gov/QtRoot/How2Install4Unix.html
 
 const double kFailValue = -9999.9;
 

@@ -18,6 +18,7 @@
 #include "Minuit2/FCNBase.h"
 #include "TMVA/IFitterTarget.h"
 
+#include "NLSimpleGui.hh"
 
 //Eventually, when I add more models, I'll set up a inheritance hiegharchy
 //  to improve organization
@@ -120,6 +121,11 @@ class NLSimple
     
     
     PTimeVec m_startSteadyStateTimes;
+    
+    NLSimpleGui *m_gui;  //This is only non-NULL when program is inside of a GUI
+                         //  this pointer is used to communicate to NLSimpleGui
+                         //  since root/cint sucks and I can't just use signals
+                         //  and slots comm. for this class
     
     //Start constructors/member-functions
     NLSimple( std::string fileName );
@@ -256,8 +262,11 @@ class NLSimple
     DVec chi2DofStudy( double endPredChi2Weight,
                              TimeRangeVec timeRanges = TimeRangeVec(0) ) const;
     
+    void runGui();
     void draw( bool pause = true, PosixTime t_start = kGenericT0,
                PosixTime t_end = kGenericT0 );
+    
+    std::vector<std::string> getEquationDescription() const;
     
     bool saveToFile( std::string filename );
     

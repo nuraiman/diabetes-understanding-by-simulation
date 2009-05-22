@@ -40,6 +40,7 @@
 #include "ArtificialPancrease.hh"
 #include "CgmsDataImport.hh"
 #include "ProgramOptions.hh"
+#include "NLSimpleGui.hh"
 
 TApplication *gTheApp = (TApplication *)NULL;
 
@@ -70,6 +71,9 @@ int main( int argc, char** argv )
   
   setStyle();
   ProgramOptions::decodeOptions( argc, argv );
+  
+  NLSimple guiModel( "../data/optimizedMarch31ThroughApril1Model.dub" );
+  guiModel.runGui();
   
   // NLSimple model1 = createMar31Model();  
   //void testSmoothing();

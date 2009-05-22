@@ -2,7 +2,7 @@ WORKDIR=./
 EXECNAME=$(shell basename `pwd`).exe
 
 ARCH=$(shell root-config --arch)
-INCS = -Iinclude -I../include -I$(ROOTSYS)/include
+INCS = -Iinclude -I../include -I$(ROOTSYS)/include -I/usr/local/include
 
 # Cygwin
 ifeq ($(ARCH),win32gcc)
@@ -50,7 +50,7 @@ LDFLAGS           = -g -flat_namespace
 ROOTLIB=$(ROOTSYS)/lib
 endif
 
-#LIBDIR=../shlib/
+
 LIBDIR=.
 
 ROOTLIBS=$(shell root-config --glibs) -lMinuit -lMLP -lTreePlayer -lMinuit2 -lTMVA
@@ -67,6 +67,24 @@ SRCS =  $(wildcard *.cc)
 DEPS =  $(patsubst %.cc, %.d, $(wildcard *.cc)) 
 
 OBJS =  $(patsubst %.cc, %.o, $(wildcard *.cc))
+
+OBJS += $(DICTOBS)
+
+#for ROOT dictionary generation, I added untill the #---->
+INCFLAGS =-Iinclude -I$(MAIN) -I. -I/usr/local/include
+CXXFLAGS = $(shell root-config --cflags) $(INCFLAGS)
+
+# We want dictionaries only for classes that have _linkdef.h files
+DICTOBS =  $(patsubst %_linkdef.h, %.o, \
+                      $(patsubst %, dict_%, \
+                          $(wildcard *_linkdef.h) ) )
+
+dict_%.o: %.hh %_linkdef.h
+	@echo "Generating dictionary for $< $@"
+	$(ROOTSYS)/bin/rootcint -f $(patsubst %.o, %.C, $@) -c -Idict $(INCFLAGS) $(notdir $^)
+	$(CXX) -c $(CXXFLAGS) -o $@ $(patsubst %.o, %.C, $@)
+#---->
+
 
 $(EXECNAME): $(OBJS)
 	@echo "making stuff with $(OBJS) : $(SRCS)!"
