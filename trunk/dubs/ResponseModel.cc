@@ -70,8 +70,8 @@ NLSimple::NLSimple( const NLSimple &rhs ) :
      m_basalInsulinConc( rhs.m_basalInsulinConc ),
      m_basalGlucoseConcentration( rhs.m_basalGlucoseConcentration ), 
      m_t0( rhs.m_t0 ),
-     m_dt( toTimeDuration(ModelDefaults::kIntegrationDt) ),
-     m_predictAhead( toTimeDuration(ModelDefaults::kPredictAhead) ), 
+     m_dt( ModelDefaults::kIntegrationDt ),
+     m_predictAhead( ModelDefaults::kPredictAhead ), 
      m_effectiveDof( 1.0 ),
      m_paramaters( rhs.m_paramaters ),
      m_paramaterErrorPlus( rhs.m_paramaterErrorPlus ), 
@@ -90,12 +90,12 @@ NLSimple::NLSimple( const NLSimple &rhs ) :
 
 NLSimple::NLSimple( const string &description, double basalUnitsPerKiloPerhour,
                     double basalGlucoseConcen, boost::posix_time::ptime t0 ) :
-m_description(description), m_cgmsDelay( toTimeDuration(ModelDefaults::kDefaultCgmsDelay) ),
+m_description(description), m_cgmsDelay( ModelDefaults::kDefaultCgmsDelay ),
      m_basalInsulinConc( getBasalInsulinConcentration(basalUnitsPerKiloPerhour) ),
      m_basalGlucoseConcentration( basalGlucoseConcen ), 
      m_t0( t0 ),
-     m_dt( toTimeDuration(ModelDefaults::kIntegrationDt) ),
-     m_predictAhead( toTimeDuration(ModelDefaults::kPredictAhead) ),
+     m_dt( ModelDefaults::kIntegrationDt ),
+     m_predictAhead( ModelDefaults::kPredictAhead ),
      m_effectiveDof(1.0),
      m_paramaters(NumNLSimplePars, kFailValue),
      m_paramaterErrorPlus(0), m_paramaterErrorMinus(0),
@@ -114,12 +114,12 @@ m_description(description), m_cgmsDelay( toTimeDuration(ModelDefaults::kDefaultC
 
 
 NLSimple::NLSimple( std::string fileName ) :
-     m_description(""), m_cgmsDelay( toTimeDuration(ModelDefaults::kDefaultCgmsDelay) ),
+     m_description(""), m_cgmsDelay( ModelDefaults::kDefaultCgmsDelay ),
      m_basalInsulinConc( kFailValue ),
      m_basalGlucoseConcentration( kFailValue ), 
      m_t0( kGenericT0 ),
-     m_dt( toTimeDuration(ModelDefaults::kIntegrationDt) ),
-     m_predictAhead( toTimeDuration(ModelDefaults::kPredictAhead) ),
+     m_dt( ModelDefaults::kIntegrationDt ),
+     m_predictAhead( ModelDefaults::kPredictAhead ),
      m_effectiveDof(1.0),
      m_paramaters(NumNLSimplePars, kFailValue),
      m_paramaterErrorPlus(0), m_paramaterErrorMinus(0),

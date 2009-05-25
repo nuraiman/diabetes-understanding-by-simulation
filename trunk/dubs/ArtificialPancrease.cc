@@ -58,10 +58,10 @@ void saveMar31ThorughApr7GraphsToDisk();
 //these variable get values through ProgramOptions
 double PersonConstants::kPersonsWeight  = kFailValue;
 double PersonConstants::kBasalGlucConc  = kFailValue;
-double ModelDefaults::kDefaultCgmsDelay = kFailValue;
 double ModelDefaults::kCgmsIndivReadingUncert = kFailValue;
-double ModelDefaults::kPredictAhead = kFailValue;
-double ModelDefaults::kIntegrationDt = kFailValue;
+TimeDuration ModelDefaults::kDefaultCgmsDelay(0,0,0,0);
+TimeDuration ModelDefaults::kPredictAhead(0,0,0,0);
+TimeDuration ModelDefaults::kIntegrationDt(0,0,0,0);
 double ModelDefaults::kLastPredictionWeight = kFailValue;
 double ModelDefaults::kTargetBG = kFailValue;
 double ModelDefaults::kBGLowSigma = kFailValue;
