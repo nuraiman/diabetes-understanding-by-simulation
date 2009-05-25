@@ -262,13 +262,14 @@ class NLSimple
     DVec chi2DofStudy( double endPredChi2Weight,
                              TimeRangeVec timeRanges = TimeRangeVec(0) ) const;
     
+    friend class NLSimpleGui;
     void runGui();
     void draw( bool pause = true, PosixTime t_start = kGenericT0,
                PosixTime t_end = kGenericT0 );
     
     std::vector<std::string> getEquationDescription() const;
     
-    bool saveToFile( std::string filename );
+    bool saveToFile( std::string filename = "" );
     
     friend class boost::serialization::access;
     template<class Archive>
