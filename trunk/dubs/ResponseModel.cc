@@ -112,6 +112,7 @@ m_description(description), m_cgmsDelay( toTimeDuration(ModelDefaults::kDefaultC
 
 
 
+
 NLSimple::NLSimple( std::string fileName ) :
      m_description(""), m_cgmsDelay( toTimeDuration(ModelDefaults::kDefaultCgmsDelay) ),
      m_basalInsulinConc( kFailValue ),
@@ -129,7 +130,23 @@ NLSimple::NLSimple( std::string fileName ) :
      m_predictedBloodGlucose(kGenericT0, 5.0, GlucoseConsentrationGraph),
      m_startSteadyStateTimes(0), 
      m_gui(NULL)
-{
+{   
+  if( fileName == "" )
+  {
+    fileName = NLSimpleGui::getFileName( true );
+    
+    if( fileName.empty() ) 
+    {
+      cout << "NLSimple::Warning, model will be default" << endl;
+      return;
+    }//if( fileName.empty() ) 
+  }//if( fileName == "" )
+  
+  
+  unsigned int beginExtension = fileName.find_last_of( "." );
+  string extention = fileName.substr( beginExtension );
+  if( extention != ".dubm" ) fileName += ".dubm";
+  
   
   std::ifstream ifs( fileName.c_str() );
   if( !ifs.is_open() )
@@ -734,16 +751,7 @@ double NLSimple::getGraphOfMaxTimePredictions( ConsentrationGraph &predBg,
       const ptime t1 = currPred.getEndTime();  //note the very last time could be double-counted
       if( t1 <= knownBgEndTime )
       {
-        double c = getChi2ComparedToCgmsData( currPred, fracDerivChi2, t0, t1 );
-        
-        //Lets divide this chi2 by the number of cgms points used to find it
-        ConstGraphIter start = m_cgmsData.lower_bound( t0 + m_cgmsDelay );
-        ConstGraphIter end = m_cgmsData.upper_bound( t1 + m_cgmsDelay );
-        int nPoints=0;
-        for( ; start != end; ++start ) ++nPoints;
-        
-        assert( nPoints );
-        chi2 += (c / nPoints);
+        chi2 += getChi2ComparedToCgmsData( currPred, fracDerivChi2, t0, t1 );
       }//if( we can get the chi2 )
     }//if( calcChi2 )
   }//for( loop over cgms points )
@@ -1171,8 +1179,8 @@ double NLSimple::getChi2ComparedToCgmsData( ConsentrationGraph &inputData,
 {
   double chi2 = 0.0;
   
-  const double origInputYOffset = inputData.getYOffset();
-  if( inputData.getYOffset() == 0.0 ) inputData.setYOffset(m_basalInsulinConc);
+  // const double origInputYOffset = inputData.getYOffset();
+  // if( inputData.getYOffset() == 0.0 ) inputData.setYOffset(m_basalInsulinConc);
   
   if( fracDerivChi2 != 0.0 )
   {
@@ -1190,7 +1198,7 @@ double NLSimple::getChi2ComparedToCgmsData( ConsentrationGraph &inputData,
     chi2 += (1.0 - fracDerivChi2) * magChi2;
   }//if( fracDerivChi2 != 1.0 )
   
-  inputData.setYOffset(origInputYOffset);
+  // inputData.setYOffset(origInputYOffset);
   
   return chi2;
 }//getChi2ComparedToCgmsData(...)
@@ -1234,7 +1242,8 @@ double NLSimple::getBgValueChi2( const ConsentrationGraph &modelData,
   
   // cout << "About to find magnitude based chi2 between " << t_start << " and "
        // << t_end << endl;
-       
+   
+  int nPoints = 0;
   double chi2 = 0.0;
   
   const ptime modelEndTime = modelData.getEndTime();
@@ -1255,11 +1264,12 @@ double NLSimple::getBgValueChi2( const ConsentrationGraph &modelData,
     // if( modelValue == 0.0 ) modelValue = m_basalGlucoseConcentration;
     // cout << time << ": modelValue=" << modelValue << ", cgmsValue=" <<cgmsValue 
           // << ", uncert=" << uncert << endl;
+    ++nPoints;
     chi2 += pow( (modelValue - cgmsValue) / uncert, 2 );
   }//for( loop over cgms data points )
   
   
-  return chi2;
+  return chi2 / nPoints;
 }//getBgValueChi2
 
 
@@ -1316,6 +1326,7 @@ double NLSimple::getDerivativeChi2( const ConsentrationGraph &modelDerivData,
        
   const double fracUncert = ModelDefaults::kCgmsIndivReadingUncert;
   
+  int nPoints = 0;
   double chi2 = 0.0;
   
   ConstGraphIter start = cgmsDerivData.lower_bound(t_start + m_cgmsDelay);
@@ -1329,10 +1340,11 @@ double NLSimple::getDerivativeChi2( const ConsentrationGraph &modelDerivData,
     // const double uncert = fracUncert*cgmsValue;
     if( modelValue == 0.0 ) modelValue = m_basalGlucoseConcentration;
     
+    ++nPoints;
     chi2 += pow( (modelValue - cgmsValue), 2 );
   }//for( loop over cgms data points )
   
-  return chi2;
+  return chi2 / nPoints;
 }//getDerivativeChi2
     
 
@@ -1346,12 +1358,12 @@ double NLSimple::geneticallyOptimizeModel( double endPredChi2Weight,
   resetPredictions();
   findSteadyStateBeginings(3);
   
-  Int_t fPopSize      = 100;
-  Int_t fNsteps       = 10;
-  Int_t fSC_steps     = 6;
-  Int_t fSC_rate      = 3;
-  Double_t fSC_factor = 0.5;
-  Double_t fConvCrit  = 5.0;
+  Int_t fPopSize      = ModelDefaults::kGenPopSize;
+  Int_t fNsteps       = ModelDefaults::kGenConvergNsteps;
+  Int_t fSC_steps     = ModelDefaults::kGenNStepMutate;
+  Int_t fSC_rate      = ModelDefaults::kGenNStepImprove;
+  Double_t fSC_factor = ModelDefaults::kGenSigmaMult;
+  Double_t fConvCrit  = ModelDefaults::kGenConvergCriteria;
   //When the number of improvments within the last fSC_steps
   // a) smaller than fSC_rate, then divide present sigma by fSC_factor
   // b) equal, do nothing
@@ -1851,7 +1863,7 @@ void NLSimple::runGui()
   assert( !m_gui );
   
   m_gui = new NLSimpleGui( this );
-  gApplication->Run();
+  gApplication->Run(kTRUE);
   
   delete m_gui;
   m_gui = NULL;
@@ -1915,7 +1927,20 @@ void NLSimple::serialize( Archive &ar, const unsigned int version )
 
 
 bool NLSimple::saveToFile( std::string filename )
-{
+{ 
+  if( filename == "" )
+  {
+    filename = NLSimpleGui::getFileName( true );
+    
+    if( filename.empty() ) return false;
+  }//if( filename == "" )
+  
+  
+  unsigned int beginExtension = filename.find_last_of( "." );
+  string extention = filename.substr( beginExtension );
+  if( extention != ".dubm" ) filename += ".dubm";
+  
+  
   std::ofstream ofs( filename.c_str() );
   
   if( !ofs.is_open() )

@@ -62,7 +62,18 @@ double ModelDefaults::kDefaultCgmsDelay = kFailValue;
 double ModelDefaults::kCgmsIndivReadingUncert = kFailValue;
 double ModelDefaults::kPredictAhead = kFailValue;
 double ModelDefaults::kIntegrationDt = kFailValue;
-
+double ModelDefaults::kLastPredictionWeight = kFailValue;
+double ModelDefaults::kTargetBG = kFailValue;
+double ModelDefaults::kBGLowSigma = kFailValue;
+double ModelDefaults::kBGHighSigma = kFailValue;
+int ModelDefaults::kGenPopSize = -999;
+int ModelDefaults::kGenConvergNsteps = -999;
+int ModelDefaults::kGenNStepMutate = -999;
+int ModelDefaults::kGenNStepImprove = -999;
+double ModelDefaults::kGenSigmaMult = kFailValue;
+double ModelDefaults::kGenConvergCriteria = kFailValue;
+  
+  
 int main( int argc, char** argv )
 {
   using namespace boost;
@@ -72,9 +83,15 @@ int main( int argc, char** argv )
   setStyle();
   ProgramOptions::decodeOptions( argc, argv );
   
-  NLSimple guiModel( "../data/optimizedMarch31ThroughApril1Model.dub" );
-  guiModel.runGui();
+  // NLSimple test("");
+  // test.runGui();
   
+  // NLSimpleGui nlGui;
+  // gApplication->Run(kTRUE);
+  
+  NLSimple guiModel( "../data/optimizedMarch31ThroughApril1Model" );
+  guiModel.runGui();
+  return 0;
   // NLSimple model1 = createMar31Model();  
   //void testSmoothing();
   // void testKineticModels();
@@ -87,7 +104,7 @@ int main( int argc, char** argv )
   PosixTime t0 = conspumtionGraph.getT0();
   
   vector<TimeRange> timeRanges( 1, TimeRange(t0+minutes(3), t0+hours(36)) );
-  NLSimple model( "../data/optimizedMarch31ThroughApril1Model.dub" );
+  NLSimple model( "../data/optimizedMarch31ThroughApril1Model" );
   // model.m_cgmsData.trim( t0, t0+hours(36) );
   cout << "cgms data starets at " << model.m_cgmsData.getStartTime() << endl;
   model.getGraphOfMaxTimePredictions( model.m_predictedBloodGlucose, t0+minutes(3), t0+hours(36), 0.5 );
@@ -108,7 +125,7 @@ int main( int argc, char** argv )
   double minuitChi2 = model.fitModelToDataViaMinuit2( 0.0, timeRanges);
   cout << "Genetic optimization gave chi2=" << geneticChi2 << " minuit2 improved"
         << " this to " << minuitChi2 << endl;
-  model.saveToFile( "../data/predictionOptimizedMarch31ThroughApril1Model.dub" );
+  model.saveToFile( "../data/predictionOptimizedMarch31ThroughApril1Model" );
   //may 13th, this gave: 0.0134896  0.741119  0.043758  8.96854e-05
   ConsentrationGraph thirtyMinPred = model.glucPredUsingCgms( 30, t0, t0+hours(36) );
   model.draw( false );
@@ -156,7 +173,7 @@ NLSimple createMar31Model()
               
   model.setModelParameters( parms );
   model.performModelGlucosePrediction( t0, t0+hours(36) );
-  model.saveToFile( "../data/optimizedMarch31ThroughApril1Model.dub" );
+  model.saveToFile( "../data/optimizedMarch31ThroughApril1Model" );
   ConsentrationGraph thirtyMinPred = model.glucPredUsingCgms( 45, t0, t0+hours(36) );
   model.draw( false );
   thirtyMinPred.draw("l", "", true, 6);
