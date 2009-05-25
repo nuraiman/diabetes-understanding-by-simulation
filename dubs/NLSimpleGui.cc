@@ -78,20 +78,19 @@ NLSimpleGui::NLSimpleGui( NLSimple *model, bool runApp )
   graphTab->SetLayoutBroken(kTRUE);
    
   //make a spot to draw the model
-  m_modelCanvas = new TRootEmbeddedCanvas(0,graphTab,741,536);
+  m_modelCanvas = new TRootEmbeddedCanvas(0,graphTab,741,536-20);
   Int_t modelCanvasId = m_modelCanvas->GetCanvasWindowId();
   TCanvas *modelCanvas = new TCanvas("ModelCanvas", 10, 10, modelCanvasId);
-  // modelCanvas->Range(-285.12,17.41397,2516.659,241.9061);
-  modelCanvas->SetRightMargin(0.05020353);
-  modelCanvas->SetTopMargin(0.06766918);
-  modelCanvas->SetBottomMargin(0.1334586);
+  // modelCanvas->SetRightMargin(0.05020353);
+  // modelCanvas->SetTopMargin(0.06766918);
+  // modelCanvas->SetBottomMargin(0.1334586);
   m_modelCanvas->AdoptCanvas(modelCanvas);
   graphTab->AddFrame(m_modelCanvas, new TGLayoutHints(kLHintsCenterY | kLHintsCenterX | kLHintsExpandY| kLHintsExpandX,2,2,2,2));
   
   
-  ProgramOptionsGui *settingsEntry = new ProgramOptionsGui( m_tabWidget, 712, 496 );
+  ProgramOptionsGui *settingsEntry = new ProgramOptionsGui( m_tabWidget, m_model, 712, 496 );
   m_tabWidget->AddTab("Settings", settingsEntry );
-  
+  ((ProgramOptionsGui *)settingsEntry)->Connect( "valueChanged(UInt_t)", "NLSimpleGui", this, "setModelSettingChanged(UInt_t)");
   
   m_tabWidget->SetTab(0);
   m_tabWidget->Resize(m_tabWidget->GetDefaultSize());
@@ -315,18 +314,36 @@ void NLSimpleGui::doMinuit2Fit()
 }//DoMinuit2Fit()
 
 
-void NLSimpleGui::modelSettingChanged()
+
+void NLSimpleGui::updateModelSettings(UInt_t setting)
 {
-  int hour, min, sec;
-  m_cgmsDelayEntry->GetTime(hour, min, sec);
-  cout << hour << ":" << min << ":" << sec << endl;
-  // m_indivCgmsUncertEntry->GetNumber();
-  // m_predAheadTimeEntry->GetTime(hour, min, sec);
-  // m_lastPredWeightEntry->GetNumber();
-  // m_integrationDtEntry->GetTime(hour, min, sec);
-  m_parFindSettingsChanged = true;
+  setting = setting; //keep compiler from comp[laining
+  if( m_model )
+  {
+    m_model->m_cgmsDelay = ModelDefaults::kDefaultCgmsDelay;
+    m_model->m_predictAhead = ModelDefaults::kPredictAhead;
+    m_model->m_dt = ModelDefaults::kIntegrationDt;
+  }//
+}//void updateModel()
+
+
+
+
+void NLSimpleGui::setModelSettingChanged(UInt_t setting)
+{
+  cout << "settings have changed 0x" << hex << setting << dec << endl;
+  // cout << "Changing " <<  m_model->m_cgmsDelay << "   " 
+       // << m_model->m_predictAhead << "   "
+       // << m_model->m_dt << "   " << " to ";
   
-  // Emit( "modelSettingChanged()");
+  m_parFindSettingsChanged = true;
+  updateModelSettings(setting);
+  
+  // cout << "Changing " <<  m_model->m_cgmsDelay << "   " 
+       // << m_model->m_predictAhead << "   "
+       // << m_model->m_dt << endl;
+  
+  Emit( "modelSettingChanged()");
 }//modelSettingChanged()
     
     

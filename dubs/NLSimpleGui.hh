@@ -71,11 +71,6 @@ class NLSimpleGui
     TGPopupMenu *m_MenuFile;
     
     bool m_parFindSettingsChanged;
-    TGNumberEntry *m_cgmsDelayEntry;
-    TGNumberEntry *m_indivCgmsUncertEntry;
-    TGNumberEntry *m_predAheadTimeEntry;
-    TGNumberEntry *m_lastPredWeightEntry;
-    TGNumberEntry *m_integrationDtEntry;
   
   
     //If model is not secified, pops up a file dialog to load from file
@@ -92,8 +87,8 @@ class NLSimpleGui
     
     void handleMenu(Int_t menuAction);
     
-    
-    void modelSettingChanged(); 
+    void updateModelSettings(UInt_t);
+    void setModelSettingChanged(UInt_t);  // *SIGNAL*
     
     bool modelDefined();
     

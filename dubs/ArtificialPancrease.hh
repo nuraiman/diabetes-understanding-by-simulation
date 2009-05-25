@@ -51,10 +51,11 @@ namespace PersonConstants
 
 namespace ModelDefaults
 {
-  extern double kDefaultCgmsDelay; //minutes, ('--cgmsdelay=15')
   extern double kCgmsIndivReadingUncert;
-  extern double kPredictAhead; //default how far to predict ahead of cgms
-  extern double kIntegrationDt;  //Integration tiemstep ('--dt=1.0')
+  
+  extern TimeDuration kDefaultCgmsDelay; //minutes, ('--cgmsdelay=15')
+  extern TimeDuration kPredictAhead; //default how far to predict ahead of cgms
+  extern TimeDuration kIntegrationDt;  //Integration tiemstep ('--dt=1.0')
   
   extern double kLastPredictionWeight;  //for calc. chi2 of model ('--last_pred_weight=0.25')
   

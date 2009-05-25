@@ -7,6 +7,7 @@
 #include "ArtificialPancrease.hh"
 #include "ProgramOptions.hh"
 #include "RungeKuttaIntegrater.hh" //for toNMinutes()
+#include "ResponseModel.hh"
 
 #include "boost/program_options.hpp"
 
@@ -28,7 +29,7 @@ void ProgramOptions::declareOptions()
         ("weight,kg", po::value<double>(&PersonConstants::kPersonsWeight)->default_value(78.0), 
           "Your weight in kilo-grams")
         ( "cgmsdelay,d", 
-          po::value<double>(&ModelDefaults::kDefaultCgmsDelay)->default_value(15.0),
+          po::value<double>()->default_value(15.0),
           "Default delay between CGMS and Fingerstick readings" )
         ( "cgms_indiv_uncert", 
           po::value<double>(&ModelDefaults::kCgmsIndivReadingUncert)->default_value(0.025),
@@ -38,10 +39,10 @@ void ProgramOptions::declareOptions()
           po::value<double>(&PersonConstants::kBasalGlucConc)->default_value(120.0),
           "The target basal blood glucose concentration (mg/dl)")
         ( "predictahead,p",
-          po::value<double>(&ModelDefaults::kPredictAhead)->default_value(45.0),
+          po::value<double>()->default_value(45.0),
           "How far ahead of the cgms the model should try to predict, in minutes" )
         ("dt",
-          po::value<double>(&ModelDefaults::kIntegrationDt)->default_value(1.0),
+          po::value<double>()->default_value(1.0),
           "Integration timestep in minutes" )
         ( "last_pred_weight,l",
           po::value<double>(&ModelDefaults::kLastPredictionWeight)->default_value(0.25),
@@ -100,7 +101,31 @@ void ProgramOptions::decodeOptions( int argc, char **argv )
     exit(0);
   }//if( ns_poVariableMap.count( "help") )
   
+  
+  ModelDefaults::kDefaultCgmsDelay = roundToNearestSecond( ns_poVariableMap["cgmsdelay"].as<double>() );
+  ModelDefaults::kPredictAhead     = roundToNearestSecond( ns_poVariableMap["dt"].as<double>() );
+  ModelDefaults::kIntegrationDt    = roundToNearestSecond( ns_poVariableMap["predictahead"].as<double>() );  
+  
+  
 }//void decodeOptions( int argv, char **argc )
+
+
+TimeDuration ProgramOptions::roundToNearestSecond( const TimeDuration &td )
+{
+  long totalMiliSeconds = td.total_milliseconds();
+  long nSecond = totalMiliSeconds / 1000;
+  long nMili = totalMiliSeconds % 1000;
+      
+  if( nMili > 499 ) ++nSecond;
+  
+  return TimeDuration( 0, 0, nSecond, 0 );
+}//toNSeconds
+
+TimeDuration ProgramOptions::roundToNearestSecond( const double nMinutes )
+{
+  return roundToNearestSecond( toTimeDuration(nMinutes) );
+}//roundToNearestSecond
+
 
 
 TGNumberEntry *ProgramOptionsGui::addNewEntryField( TGVerticalFrame *parentFrame, 
@@ -141,7 +166,9 @@ TGNumberEntry *ProgramOptionsGui::addNewEntryField( TGVerticalFrame *parentFrame
     case TGNumberFormat::kNESHourMin:       // time in hour:minutes format
     case TGNumberFormat::kNESHourMinSec:    // time in hour:minutes:seconds format
     {
-      const TimeDuration td = toTimeDuration( defaultNumer );
+      //We gotta get rounding from a double correct
+      const TimeDuration td = ProgramOptions::roundToNearestSecond( defaultNumer );
+           
       entry->SetTime( td.hours(), td.minutes(), td.seconds() );
       break;
     };//case a time
@@ -164,8 +191,12 @@ TGNumberEntry *ProgramOptionsGui::addNewEntryField( TGVerticalFrame *parentFrame
 
 
 
-ProgramOptionsGui::ProgramOptionsGui( const TGWindow *parentW, UInt_t w, UInt_t h ) 
-  : TGCompositeFrame( parentW, w, h - 21)
+ProgramOptionsGui::ProgramOptionsGui( const TGWindow *parentW, NLSimple *model,
+                                      UInt_t w, UInt_t h ) 
+  : TGCompositeFrame( parentW, w, h - 21), 
+    m_model( model ),
+    m_entries(E_NUMBER_PROGRAM_OPTIONS,(TGNumberEntry *)NULL ),
+    m_debug(false)
 {
   
   TGHorizontalFrame *horizantalFrame = new TGHorizontalFrame( this, w, h-25, kHorizontalFrame );
@@ -183,13 +214,14 @@ ProgramOptionsGui::ProgramOptionsGui( const TGWindow *parentW, UInt_t w, UInt_t 
   personalSettingsVF->AddFrame(columnLabel, horizHints);
 
   
-  TGNumberEntry *entry = addNewEntryField( personalSettingsVF, 
+  m_entries[E_kPersonsWeight] = addNewEntryField( personalSettingsVF, 
                                            "Persons Weight (lbs)",
                                           2.2 * PersonConstants::kPersonsWeight, //2.2 is kg->lbs
                                           TGNumberFormat::kNESInteger, 
                                           "personConstChanged()" );
   
-  entry = addNewEntryField( personalSettingsVF, "Basal BG (mg/dl)",
+  if( m_model ) PersonConstants::kBasalGlucConc = m_model->m_basalGlucoseConcentration;
+  m_entries[E_kBasalGlucConc] = addNewEntryField( personalSettingsVF, "Basal BG (mg/dl)",
                             PersonConstants::kBasalGlucConc, 
                             TGNumberFormat::kNESInteger,
                             "personConstChanged()" );
@@ -204,29 +236,32 @@ ProgramOptionsGui::ProgramOptionsGui( const TGWindow *parentW, UInt_t w, UInt_t 
   columnLabel->SetTextFont("-adobe-courier-bold-r-*-*-12-*-*-*-*-*-iso8859-1");
   modelCalcVF->AddFrame(columnLabel, horizHints);
   
-  entry = addNewEntryField( modelCalcVF, "Cgms Delay (mm:ss)",
-                            ModelDefaults::kDefaultCgmsDelay, 
+  if( m_model ) ModelDefaults::kDefaultCgmsDelay = m_model->m_cgmsDelay;
+  m_entries[E_kDefaultCgmsDelay] = addNewEntryField( modelCalcVF, "Cgms Delay (mm:ss)",
+                            toNMinutes(ModelDefaults::kDefaultCgmsDelay), 
                             TGNumberFormat::kNESMinSec,
                             "modelCalcValueChanged()" );
 
-  entry = addNewEntryField( modelCalcVF, "Indiv. Cgms Uncert (%)",
+  m_entries[E_kCgmsIndivReadingUncert] = addNewEntryField( modelCalcVF, "Indiv. Cgms Uncert (%)",
                             100.0*ModelDefaults::kCgmsIndivReadingUncert, 
                             TGNumberFormat::kNESRealOne,
                             "modelCalcValueChanged()" );
 
-  entry = addNewEntryField( modelCalcVF, "Pred. Ahead (hh:mm:ss)",
-                            ModelDefaults::kPredictAhead, 
+  if( m_model ) ModelDefaults::kPredictAhead = m_model->m_predictAhead;
+  m_entries[E_kPredictAhead] = addNewEntryField( modelCalcVF, "Pred. Ahead (hh:mm:ss)",
+                            toNMinutes(ModelDefaults::kPredictAhead), 
                             TGNumberFormat::kNESHourMinSec,
                             "modelCalcValueChanged()" );
   
-  entry = addNewEntryField( modelCalcVF, "Last Pred. Weight",
-                            ModelDefaults::kIntegrationDt, 
-                            TGNumberFormat::kNESRealTwo,
+  if( m_model ) ModelDefaults::kIntegrationDt = m_model->m_dt;
+  m_entries[E_kIntegrationDt] = addNewEntryField( modelCalcVF, "Integ. Dt (mm:ss)",
+                            toNMinutes( ModelDefaults::kIntegrationDt ), 
+                            TGNumberFormat::kNESMinSec,
                             "modelCalcValueChanged()" );
 
-  entry = addNewEntryField( modelCalcVF, "Integ. Dt (mm:ss)",
+  m_entries[E_kLastPredictionWeight] = addNewEntryField( modelCalcVF, "Last Pred. Weight",
                             ModelDefaults::kLastPredictionWeight, 
-                            TGNumberFormat::kNESMinSec,
+                            TGNumberFormat::kNESRealTwo,
                             "modelCalcValueChanged()" );
   horizantalFrame->AddFrame(modelCalcVF, horizHints);
      
@@ -238,17 +273,17 @@ ProgramOptionsGui::ProgramOptionsGui( const TGWindow *parentW, UInt_t w, UInt_t 
   optionVF->AddFrame(columnLabel, horizHints);
   
   
-  entry = addNewEntryField( optionVF, "Target BG (mg/dl)",
+  m_entries[E_kTargetBG] = addNewEntryField( optionVF, "Target BG (mg/dl)",
                             ModelDefaults::kTargetBG, 
                             TGNumberFormat::kNESInteger,
                             "optionValueChanged()" );
   
-  entry = addNewEntryField( optionVF, "Below Target Sigma (mg/dl)",
+  m_entries[E_kBGLowSigma] = addNewEntryField( optionVF, "Below Target Sigma (mg/dl)",
                             ModelDefaults::kBGLowSigma, 
                             TGNumberFormat::kNESInteger,
                             "optionValueChanged()" );
   
-  entry = addNewEntryField( optionVF, "Above Target Sigma (mg/dl)",
+  m_entries[E_kBGHighSigma] = addNewEntryField( optionVF, "Above Target Sigma (mg/dl)",
                             ModelDefaults::kBGHighSigma, 
                             TGNumberFormat::kNESInteger,
                             "optionValueChanged()" );
@@ -260,31 +295,33 @@ ProgramOptionsGui::ProgramOptionsGui( const TGWindow *parentW, UInt_t w, UInt_t 
   columnLabel->SetTextFont("-adobe-courier-bold-r-*-*-12-*-*-*-*-*-iso8859-1");
   geneticVF->AddFrame(columnLabel, horizHints);
   
-  entry = addNewEntryField( geneticVF, "Pop. Size",
+  m_entries[E_kGenPopSize] = addNewEntryField( geneticVF, "Pop. Size",
                             ModelDefaults::kGenPopSize, 
                             TGNumberFormat::kNESInteger,
                             "modelCalcValueChanged()" );
-  entry = addNewEntryField( geneticVF, "Mutate Conv. NStep",
+  m_entries[E_kGenNStepMutate] = addNewEntryField( geneticVF, "Mutate Conv. NStep",
                             ModelDefaults::kGenNStepMutate, 
                             TGNumberFormat::kNESInteger,
                             "modelCalcValueChanged()" );
-  entry = addNewEntryField( geneticVF, "Mutate NImprove",
+  m_entries[E_kGenNStepImprove] = addNewEntryField( geneticVF, "Mutate NImprove",
                             ModelDefaults::kGenNStepImprove, 
                             TGNumberFormat::kNESInteger,
                             "modelCalcValueChanged()" );
-  entry = addNewEntryField( geneticVF, "Mutation Mult.",
+  m_entries[E_kGenSigmaMult] = addNewEntryField( geneticVF, "Mutation Mult.",
                             ModelDefaults::kGenSigmaMult, 
                             TGNumberFormat::kNESRealThree,
                             "modelCalcValueChanged()" );
   
-  entry = addNewEntryField( geneticVF, "Conv NStep",
+  m_entries[E_kGenConvergNsteps] = addNewEntryField( geneticVF, "Conv NStep",
                             ModelDefaults::kGenConvergNsteps, 
                             TGNumberFormat::kNESInteger,
                             "modelCalcValueChanged()" );
-  entry = addNewEntryField( geneticVF, "Chi2 Conv Criteria",
-                            ModelDefaults::kGenConvergNsteps, 
+  
+  m_entries[E_kGenConvergCriteria] = addNewEntryField( geneticVF, "Chi2 Conv Criteria",
+                            ModelDefaults::kGenConvergCriteria, 
                             TGNumberFormat::kNESRealOne,
                             "modelCalcValueChanged()" );  
+
   horizantalFrame->AddFrame( geneticVF, horizHints);
   
   AddFrame(horizantalFrame, verticalHints);
@@ -292,48 +329,193 @@ ProgramOptionsGui::ProgramOptionsGui( const TGWindow *parentW, UInt_t w, UInt_t 
 
 
 
-void ProgramOptionsGui::valueChanged()
+void ProgramOptionsGui::valueChanged(UInt_t bitmask)
 {
-  Emit( "valueChanged()" );
-}
+  assert(bitmask);  //should only be called for a reason
+  
+  if( m_debug ) cout << "Emitting valueChanged(0x" << hex << bitmask << dec << ")" << endl;
+  
+  Emit( "valueChanged(UInt_t)", bitmask );
+}//ProgramOptionsGui::valueChanged()
+
+
+
 
 
 void ProgramOptionsGui::optionValueChanged()
 {
-  // ModelDefaults::kTargetBG
+  unsigned int changedPar = 0x0;
   
-  // ModelDefaults::kBGLowSigma
+  double newTargetBG = m_entries[E_kTargetBG]->GetNumber();
+  if( newTargetBG != ModelDefaults::kTargetBG ) 
+  {
+    changedPar |= ( 0x1 << E_kTargetBG );
+    ModelDefaults::kTargetBG = newTargetBG;
+    if(m_debug) cout << "Changed kTargetBG to " << newTargetBG << endl;
+  }//if( newTargetBG != ModelDefaults::kTargetBG ) 
   
-  // ModelDefaults::kBGHighSigma
+  double newLowSigma = m_entries[E_kBGLowSigma]->GetNumber();
+  if( newLowSigma != ModelDefaults::kBGLowSigma ) 
+  {
+    changedPar |= ( 0x1 << E_kBGLowSigma );
+    ModelDefaults::kBGLowSigma = newLowSigma;
+    if(m_debug) cout << "Changed kBGLowSigma to " << newLowSigma << endl;
+  }//if( newTargetBG != ModelDefaults::kTargetBG ) 
+  
+
+  double newHighSigma = m_entries[E_kBGHighSigma]->GetNumber();
+  if( newHighSigma != ModelDefaults::kBGHighSigma ) 
+  {
+    changedPar |= ( 0x1 << E_kBGHighSigma );
+    ModelDefaults::kBGHighSigma = newHighSigma;
+    if(m_debug) cout << "Changed kBGLowSigma to " << newHighSigma << endl;
+  }//if( newTargetBG != ModelDefaults::kTargetBG ) 
+  
+
+  if(m_debug)  cout << "optionValueChanged()" << hex << changedPar << dec << endl;
+  
+  valueChanged(changedPar);
+  
   
   Emit( "optionValueChanged()" );
 }//optionValueChanged()
 
 
 
-
 void ProgramOptionsGui::modelCalcValueChanged()
 {
-  // ModelDefaults::kDefaultCgmsDelay
-
-  // 100.0*ModelDefaults::kCgmsIndivReadingUncert
-
-  // ModelDefaults::kPredictAhead
+  unsigned int changedPar = 0x0;
   
-  // ModelDefaults::kIntegrationDt
+  int hour, min, sec;
+  m_entries[E_kDefaultCgmsDelay]->GetTime(hour, min, sec);
+  const TimeDuration newCgmsDelay( hour, min, sec, 0);
+  
+  if( ModelDefaults::kDefaultCgmsDelay != newCgmsDelay )
+  {
+    changedPar |= ( 0x1 << E_kDefaultCgmsDelay );
+    ModelDefaults::kDefaultCgmsDelay = newCgmsDelay;
+    if(m_debug) cout << "Changed kDefaultCgmsDelay to " << newCgmsDelay << endl;
+  }//if( oldCgmsDelay != newCgmsDelay )
+  
 
-  // ModelDefaults::kLastPredictionWeight
+  double oldReadingUncert = ModelDefaults::kCgmsIndivReadingUncert;
+  double newReadingUncert = m_entries[E_kCgmsIndivReadingUncert]->GetNumber();
+  newReadingUncert /= 100.0;
+  
+  if( oldReadingUncert != newReadingUncert )
+  {
+    changedPar |= ( 0x1 << E_kCgmsIndivReadingUncert );
+    ModelDefaults::kCgmsIndivReadingUncert = newReadingUncert;
+    if(m_debug) cout << "Changed kCgmsIndivReadingUncert to " << newReadingUncert << endl;
+  }//if( oldReadingUncert != newReadingUncert )
+
+  m_entries[E_kPredictAhead]->GetTime(hour, min, sec);
+  const TimeDuration newPredAhead( hour, min, sec, 0);
+  
+  if( ModelDefaults::kPredictAhead != newPredAhead )
+  {
+    changedPar |= ( 0x1 << E_kPredictAhead );
+    ModelDefaults::kPredictAhead = newPredAhead;
+    if(m_debug) cout << "Changed kPredictAhead to " << newPredAhead << endl;
+  }//if( oldPredAhead != newPredAhead )
+  
+  m_entries[E_kIntegrationDt]->GetTime(hour, min, sec);
+  const TimeDuration newDt( hour, min, sec, 0);
+  
+  if( ModelDefaults::kIntegrationDt != newDt )
+  {
+    changedPar |= ( 0x1 << E_kIntegrationDt );
+    ModelDefaults::kIntegrationDt = newDt;
+    if(m_debug) cout << "Changed kIntegrationDt to " << newDt << endl;
+  }//if( oldDt != newDt )
+   
+
+  double oldWeight = ModelDefaults::kLastPredictionWeight;
+  double newWeight = m_entries[E_kLastPredictionWeight]->GetNumber();
+  
+  if( oldWeight != newWeight )
+  {
+    changedPar |= ( 0x1 << E_kLastPredictionWeight );
+    ModelDefaults::kLastPredictionWeight = newWeight;
+    if(m_debug) cout << "Changed kLastPredictionWeight to " << newWeight << endl;
+  }//if( oldWeight != newWeight )
  
+  
+  if( ModelDefaults::kGenPopSize != m_entries[E_kGenPopSize]->GetIntNumber() )
+  {
+    changedPar |= ( 0x1 << E_kGenPopSize );
+    ModelDefaults::kGenPopSize = m_entries[E_kGenPopSize]->GetIntNumber();
+    if(m_debug) cout << "Changed kGenPopSize to " << ModelDefaults::kGenPopSize << endl;
+  }//
+
+  if( ModelDefaults::kGenConvergNsteps != m_entries[E_kGenConvergNsteps]->GetIntNumber() )
+  {
+    changedPar |= ( 0x1 << E_kGenConvergNsteps );
+    ModelDefaults::kGenConvergNsteps = m_entries[E_kGenConvergNsteps]->GetIntNumber();
+    if(m_debug) cout << "Changed kGenConvergNsteps to " << ModelDefaults::kGenConvergNsteps << endl;
+  }//
+    
+  if( ModelDefaults::kGenNStepMutate != m_entries[E_kGenNStepMutate]->GetIntNumber() )
+  {
+    changedPar |= ( 0x1 << E_kGenNStepMutate );
+    ModelDefaults::kGenNStepMutate = m_entries[E_kGenNStepMutate]->GetIntNumber();
+    if(m_debug) cout << "Changed kGenNStepMutate to " << ModelDefaults::kGenNStepMutate << endl;
+  }//
+  
+  if( ModelDefaults::kGenNStepImprove != m_entries[E_kGenNStepImprove]->GetIntNumber() )
+  {
+    changedPar |= ( 0x1 << E_kGenNStepImprove );
+    ModelDefaults::kGenNStepImprove = m_entries[E_kGenNStepImprove]->GetIntNumber();
+    if(m_debug) cout << "Changed kGenNStepImprove to " << ModelDefaults::kGenNStepImprove << endl;
+  }//
+  
+  if( ModelDefaults::kGenSigmaMult != m_entries[E_kGenSigmaMult]->GetNumber() )
+  {
+    changedPar |= ( 0x1 << E_kGenSigmaMult );
+    ModelDefaults::kGenSigmaMult = m_entries[E_kGenSigmaMult]->GetNumber();
+    if(m_debug) cout << "Changed kGenSigmaMult to " << ModelDefaults::kGenSigmaMult << endl;
+  }//
+  
+  if( ModelDefaults::kGenConvergCriteria != m_entries[E_kGenConvergCriteria]->GetNumber() )
+  {
+    changedPar |= ( 0x1 << E_kGenConvergCriteria );
+    ModelDefaults::kGenConvergCriteria = m_entries[E_kGenConvergCriteria]->GetNumber();
+    if(m_debug) cout << "Changed kGenConvergCriteria to " << ModelDefaults::kGenConvergCriteria << endl;
+  }//
+      
+  
+  if(m_debug) cout << "modelCalcValueChanged() " << hex << changedPar << dec << endl;
+  
+  valueChanged(changedPar);
   Emit( "modelCalcValueChanged()" );
 }//modelCalcValueChanged()
 
 
 void ProgramOptionsGui::personConstChanged()
 {
-   // 2.2 * PersonConstants::kPersonsWeight
+  unsigned int changedPar = 0x0;
   
-  // PersonConstants::kBasalGlucConc
+  double newWeight = m_entries[E_kPersonsWeight]->GetNumber() / 2.2; //2.2 is for lbs -> kg
+  if( newWeight != PersonConstants::kPersonsWeight ) 
+  {
+    changedPar |= ( 0x1 << E_kPersonsWeight );
+    PersonConstants::kPersonsWeight = newWeight;  
+    if(m_debug) cout << "Changed kPersonsWeight to " << 2.2 * newWeight << endl;
+  }//if( newTargetBG != ModelDefaults::kTargetBG ) 
   
+  
+  double newBasal = m_entries[E_kBasalGlucConc]->GetNumber();
+  if( newBasal != PersonConstants::kBasalGlucConc ) 
+  {
+    changedPar |= ( 0x1 << E_kBasalGlucConc );
+    PersonConstants::kBasalGlucConc = newBasal;  
+    if(m_debug) cout << "Changed kBasalGlucConc to " << newBasal << endl;
+  }//if( newTargetBG != ModelDefaults::kTargetBG ) 
+  
+  
+  valueChanged(changedPar);
+  if(m_debug) cout << "personConstChanged() " << hex << changedPar << dec << endl;
+    
   Emit( "personConstChanged()" );
 
 }//personConstChanged()
