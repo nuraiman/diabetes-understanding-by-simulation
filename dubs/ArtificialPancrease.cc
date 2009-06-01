@@ -83,6 +83,12 @@ int main( int argc, char** argv )
   setStyle();
   ProgramOptions::decodeOptions( argc, argv );
   
+  ConsentrationGraph mmData( "../data/mmCgmsData_march31_April7.dub" );
+  
+  // TCanvas *can = new TCanvas(); 
+  // mmData.draw("", "", false);
+  // can->SetCanvasSize( 1500, 800 );
+  // gTheApp->Run(kTRUE);
   // NLSimple test("");
   // test.runGui();
   

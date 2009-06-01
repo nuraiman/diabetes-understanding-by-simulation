@@ -247,6 +247,8 @@ class ConsentrationGraph : public std::set<GraphElement>
     TGraph *ConsentrationGraph::getTGraph( PosixTime t_start = kGenericT0,
                                            PosixTime t_end = kGenericT0  ) const;
     
+    void guiDisplay( bool pause = false );
+    
     //Some funcitons to aid in drawing the graph
     static std::string getDate( PosixTime time );
     static std::string getDateForGraphTitle( PosixTime time );
