@@ -1,6 +1,3 @@
-// Mainframe macro generated from application: /Users/banjohik/root/bin/root.exe
-// By ROOT version 5.20/00 on 2009-05-20 20:51:44
-//
 #include <cstdlib>
 #include <iostream>
 #include <iomanip>
@@ -16,6 +13,9 @@
 
 #include "TApplication.h"
 #include "TList.h"
+#include "TAxis.h"
+#include "TGraph.h"
+
 
 #include "NLSimpleGui.hh"
 #include "ResponseModel.hh"
@@ -30,15 +30,14 @@ using namespace std;
 NLSimpleGui::NLSimpleGui( NLSimple *model, bool runApp )
 {
   m_model = model;
-  
   m_fileName = "";
   m_ownsModel = false;
-  
   m_parFindSettingsChanged = false;
+  m_minutesGraphPerPage = 3 * 60 * 24; //3 days
   
-  m_mainFrame = new TGMainFrame(gClient->GetRoot(),10,10,kMainFrame | kVerticalFrame);
-  m_mainFrame->SetLayoutBroken(kTRUE);
+  m_mainFrame = new TGMainFrame(gClient->GetRoot(),1000,1000,kMainFrame | kVerticalFrame);
   m_mainFrame->SetCleanup(kDeepCleanup);
+  //m_mainFrame->SetLayoutManager(new TGTileLayout(m_mainFrame, 8));
   m_mainFrame->Connect("CloseWindow()", "TApplication", gApplication, "Terminate(=0)");
   
   if( m_model == NULL )
@@ -52,98 +51,45 @@ NLSimpleGui::NLSimpleGui( NLSimple *model, bool runApp )
     m_model->m_gui = this;
   }//if( need to load model )
   
-  // m_menuDock = new TGDockableFrame(m_mainFrame);
-  // m_mainFrame->AddFrame(m_menuDock, new TGLayoutHints(kLHintsExpandX, 0, 0, 1, 0));
-  // m_menuDock->SetWindowName("Menu Dock");
   
-  m_MenuFile = new TGPopupMenu(gClient->GetRoot());
-  m_MenuFile->AddEntry("&Save", SAVE_MODEL);
-  m_MenuFile->AddEntry("Save &As", SAVE_MODEL_AS);
-  m_MenuFile->AddSeparator();
-  m_MenuFile->AddEntry("E&xit", QUIT_GUI_SESSION);
-  m_MenuFile->Connect("Activated(Int_t)", "NLSimpleGui", 
-                       this, "handleMenu(Int_t)");
-
-  m_menuBar = new TGMenuBar(m_mainFrame, m_mainFrame->GetMaxWidth(), 20, kHorizontalFrame|kRaisedFrame );
-  m_mainFrame->AddFrame(m_menuBar, new TGLayoutHints(kLHintsExpandX, 0, 0, 1, 0));
-  m_menuBar->AddPopup("&File", m_MenuFile, new TGLayoutHints(kLHintsTop | kLHintsLeft, 0, 4, 0, 0));
+  initializeMenu();
   
-    
+  
+  TGHorizontalFrame *eqnF = new TGHorizontalFrame(m_mainFrame, 400, 100, kHorizontalFrame | kFitWidth | kFitHeight);
+  createEquationsCanvas( eqnF );
+  //Add Equations to Canvas
+  TGLayoutHints *equationCanvasHint = new TGLayoutHints( kLHintsRight | kLHintsTop,2,2,2,2);
+  eqnF->AddFrame(m_equationCanvas, equationCanvasHint);
+  eqnF->Resize(eqnF->GetDefaultSize());
+  
+  
+  TGHorizontalFrame *graphButtonF = new TGHorizontalFrame(m_mainFrame, 1000, 700, kHorizontalFrame);
   // tab widget
-  m_tabWidget = new TGTab(m_mainFrame,745,540);
-  
-  // container of "Tab1"
-  TGCompositeFrame *graphTab = m_tabWidget->AddTab("Graph");
-  graphTab->SetLayoutManager(new TGVerticalLayout(graphTab));
-  graphTab->SetLayoutBroken(kTRUE);
-   
-  //make a spot to draw the model
-  m_modelCanvas = new TRootEmbeddedCanvas(0,graphTab,741,536-20);
-  Int_t modelCanvasId = m_modelCanvas->GetCanvasWindowId();
-  TCanvas *modelCanvas = new TCanvas("ModelCanvas", 10, 10, modelCanvasId);
-  // modelCanvas->SetRightMargin(0.05020353);
-  // modelCanvas->SetTopMargin(0.06766918);
-  // modelCanvas->SetBottomMargin(0.1334586);
-  m_modelCanvas->AdoptCanvas(modelCanvas);
-  graphTab->AddFrame(m_modelCanvas, new TGLayoutHints(kLHintsCenterY | kLHintsCenterX | kLHintsExpandY| kLHintsExpandX,2,2,2,2));
-  
-  
-  ProgramOptionsGui *settingsEntry = new ProgramOptionsGui( m_tabWidget, m_model, 712, 496 );
-  m_tabWidget->AddTab("Settings", settingsEntry );
-  ((ProgramOptionsGui *)settingsEntry)->Connect( "valueChanged(UInt_t)", "NLSimpleGui", this, "setModelSettingChanged(UInt_t)");
-  
+  m_tabWidget = new TGTab(graphButtonF,0.5*graphButtonF->GetWidth(),graphButtonF->GetHeight());
+  addGraphTab();
+  addProgramOptionsTab();
   m_tabWidget->SetTab(0);
   m_tabWidget->Resize(m_tabWidget->GetDefaultSize());
-  m_mainFrame->AddFrame(m_tabWidget, new TGLayoutHints(kLHintsExpandY| kLHintsExpandX,2,2,2,2));
-  m_tabWidget->MoveResize(150,105,745,540);
-   
-  m_equationCanvas = new TRootEmbeddedCanvas("m_equationCanvas",m_mainFrame,550,102);
-  Int_t eqnCanvasId = m_equationCanvas->GetCanvasWindowId();
-  TCanvas *equationCanvas = new TCanvas("EquationCanvas", 10, 10, eqnCanvasId);
-  m_equationCanvas->AdoptCanvas(equationCanvas);
-  m_mainFrame->AddFrame(m_equationCanvas, new TGLayoutHints( kLHintsExpandX | kLHintsExpandY,2,2,2,2));
-  m_equationCanvas->MoveResize(400,5,500,100);
   
-  equationCanvas->cd();
-  m_equationPt = new TPaveText(0, 0, 1.0, 1.0, "NDC");
-  m_equationPt->SetBorderSize(0);
-  m_equationPt->SetTextAlign(12);
-  m_equationPt->Draw();
-    
+  //Add buttons to frame
+  TGVerticalFrame *buttonFrame = createButtonsFrame(graphButtonF);
+  TGLayoutHints *buttonFrameHint = new TGLayoutHints( kLHintsLeft | kLHintsTop,2,2,2,2);
+  graphButtonF->AddFrame(buttonFrame, buttonFrameHint); 
+  TGLayoutHints *tabHint = new TGLayoutHints(kLHintsExpandY | kLHintsExpandX | kLHintsRight | kLHintsBottom,2,2,2,2);
+  graphButtonF->AddFrame(m_tabWidget, tabHint);
+  graphButtonF->Resize(graphButtonF->GetDefaultSize());
   
-  TGHorizontalFrame *horizFrame = new TGHorizontalFrame(m_mainFrame,112,424,kHorizontalFrame);
-  horizFrame->SetLayoutBroken(kTRUE);
-  
-  TGTextButton *geneticOptButton = new TGTextButton(horizFrame,"Genetically\n Optimize");
-  geneticOptButton->SetTextJustify(36);
-  geneticOptButton->SetMargins(0,0,0,0);
-  geneticOptButton->SetWrapLength(-1);
-  geneticOptButton->Resize(95,48);
-  horizFrame->AddFrame(geneticOptButton, new TGLayoutHints(kLHintsLeft | kLHintsTop,2,2,2,2));
-  geneticOptButton->MoveResize(8,16,95,48);
-  geneticOptButton->Connect( "Clicked()", "NLSimpleGui", this, "doGeneticOptimization()" );
-  
-  TGTextButton *miniutFitButton = new TGTextButton(horizFrame,"Miniut2 Fit");
-  miniutFitButton->SetTextJustify(36);
-  miniutFitButton->SetMargins(0,0,0,0);
-  miniutFitButton->SetWrapLength(-1);
-  miniutFitButton->Resize(92,48);
-  horizFrame->AddFrame(miniutFitButton, new TGLayoutHints(kLHintsLeft | kLHintsTop ,2,2,2,2));
-  miniutFitButton->MoveResize(8,88,92,48);
-  miniutFitButton->Connect( "Clicked()", "NLSimpleGui", this, "doMinuit2Fit()" );
-  
-  TGTextButton *drawButton = new TGTextButton(horizFrame, "Draw" );
-  drawButton->SetTextJustify(36);
-  drawButton->SetMargins(0,0,0,0);
-  drawButton->SetWrapLength(-1);
-  drawButton->Resize(92,48);
-  horizFrame->AddFrame(drawButton, new TGLayoutHints(kLHintsLeft | kLHintsTop,2,2,2,2));
-  drawButton->MoveResize(8,160,92,48);
-  drawButton->Connect( "Clicked()", "NLSimpleGui", this, "drawModel()" );
+  TGLayoutHints *graphButtonHint = new TGLayoutHints( kLHintsCenterX | kLHintsExpandY | kLHintsExpandX |kLHintsTop,2,2,2,2);
+  TGLayoutHints *fileMenuHint = new TGLayoutHints(kLHintsExpandX, 0, 0, 1, 0);
   
   
-  m_mainFrame->AddFrame(horizFrame, new TGLayoutHints(kLHintsLeft | kLHintsTop,2,2,2,2));
-  horizFrame->MoveResize(16,120,112,424);
+  
+  m_mainFrame->AddFrame(m_menuBar, fileMenuHint);
+  m_mainFrame->AddFrame(eqnF, equationCanvasHint);
+  m_mainFrame->AddFrame(graphButtonF, graphButtonHint);
+  
+  
+  
   
   m_mainFrame->SetWindowName( "NLSimple" );
   m_mainFrame->SetMWMHints( kMWMDecorAll, kMWMFuncAll, kMWMInputModeless );
@@ -152,6 +98,7 @@ NLSimpleGui::NLSimpleGui( NLSimple *model, bool runApp )
   m_mainFrame->MapSubwindows();
   m_mainFrame->Resize(m_mainFrame->GetDefaultSize());
   m_mainFrame->MapWindow();
+  
   m_mainFrame->Resize(900,650);
   
   drawModel();
@@ -168,6 +115,153 @@ NLSimpleGui::~NLSimpleGui()
   
   if( m_ownsModel ) delete m_model;
 }//NLSimpleGui
+
+
+
+void NLSimpleGui::initializeMenu()
+{
+  assert( m_mainFrame );
+  m_MenuFile = new TGPopupMenu(gClient->GetRoot());
+  m_MenuFile->AddEntry("&Save", SAVE_MODEL);
+  m_MenuFile->AddEntry("Save &As", SAVE_MODEL_AS);
+  m_MenuFile->AddSeparator();
+  m_MenuFile->AddEntry("E&xit", QUIT_GUI_SESSION);
+  m_MenuFile->Connect("Activated(Int_t)", "NLSimpleGui", 
+                       this, "handleMenu(Int_t)");
+
+  m_menuBar = new TGMenuBar(m_mainFrame, m_mainFrame->GetWidth(), 20, kHorizontalFrame| kRaisedFrame );
+  
+  TGLayoutHints *hint = new TGLayoutHints(kLHintsTop | kLHintsLeft, 0, 0, 0, 0);
+  m_menuBar->AddPopup("&File", m_MenuFile, hint );
+  
+  
+  m_menuBar->Resize(m_menuBar->GetDefaultSize());
+  
+}// initializeMenu()
+
+
+
+void NLSimpleGui::addGraphTab()
+{
+  int width = m_tabWidget->GetWidth();
+  int height =  m_tabWidget->GetHeight();
+  
+  // container of "Tab1"
+  TGCompositeFrame *graphTabFrame = m_tabWidget->AddTab("Graph");
+  graphTabFrame->SetLayoutManager(new TGVerticalLayout(graphTabFrame));
+   
+  //Every once in a while I like ROOT, then comes along something so simple, 
+  //  like adding scroll bars to a graph, and I remember ROOT is a huge pile
+  //  of shit, the workaround below to get scroll bars took forever to figure out
+  //Make a TGCanvas  dimentions
+  //Make a TGCompositeFrame that is container for above TGCanvas
+  //make a TRootEmbeddedCanvas //m_modelEmbededCanvas, add this to TGCompositeFrams
+  //make a TCanvas, add to above TRootEmbeddedCanvas
+  TGLayoutHints *hintBorderExpand  = new TGLayoutHints(kLHintsExpandY| kLHintsExpandX,2,2,2,2);
+  TGLayoutHints *hintNoBorderExpandY  = new TGLayoutHints(kLHintsCenterY| kLHintsCenterX | kLHintsExpandY| kLHintsExpandX,0,0,0,0);
+  
+  m_modelBaseTGCanvas  = new TGCanvas( graphTabFrame, width, height, kFitWidth | kFitHeight );
+  m_modelBaseFrame     = new TGCompositeFrame( m_modelBaseTGCanvas->GetViewPort(), 10, 10, kVerticalFrame );
+  m_modelBaseTGCanvas->SetContainer( m_modelBaseFrame );
+  
+  m_modelEmbededCanvas = new TRootEmbeddedCanvas(0,m_modelBaseFrame,10,10);
+  m_modelBaseFrame->AddFrame( m_modelEmbededCanvas, hintNoBorderExpandY );
+  Int_t modelCanvasId  = m_modelEmbededCanvas->GetCanvasWindowId();
+  TCanvas *modelCanvas = new TCanvas("ModelGraphCanvas", 10, 10, modelCanvasId);
+  modelCanvas->SetBottomMargin( 0.11 );
+  modelCanvas->SetRightMargin( 0.02 );
+  modelCanvas->SetLeftMargin( 0.08 );
+  m_modelEmbededCanvas->AdoptCanvas(modelCanvas);
+  m_modelEmbededCanvas->SetWidth( 1500 );
+   
+  graphTabFrame->AddFrame( m_modelBaseTGCanvas, hintBorderExpand);
+  
+  
+  // m_modelEmbededCanvas->SetWidth( 1500 );
+}//NLSimpleGui::addGraphTab()
+
+void NLSimpleGui::addProgramOptionsTab()
+{
+  int width = m_tabWidget->GetWidth();
+  int height =  m_tabWidget->GetHeight();
+  
+  ProgramOptionsGui *settingsEntry = new ProgramOptionsGui( m_tabWidget, m_model, width, height );
+  m_tabWidget->AddTab("Settings", settingsEntry );
+  ((ProgramOptionsGui *)settingsEntry)->Connect( "valueChanged(UInt_t)", "NLSimpleGui", this, "setModelSettingChanged(UInt_t)");
+}//addProgramOptionsTab
+
+
+
+void NLSimpleGui::createEquationsCanvas( const TGFrame *parent )
+{
+  int width = parent->GetWidth();
+  int height = parent->GetHeight();
+    
+  m_equationCanvas = new TRootEmbeddedCanvas("m_equationCanvas",parent, width, height, kSunkenFrame| kDoubleBorder| kFitWidth | kFitHeight);
+  Int_t eqnCanvasId = m_equationCanvas->GetCanvasWindowId();
+  TCanvas *equationCanvas = new TCanvas("EquationCanvas", width, height, eqnCanvasId);
+  m_equationCanvas->AdoptCanvas(equationCanvas);
+    
+  equationCanvas->cd();
+  m_equationPt = new TPaveText(0, 0, 1.0, 1.0, "NDC");
+  m_equationPt->SetBorderSize(0);
+  m_equationPt->SetTextAlign(12);
+  m_equationPt->Draw();
+  equationCanvas->SetEditable( kFALSE );
+}//NLSimpleGui::createEquationsCanvas()
+
+
+TGVerticalFrame *NLSimpleGui::createButtonsFrame( const TGFrame *parent)
+{
+  int width = 0.2 * parent->GetWidth();
+  int height = parent->GetHeight();
+  
+  TGVerticalFrame *horizFrame = new TGVerticalFrame(parent, width, height, kVerticalFrame);
+  TGLayoutHints *buttonHint = new TGLayoutHints(kLHintsExpandX | kLHintsExpandY| kLHintsTop | kLHintsCenterX,10,10,10,10);
+  
+  TGTextButton *geneticOptButton = new TGTextButton(horizFrame,"Genetically\n Optimize");
+  geneticOptButton->SetTextJustify(36);
+  geneticOptButton->SetMargins(0,0,0,0);
+  horizFrame->AddFrame(geneticOptButton, buttonHint);
+  geneticOptButton->Connect( "Clicked()", "NLSimpleGui", this, "doGeneticOptimization()" );
+  
+  TGTextButton *miniutFitButton = new TGTextButton(horizFrame,"Miniut2 Fit");
+  miniutFitButton->SetTextJustify(36);
+  miniutFitButton->SetMargins(0,0,0,0);
+  horizFrame->AddFrame(miniutFitButton, buttonHint);
+  miniutFitButton->Connect( "Clicked()", "NLSimpleGui", this, "doMinuit2Fit()" );
+  
+  TGTextButton *drawButton = new TGTextButton(horizFrame, "Draw" );
+  drawButton->SetTextJustify(36);
+  drawButton->SetMargins(0,0,0,0);
+  horizFrame->AddFrame(drawButton, buttonHint);
+  drawButton->Connect( "Clicked()", "NLSimpleGui", this, "drawModel()" );
+  
+  
+  TGHorizontalFrame *zoomFrame = new TGHorizontalFrame(horizFrame, width, 30, kHorizontalFrame);
+  TGLayoutHints *zoomHint = new TGLayoutHints(kLHintsExpandX | kLHintsExpandY| kLHintsCenterY,0,0,0,0);
+  
+  TGTextButton *plusButton = new TGTextButton(zoomFrame, "+" );
+  plusButton->SetTextJustify(36);
+  plusButton->SetMargins(0,0,0,0);
+  plusButton->Connect( "Clicked()", "NLSimpleGui", this, "zoomXAxis(=0.9)" );
+  zoomFrame->AddFrame(plusButton, zoomHint );
+  
+  TGTextButton *minusButton = new TGTextButton(zoomFrame, "-" );
+  minusButton->SetTextJustify(36);
+  minusButton->SetMargins(0,0,0,0);
+  minusButton->Connect( "Clicked()", "NLSimpleGui", this, "zoomXAxis(=1.1)" );
+  zoomFrame->AddFrame(minusButton, zoomHint );
+  
+  TGLayoutHints *zoomFrameHint = new TGLayoutHints(kLHintsExpandX | kLHintsExpandY| kLHintsBottom,10,10,10,10);
+  horizFrame->AddFrame(zoomFrame, zoomFrameHint);
+  
+  
+  horizFrame->Resize(horizFrame->GetDefaultSize());
+  
+  return horizFrame;
+}//createButtonsFrame()
+
 
 
 bool NLSimpleGui::modelDefined()
@@ -200,6 +294,16 @@ std::string NLSimpleGui::getFileName( bool forOpening )
 }//getFileName
 
 
+void NLSimpleGui::zoomXAxis( double amount )
+{
+  
+  m_minutesGraphPerPage = amount * m_minutesGraphPerPage;
+  
+  assert( m_minutesGraphPerPage > 0.0 );
+  m_tabWidget->SetTab(0);
+  updateModelGraphSize();
+}//void zoomXAxis( double amount );
+
 
 
 void NLSimpleGui::drawModel()
@@ -208,8 +312,9 @@ void NLSimpleGui::drawModel()
   
   m_tabWidget->SetTab(0);
   
-  TCanvas *can = m_modelCanvas->GetCanvas();
+  TCanvas *can = m_modelEmbededCanvas->GetCanvas();
   can->cd();
+  can->SetEditable( kTRUE );
   
   //lets ovoid memmory clutter
   TObject *obj;
@@ -220,15 +325,48 @@ void NLSimpleGui::drawModel()
     if( className != "TFrame" ) delete obj;
   }//for(...)
   
-  
   const bool pause = false;
   m_model->draw( pause );
   
-  // can->Print( "mainFram.C" );
-  
-  //need to make ROOTupdate gPad now
-  can->Update();
+  updateModelGraphSize();
+  can->SetEditable( kFALSE );
 }//DrawModel()
+
+
+void NLSimpleGui::updateModelGraphSize()
+{
+  TCanvas *can = m_modelEmbededCanvas->GetCanvas();
+  can->SetEditable( kTRUE );
+  can->Update(); //need this or else TCanvas won't have updated axis range
+  double xmin, xmax, ymin, ymax;
+  can->GetRangeAxis( xmin, ymin, xmax, ymax );
+  double nMinutes = xmax - xmin;
+  // cout << m_minutesGraphPerPage << "  " << nMinutes << endl;
+  
+  //always fill up screen
+  if( nMinutes < m_minutesGraphPerPage ) m_minutesGraphPerPage = nMinutes;
+  
+  int pageWidth = m_modelBaseTGCanvas->GetWidth();
+  double nPages = nMinutes / m_minutesGraphPerPage;
+  m_modelEmbededCanvas->SetWidth( nPages * pageWidth );
+
+  
+  //need to make ROOT update gPad now
+  int w = m_modelEmbededCanvas->GetWidth();
+  int h = m_modelBaseTGCanvas->GetHeight();
+  int scrollWidth = m_modelBaseTGCanvas->GetHScrollbar()->GetHeight();
+  can->SetCanvasSize( w, h-scrollWidth );
+  can->SetWindowSize( w + (w-can->GetWw()), h+(h-can->GetWh()) -scrollWidth);
+  m_modelBaseFrame->SetHeight( h - scrollWidth);
+  m_modelBaseFrame->SetSize( m_modelBaseFrame->GetSize() );
+  
+  m_modelEmbededCanvas->SetHeight( h -scrollWidth);
+  m_modelEmbededCanvas->SetSize( m_modelEmbededCanvas->GetSize() );
+  can->Update();
+  
+  m_mainFrame->MapSubwindows();
+  can->SetEditable( kFALSE );
+}//void NLSimpleGui::updateModelGraphSize()
 
 
 void NLSimpleGui::drawEquations()
@@ -237,6 +375,7 @@ void NLSimpleGui::drawEquations()
   
   TCanvas *can = m_equationCanvas->GetCanvas();
   can->cd();
+  can->SetEditable( kTRUE );
   
   m_equationPt->Clear();
   
@@ -248,6 +387,7 @@ void NLSimpleGui::drawEquations()
   
   //need to make ROOTupdate gPad now
   can->Update();
+  can->SetEditable( kFALSE );
 }//DrawEquations()
 
 
@@ -331,7 +471,7 @@ void NLSimpleGui::updateModelSettings(UInt_t setting)
 
 void NLSimpleGui::setModelSettingChanged(UInt_t setting)
 {
-  cout << "settings have changed 0x" << hex << setting << dec << endl;
+  // cout << "settings have changed 0x" << hex << setting << dec << endl;
   // cout << "Changing " <<  m_model->m_cgmsDelay << "   " 
        // << m_model->m_predictAhead << "   "
        // << m_model->m_dt << "   " << " to ";

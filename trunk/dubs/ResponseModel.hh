@@ -291,6 +291,9 @@ class ModelTestFCN : public ROOT::Minuit2::FCNBase,  public TMVA::IFitterTarget
     //Function for TMVA fitters
     virtual Double_t EstimatorFunction( std::vector<Double_t>& parameters );
     
+    //the function that does the actual work
+    double testParamaters(const std::vector<double>& x, bool updateModel ) const;
+    
     ModelTestFCN( NLSimple *modelPtr, 
                   double endPredChi2Weight,
                   std::vector<TimeRange> timeRanges );

@@ -28,6 +28,8 @@
 #include "TGMdiFrame.h"
 #include "TGListView.h"
 #include "TGMdiDecorFrame.h"
+#include "TGLayout.h"
+#include "TGXYLayout.h"
 #include "TGMdiMenu.h"
 #include "TGSplitter.h"
 #include "TGMenu.h"
@@ -61,7 +63,11 @@ class NLSimpleGui
     
     TGMainFrame *m_mainFrame;
     TGTab *m_tabWidget;
-    TRootEmbeddedCanvas *m_modelCanvas;
+    
+    TGCanvas *m_modelBaseTGCanvas;              //This makes the scroll bar for graph
+    TGCompositeFrame *m_modelBaseFrame;         //This hold TCanvas
+    TRootEmbeddedCanvas *m_modelEmbededCanvas;  //change size of this to zoom
+    double m_minutesGraphPerPage;
     
     TRootEmbeddedCanvas *m_equationCanvas;
     TPaveText *m_equationPt;
@@ -75,8 +81,14 @@ class NLSimpleGui
   
     //If model is not secified, pops up a file dialog to load from file
     NLSimpleGui( NLSimple *model = NULL, bool runApp = false );
-    
     ~NLSimpleGui();
+    
+    void initializeMenu();// make the File menu
+    void addGraphTab();  //add graph tab to m_tabWidget
+    void addProgramOptionsTab();//add options tab to m_tabWidget
+    void createEquationsCanvas( const TGFrame *parent );
+    TGVerticalFrame *createButtonsFrame( const TGFrame *parent );
+    
     
     static std::string getFileName( bool forOpening = true );
     
@@ -86,6 +98,9 @@ class NLSimpleGui
     void doMinuit2Fit();
     
     void handleMenu(Int_t menuAction);
+    
+    void zoomXAxis( double amount );  //amount is fractional, 0.9, or 1.1 is 10% decrease/increas
+    void updateModelGraphSize();
     
     void updateModelSettings(UInt_t);
     void setModelSettingChanged(UInt_t);  // *SIGNAL*

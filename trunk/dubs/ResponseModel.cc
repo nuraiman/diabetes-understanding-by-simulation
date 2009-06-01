@@ -1397,28 +1397,24 @@ double NLSimple::geneticallyOptimizeModel( double endPredChi2Weight,
     cout << "Parameters: ";
     foreach( Double_t p, currentPars ) cout << p << "  ";
     cout << endl;
-    double currFitness = fittnesFunc.EstimatorFunction( currentPars );
+    double currFitness = fittnesFunc.testParamaters( currentPars, (m_gui != NULL) );
     cout << "Current fitness is " << currFitness << " fitness" << endl << endl << endl;
     
-    //This can be cleaned up a lot later
     if( m_gui ) 
     {
-      setModelParameters( currentPars );
-      vector<TimeRange> trV = timeRanges;
-      if( trV.empty() ) trV.push_back( TimeRange(kGenericT0,kGenericT0) );
-      
-      foreach( const TimeRange &tr, trV )
-      {
-        ptime tStart = findSteadyStateStartTime( tr.first, tr.second );
-        if( !m_predictAhead.is_negative() )
-          getGraphOfMaxTimePredictions( m_predictedBloodGlucose, tr.first, tr.second, endPredChi2Weight );
-        else
-          m_predictedBloodGlucose = performModelGlucosePrediction( tStart, tr.second );
-      }//foreach
-      m_gui->drawModel();
       m_gui->drawEquations();
-    }//if( m_gui )
+      m_gui->drawModel();
       
+      //The NLSimpleGui will delete the below pave text on it's next draw
+      TPaveText *pt = new TPaveText(0.15, 0.8, 0.28, 0.89, "NDC");
+      pt->SetBorderSize(0);
+      pt->SetTextAlign(12);
+      stringstream ss;
+      ss << "#chi^{2}=" << currFitness;
+      pt->AddText( ss.str().c_str() );
+      pt->Draw();
+      gPad->Update();
+    }//if( m_gui )  
       
     fConvCrit = 0.008 * currFitness;
     
@@ -1438,18 +1434,9 @@ double NLSimple::geneticallyOptimizeModel( double endPredChi2Weight,
   foreach( Double_t d, gvec ) cout << d << "  ";
   cout << endl;
   
-  double chi2 = fittnesFunc(gvec);
-  
   setModelParameters(gvec);
+  double chi2 = fittnesFunc.testParamaters( gvec, true );
   
-  // double chi2 = 0.0;
-  // foreach( const TimeRange &tr, timeRanges )
-  // {
-    // ptime tStart = findSteadyStateStartTime( tr.first, tr.second );
-    // 
-    // performModelGlucosePrediction( tStart, tr.second );
-    // chi2 += getModelChi2( fracDerivChi2, tStart, tr.second );
-  // }//foeach(...)  
   
   return chi2;
 }//geneticallyOptimizeModel
@@ -1876,10 +1863,10 @@ std::vector<std::string> NLSimple::getEquationDescription() const
  
   if( m_paramaters.size() != NumNLSimplePars ) return descrip;
       
-  descrip[1] = (format("#frac{#partial G}{#partial t} = -%d G - X(G - %d) + %d Carb(t)") 
+  descrip[1] = (format("#frac{dG}{dt} = -%d G - X(G - %d) + %d Carb(t)") 
                      % m_paramaters[BGMultiplier] % m_basalGlucoseConcentration
                      % m_paramaters[CarbAbsorbMultiplier]).str();
-  descrip[0] = (format("#frac{#partial X}{#partial t} = -%d X + %d I(t)") 
+  descrip[0] = (format("#frac{dX}{dt} = -%d X + %d I(t)") 
                      % m_paramaters[XMultiplier] 
                      % m_paramaters[PlasmaInsulinMultiplier]).str();
   return descrip;
@@ -1985,11 +1972,9 @@ Double_t ModelTestFCN::EstimatorFunction( std::vector<Double_t>& parameters )
   return this->operator()(parameters);
 }//EstimatorFunction
 
-
-
-double ModelTestFCN::operator()(const std::vector<double>& x) const
+double ModelTestFCN::testParamaters(const std::vector<double>& x, bool updateModel ) const
 {
-  //make sure Minuit isn't apssing in garbage
+   //make sure Minuit isn't apssing in garbage
   foreach( double d, x )
   {
     if( isnan(d) || isinf(d) || isinf(-d) )
@@ -2001,7 +1986,7 @@ double ModelTestFCN::operator()(const std::vector<double>& x) const
   
   const time_duration cgmsDelay = m_modelPtr->m_cgmsDelay;
   const time_duration predTime = m_modelPtr->m_predictAhead;
-  m_modelPtr->setModelParameters( x );
+  m_modelPtr->setModelParameters( x ); //calls resetPredictions()
   
   double chi2 = 0.0;
   
@@ -2038,12 +2023,18 @@ double ModelTestFCN::operator()(const std::vector<double>& x) const
       cout << "I could not make a prediction" << endl;
       return DBL_MAX;
     }//
-      
+    
+    if( updateModel ) m_modelPtr->m_predictedBloodGlucose = predGluc;
   }//foeach(...)
   
-  m_modelPtr->setModelParameters( std::vector<double>(0) );
+  if( !updateModel ) m_modelPtr->setModelParameters( std::vector<double>(0) );
   
   return chi2;
+}//testParamaters
+
+double ModelTestFCN::operator()(const std::vector<double>& x) const
+{
+  return testParamaters(x, false);
 }//operator()
 
 
