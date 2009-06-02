@@ -41,6 +41,8 @@
 #include "CgmsDataImport.hh"
 #include "ProgramOptions.hh"
 #include "NLSimpleGui.hh"
+#include "ConsentrationGraphGui.hh"
+
 
 TApplication *gTheApp = (TApplication *)NULL;
 
@@ -94,6 +96,10 @@ int main( int argc, char** argv )
   
   // NLSimpleGui nlGui;
   // gApplication->Run(kTRUE);
+  
+  
+  ConsentrationGraph *ptr = NULL;
+  new CreateGraphGui( ptr, gClient->GetRoot(), gClient->GetDefaultRoot() );
   
   NLSimple guiModel( "../data/optimizedMarch31ThroughApril1Model" );
   guiModel.runGui();
