@@ -115,5 +115,12 @@ class NLSimpleGui
     };//enum MenuActions
 };//NLSimpleGui
 
+//For dialog boxes, use TGMsgBox(...)
+// to pause gui to waite for input use:
+//fClient->WaitFor(this);  //where 'this' inherits from TGWindow
+// and TGClient *fClient = TGObject::GetClient()
+
+
+
 
 #endif //NL_SIMPLE_GUI_HH
