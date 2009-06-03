@@ -34,7 +34,7 @@ ClassImp(CreateGraphGui)
 
 CreateGraphGui::CreateGraphGui(  ConsentrationGraph *&graph, 
                                  const TGWindow *parent, const TGWindow *main ) :
-                 TGTransientFrame(parent, main, 200, 100, kVerticalFrame),
+                 TGTransientFrame(parent, main, 225, 150, kVerticalFrame),
                  m_debug(false), m_graph(graph), m_filePath(NULL), 
                  m_FileInfo(NULL), m_graphTypeListBox(NULL), 
                  m_selectFileButton(NULL), m_openButton(NULL), 
@@ -62,6 +62,7 @@ CreateGraphGui::CreateGraphGui(  ConsentrationGraph *&graph,
   m_FileInfo->fFileTypes = fileType;
   m_FileInfo->fIniDir = StrDup( "../data/" );
   
+  
   TGHorizontalFrame *filePathHF = new TGHorizontalFrame(this, 200, 50, kHorizontalFrame);
   m_filePath         = new TGTextEntry( filePathHF, m_FileInfo->fIniDir );
   m_filePath->SetText( m_FileInfo->fIniDir );
@@ -69,27 +70,34 @@ CreateGraphGui::CreateGraphGui(  ConsentrationGraph *&graph,
   m_filePath->Connect( "TabPressed()", "CreateGraphGui", this, "fileNameUpdated()");
   m_filePath->Connect( "ReturnPressed()", "CreateGraphGui", this, "fileNameUpdated()");
   
-  m_graphTypeListBox = new TGListBox( filePathHF, -1, kSunkenFrame|kDoubleBorder );
-  m_graphTypeListBox->AddEntry( "Cgms Data",CgmsDataImport::CgmsReading );
-  m_graphTypeListBox->AddEntry( "Fingerstick Readings",CgmsDataImport::MeterReading );
-  m_graphTypeListBox->AddEntry( "Cgms Calibrations",CgmsDataImport::MeterCalibration );
-  m_graphTypeListBox->AddEntry( "Glucose Eaten",CgmsDataImport::GlucoseEaten );
-  m_graphTypeListBox->AddEntry( "Bolus Taken",CgmsDataImport::BolusTaken );
-  m_graphTypeListBox->AddEntry( "I-Sig",CgmsDataImport::ISig );
+  TGVerticalFrame *listBoxFrame = new TGVerticalFrame(this, 50, 50, kVerticalFrame);
+  TGLabel *label = new TGLabel( listBoxFrame, "Type (csv,txt only)" );
+  
+  m_graphTypeListBox = new TGListBox( listBoxFrame, -1, kSunkenFrame|kDoubleBorder );
+  // m_graphTypeListBox->AddEntry( "Cgms Data",CgmsDataImport::CgmsReading );
+  // m_graphTypeListBox->AddEntry( "Fingerstick Readings",CgmsDataImport::MeterReading );
+  // m_graphTypeListBox->AddEntry( "Cgms Calibrations",CgmsDataImport::MeterCalibration );
+  // m_graphTypeListBox->AddEntry( "Glucose Eaten",CgmsDataImport::GlucoseEaten );
+  // m_graphTypeListBox->AddEntry( "Bolus Taken",CgmsDataImport::BolusTaken );
+  // m_graphTypeListBox->AddEntry( "I-Sig",CgmsDataImport::ISig );
   // m_graphTypeListBox->SetEnabled( kFALSE );
-  m_graphTypeListBox->Layout();
+  m_graphTypeListBox->Connect( "Selected(Int_t)", "CreateGraphGui", this, "fileNameUpdated()");
+  m_graphTypeListBox->Connect( "SelectionChanged()", "CreateGraphGui", this, "fileNameUpdated()");
   
     
   m_selectFileButton = new TGTextButton( filePathHF, "Browse", kSELECT_FILE_BUTTON );
   m_selectFileButton->Connect( "Clicked()", "CreateGraphGui", this, "handleButton()" );
   
-  TGLayoutHints *hint = new TGLayoutHints( kLHintsExpandY | kLHintsExpandX | kLHintsLeft | kLHintsCenterY,2,2,2,2);
+  TGLayoutHints *hint = new TGLayoutHints( kLHintsExpandX | kLHintsLeft | kLHintsCenterY,2,2,2,2);
   filePathHF->AddFrame( m_filePath, hint );
-  hint = new TGLayoutHints( kLHintsExpandY | kLHintsExpandX | kLHintsCenterX | kLHintsCenterY,2,2,2,2);
-  filePathHF->AddFrame( m_graphTypeListBox, hint );
-  hint = new TGLayoutHints( kLHintsExpandY | kLHintsExpandX | kLHintsRight | kLHintsCenterY,2,2,2,2);
+  hint = new TGLayoutHints( kLHintsLeft | kLHintsCenterY,2,2,2,2);
   filePathHF->AddFrame( m_selectFileButton, hint );
   
+  hint = new TGLayoutHints( kLHintsCenterX | kLHintsTop,2,2,2,2);
+  listBoxFrame->AddFrame( label, hint );
+  hint = new TGLayoutHints( kLHintsExpandY | kLHintsExpandX | kLHintsRight | kLHintsCenterY,2,2,2,2);
+  listBoxFrame->AddFrame( m_graphTypeListBox, hint );
+  filePathHF->AddFrame( listBoxFrame, hint );
   
   
   
@@ -105,9 +113,9 @@ CreateGraphGui::CreateGraphGui(  ConsentrationGraph *&graph,
   buttonHF->AddFrame( m_openButton, hint );
   buttonHF->AddFrame( m_cancelButton, hint );
   
-  hint = new TGLayoutHints( kLHintsExpandX | kLHintsCenterY | kLHintsTop,2,2,2,2);
+  hint = new TGLayoutHints( kLHintsExpandX | kLHintsExpandY | kLHintsCenterX | kLHintsTop,2,2,2,2);
   AddFrame( filePathHF, hint );
-  hint = new TGLayoutHints( kLHintsExpandX | kLHintsCenterY | kLHintsTop,2,2,2,2);
+  hint = new TGLayoutHints( kLHintsExpandX | kLHintsBottom,2,2,2,2);
   AddFrame( buttonHF, hint );
   
   MapSubwindows();
@@ -117,8 +125,8 @@ CreateGraphGui::CreateGraphGui(  ConsentrationGraph *&graph,
   SetWMSize(size.fWidth, size.fHeight);
   SetWindowName("Concentration Graph Open");
   MapWindow();
-  Resize( 200, 100 );
-  
+  Resize( 350, 100 );
+
   fClient->WaitFor(this);
 }//CreateGraphGui( constructor )
 
@@ -139,8 +147,16 @@ void CreateGraphGui::fileNameUpdated()
   
   unsigned int periodPos = fileToOpen.find_last_of( "." );
   string ending;
-  if( periodPos != string::npos ) ending = fileToOpen.substr( periodPos );
-  
+  if( periodPos != string::npos ) 
+  {
+    ending = fileToOpen.substr( periodPos );
+    
+    //what out for cases like '../data/'
+    if( periodPos != fileToOpen.length() )
+    {
+      if( fileToOpen[periodPos+1] == '\\' || fileToOpen[periodPos+1] == '/' ) ending = "";
+    }
+  }//
   // if( (ending=="") || (ending==".dub") ) m_graphTypeListBox->SetEnabled( kFALSE );
   // else m_graphTypeListBox->SetEnabled( kTRUE );
   
@@ -158,9 +174,34 @@ void CreateGraphGui::fileNameUpdated()
   if( !ending.empty() )
   {
     std::ifstream ifs( m_filePath->GetText() );  //just seeing if file exists
-    if( ifs.is_open() ) m_openButton->SetEnabled( kTRUE );
-  }else m_openButton->SetEnabled( kFALSE );
-  
+    if( ifs.is_open() ) 
+    {
+      if( ending == ".dub" ) 
+      {
+        m_openButton->SetEnabled( kTRUE );
+        m_graphTypeListBox->RemoveAll();
+      }else if( true || m_graphTypeListBox->GetSelected() >= 0 ) 
+      {
+        if(m_graphTypeListBox->GetSelected() >= 0) m_openButton->SetEnabled();
+        else
+        {
+          m_graphTypeListBox->RemoveAll();
+          m_graphTypeListBox->AddEntry( "Cgms Data",CgmsDataImport::CgmsReading );
+          m_graphTypeListBox->AddEntry( "Fingerstick Readings",CgmsDataImport::MeterReading );
+          m_graphTypeListBox->AddEntry( "Cgms Calibrations",CgmsDataImport::MeterCalibration );
+          m_graphTypeListBox->AddEntry( "Glucose Eaten",CgmsDataImport::GlucoseEaten );
+          m_graphTypeListBox->AddEntry( "Bolus Taken",CgmsDataImport::BolusTaken );
+          m_graphTypeListBox->AddEntry( "I-Sig",CgmsDataImport::ISig );
+          m_graphTypeListBox->Layout();
+        }//if( selection ) / else 
+        // m_graphTypeListBox->
+      }
+    }//if( ifs.is_open() ) 
+  }else 
+  {
+    m_graphTypeListBox->RemoveAll();
+    m_openButton->SetEnabled( kFALSE );
+  }
 }//void CreateGraphGui::handleButton()
 
 
@@ -191,16 +232,16 @@ void CreateGraphGui::handleButton( int senderId )
       string fileToOpen = m_filePath->GetText();
       if( fileToOpen.empty() ) return;
       
-      if( m_graphTypeListBox->IsEnabled() ) 
+      if( m_graphTypeListBox->GetNumberOfEntries() > 0 ) 
       {
         CgmsDataImport::InfoType graphType = CgmsDataImport::InfoType( m_graphTypeListBox->GetSelected() );
-        cout << "Getting graph type " << graphType << " from " << fileToOpen << endl;
+        // cout << "Getting graph type " << graphType << " from " << fileToOpen << endl;
         ConsentrationGraph graph = CgmsDataImport::importSpreadsheet( fileToOpen, graphType );
         m_graph = new ConsentrationGraph( graph );
         CloseWindow();
       } else
       {
-        cout << "About to open graph " << fileToOpen << endl;
+        // cout << "About to open graph " << fileToOpen << endl;
         m_graph = new ConsentrationGraph( fileToOpen );
         
         //in principle I should check that I can open the file
