@@ -45,7 +45,7 @@
 #include "KineticModels.hh"
 #include "CgmsDataImport.hh"
 #include "RungeKuttaIntegrater.hh"
-
+#include "ConsentrationGraphGui.hh"
 
 using namespace std;
 using namespace boost;
@@ -1530,11 +1530,29 @@ void ConsentrationGraph::serialize( Archive &ar, const unsigned int version )
 
 ConsentrationGraph ConsentrationGraph::loadFromFile( std::string filename )
 {
+  
+  if( filename == "" )
+  {
+    ConsentrationGraph *newGraph = NULL;
+    new CreateGraphGui( newGraph, gClient->GetRoot(), gClient->GetDefaultRoot() );
+    
+    if( !newGraph )
+    {
+      cout << "Error opening file; Exiting now" << endl;
+      exit(-1);
+    }//if( !newGraph )
+    
+    ConsentrationGraph tempGraph( *newGraph );
+    delete newGraph;
+    
+    return tempGraph;
+  }//if( you didn't specify a name )
+  
   std::ifstream ifs( filename.c_str() );
   if( !ifs.is_open() )
   {
     cout << "Couldn't open file " << filename << " for reading" << endl;
-    exit(1);
+    exit(-1);
   }//if( !ofs.is_open() )
   
   boost::archive::text_iarchive ia(ifs);

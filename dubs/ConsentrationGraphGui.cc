@@ -33,9 +33,11 @@ using namespace std;
 ClassImp(CreateGraphGui)
 
 CreateGraphGui::CreateGraphGui(  ConsentrationGraph *&graph, 
-                                 const TGWindow *parent, const TGWindow *main ) :
+                                 const TGWindow *parent, const TGWindow *main,
+                                 int graphType ) :
                  TGTransientFrame(parent, main, 225, 150, kVerticalFrame),
-                 m_debug(false), m_graph(graph), m_filePath(NULL), 
+                 m_debug(false), m_graph(graph), m_graphType(graphType),
+                 m_filePath(NULL), 
                  m_FileInfo(NULL), m_graphTypeListBox(NULL), 
                  m_selectFileButton(NULL), m_openButton(NULL), 
                  m_cancelButton(NULL)
@@ -74,13 +76,36 @@ CreateGraphGui::CreateGraphGui(  ConsentrationGraph *&graph,
   TGLabel *label = new TGLabel( listBoxFrame, "Type (csv,txt only)" );
   
   m_graphTypeListBox = new TGListBox( listBoxFrame, -1, kSunkenFrame|kDoubleBorder );
-  // m_graphTypeListBox->AddEntry( "Cgms Data",CgmsDataImport::CgmsReading );
-  // m_graphTypeListBox->AddEntry( "Fingerstick Readings",CgmsDataImport::MeterReading );
-  // m_graphTypeListBox->AddEntry( "Cgms Calibrations",CgmsDataImport::MeterCalibration );
-  // m_graphTypeListBox->AddEntry( "Glucose Eaten",CgmsDataImport::GlucoseEaten );
-  // m_graphTypeListBox->AddEntry( "Bolus Taken",CgmsDataImport::BolusTaken );
-  // m_graphTypeListBox->AddEntry( "I-Sig",CgmsDataImport::ISig );
+  switch( m_graphType )
+  {
+    case CgmsDataImport::CgmsReading: 
+      m_graphTypeListBox->AddEntry( "Cgms Data",CgmsDataImport::CgmsReading );
+      m_graphTypeListBox->Select(CgmsDataImport::CgmsReading);
+      break;
+    case CgmsDataImport::MeterReading: 
+      m_graphTypeListBox->AddEntry( "Fingerstick Readings",CgmsDataImport::MeterReading );
+      m_graphTypeListBox->Select(CgmsDataImport::MeterReading);
+      break;
+    case CgmsDataImport::MeterCalibration: 
+      m_graphTypeListBox->AddEntry( "Cgms Calibrations",CgmsDataImport::MeterCalibration );
+      m_graphTypeListBox->Select(CgmsDataImport::MeterCalibration);
+      break;
+    case CgmsDataImport::GlucoseEaten: 
+      m_graphTypeListBox->AddEntry( "Glucose Eaten",CgmsDataImport::GlucoseEaten );
+      m_graphTypeListBox->Select(CgmsDataImport::GlucoseEaten);
+      break;
+    case CgmsDataImport::BolusTaken: 
+      m_graphTypeListBox->AddEntry( "Bolus Taken",CgmsDataImport::BolusTaken );
+      m_graphTypeListBox->Select(CgmsDataImport::BolusTaken);
+      break;
+    case CgmsDataImport::ISig: 
+      m_graphTypeListBox->AddEntry( "I-Sig",CgmsDataImport::ISig );
+      m_graphTypeListBox->Select(CgmsDataImport::ISig);
+      break;
+  }//switch( m_graphType )
+  
   // m_graphTypeListBox->SetEnabled( kFALSE );
+  // m_graphTypeListBox->Layout();
   m_graphTypeListBox->Connect( "Selected(Int_t)", "CreateGraphGui", this, "fileNameUpdated()");
   m_graphTypeListBox->Connect( "SelectionChanged()", "CreateGraphGui", this, "fileNameUpdated()");
   
@@ -179,27 +204,31 @@ void CreateGraphGui::fileNameUpdated()
       if( ending == ".dub" ) 
       {
         m_openButton->SetEnabled( kTRUE );
-        m_graphTypeListBox->RemoveAll();
-      }else if( true || m_graphTypeListBox->GetSelected() >= 0 ) 
+        if( m_graphType < 0 ) m_graphTypeListBox->RemoveAll();
+      }else //if( m_graphTypeListBox->GetSelected() >= 0 ) 
       {
         if(m_graphTypeListBox->GetSelected() >= 0) m_openButton->SetEnabled();
         else
         {
-          m_graphTypeListBox->RemoveAll();
-          m_graphTypeListBox->AddEntry( "Cgms Data",CgmsDataImport::CgmsReading );
-          m_graphTypeListBox->AddEntry( "Fingerstick Readings",CgmsDataImport::MeterReading );
-          m_graphTypeListBox->AddEntry( "Cgms Calibrations",CgmsDataImport::MeterCalibration );
-          m_graphTypeListBox->AddEntry( "Glucose Eaten",CgmsDataImport::GlucoseEaten );
-          m_graphTypeListBox->AddEntry( "Bolus Taken",CgmsDataImport::BolusTaken );
-          m_graphTypeListBox->AddEntry( "I-Sig",CgmsDataImport::ISig );
-          m_graphTypeListBox->Layout();
+          if( m_graphType < 0 )
+          {
+            m_graphTypeListBox->RemoveAll();
+            m_graphTypeListBox->AddEntry( "Cgms Data",CgmsDataImport::CgmsReading );
+            m_graphTypeListBox->AddEntry( "Fingerstick Readings",CgmsDataImport::MeterReading );
+            m_graphTypeListBox->AddEntry( "Cgms Calibrations",CgmsDataImport::MeterCalibration );
+            m_graphTypeListBox->AddEntry( "Glucose Eaten",CgmsDataImport::GlucoseEaten );
+            m_graphTypeListBox->AddEntry( "Bolus Taken",CgmsDataImport::BolusTaken );
+            m_graphTypeListBox->AddEntry( "I-Sig",CgmsDataImport::ISig );
+            m_graphTypeListBox->Layout();
+          }//if( m_graphType >=0 )
         }//if( selection ) / else 
         // m_graphTypeListBox->
       }
     }//if( ifs.is_open() ) 
   }else 
   {
-    m_graphTypeListBox->RemoveAll();
+    if( m_graphType < 0 ) m_graphTypeListBox->RemoveAll();
+    
     m_openButton->SetEnabled( kFALSE );
   }
 }//void CreateGraphGui::handleButton()
@@ -243,6 +272,45 @@ void CreateGraphGui::handleButton( int senderId )
       {
         // cout << "About to open graph " << fileToOpen << endl;
         m_graph = new ConsentrationGraph( fileToOpen );
+        
+        if( m_graphType >= 0 )
+        {
+          bool isWrongType = false;
+          switch( m_graphType )
+          {
+            case CgmsDataImport::CgmsReading: 
+            case CgmsDataImport::MeterReading: 
+            case CgmsDataImport::MeterCalibration:
+              if( m_graph->getGraphType() != GlucoseConsentrationGraph ) 
+                isWrongType = true;
+              break;
+              
+            case CgmsDataImport::GlucoseEaten: 
+              if( m_graph->getGraphType() != GlucoseConsumptionGraph )
+                isWrongType = true;
+              break;
+              
+            case CgmsDataImport::BolusTaken: 
+              if( m_graph->getGraphType() != BolusGraph )
+                isWrongType = true;
+              break;
+    
+            case CgmsDataImport::ISig: 
+              cout << "CreateGraphGui: I can not import CgmsDataImport::ISig " 
+                   << " graphs yet, sorry" << endl;
+              exit(-1);
+              break;
+          }//switch( m_graphType )
+          
+          if( isWrongType )
+          {
+            cout << "CreateGraphGui: I was told to expect graph of type " 
+                     << m_graphType << " but you opened one of type " 
+                     << m_graph->getGraphType() << endl;
+            exit(-1);
+          }//if( isWrongType )
+          
+        }//if( m_graphType >= 0 )
         
         //in principle I should check that I can open the file
         CloseWindow();

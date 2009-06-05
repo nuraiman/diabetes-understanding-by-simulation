@@ -85,6 +85,9 @@ int main( int argc, char** argv )
   setStyle();
   ProgramOptions::decodeOptions( argc, argv );
   
+  NLSimple *modelCreateTest = NULL;
+  new ConstructNLSimple( modelCreateTest, gClient->GetRoot(), gClient->GetDefaultRoot() );
+  
   ConsentrationGraph mmData( "../data/mmCgmsData_march31_April7.dub" );
   
   // TCanvas *can = new TCanvas(); 
@@ -97,9 +100,9 @@ int main( int argc, char** argv )
   // NLSimpleGui nlGui;
   // gApplication->Run(kTRUE);
   
-  
-  ConsentrationGraph *ptr = NULL;
-  new CreateGraphGui( ptr, gClient->GetRoot(), gClient->GetDefaultRoot() );
+  //lets test 'CreateGraphGui'
+  ConsentrationGraph myTest( "" );
+  myTest.draw();
   
   NLSimple guiModel( "../data/optimizedMarch31ThroughApril1Model" );
   guiModel.runGui();

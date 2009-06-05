@@ -52,6 +52,8 @@
 //  like explicit copy constructors (cause roots gui sucks)
 
 class NLSimple;
+class ConsentrationGraph;
+
 
 class NLSimpleGui
 {
@@ -115,11 +117,86 @@ class NLSimpleGui
     };//enum MenuActions
 };//NLSimpleGui
 
-//For dialog boxes, use TGMsgBox(...)
-// to pause gui to waite for input use:
-//fClient->WaitFor(this);  //where 'this' inherits from TGWindow
-// and TGClient *fClient = TGObject::GetClient()
 
+
+//To open (from .dubm file )or construct a NLSimple object from spreadsheets
+//The 'create' button will be enabled once you have selected:
+//  m_cgmsData, m_insulinData, (m_carbConsumptionData OR m_carbAbsortionGraph)
+//  and m_meterData
+class ConstructNLSimple : public TGTransientFrame
+{
+  public:  
+    bool m_debug;
+    
+    NLSimple *&m_model;
+    
+    TGNumberEntry *m_startDateEntry;
+    TGNumberEntry *m_endDateEntry;
+    TGNumberEntry *m_startTimeEntry;
+    TGNumberEntry *m_endTimeEntry;
+    
+    TGButton *m_createButton;
+    
+    bool m_userSetTime;
+    ConsentrationGraph *m_cgmsData;
+    ConsentrationGraph *m_bolusData;
+    ConsentrationGraph *m_insulinData; //created from m_bolusData
+    ConsentrationGraph *m_carbConsumptionData;
+    ConsentrationGraph *m_carbAbsortionGraph;  //calculated from m_carbConsumptionData
+    ConsentrationGraph *m_meterData;
+    
+    
+    
+    TGCanvas *m_baseTGCanvas;              //This makes the scroll bar for graph
+    TGCompositeFrame *m_baseFrame;         //This hold TCanvas
+    TRootEmbeddedCanvas *m_embededCanvas;  //change size of this to zoom
+    double m_minutesGraphPerPage;
+    
+    
+    enum GraphPad
+    {
+      kCGMS_PAD,
+      kCARB_PAD,
+      kMERTER_PAD,
+      kBOLUS_PAD,
+      kNUM_PAD
+    };//enum GraphCanvas
+    
+    enum ButtonId
+    {
+      kSELECT_MODEL_FILE,
+      
+      kSELECT_CGMS_DATA,
+      kSELECT_BOLUS_DATA,
+      kSELECT_CARB_DATA,
+      kSELECT_METER_DATA,
+      
+      kZOOM_PLUS,
+      kZOOM_MINUS,
+      
+      kSTART_TIME,
+      kEND_TIME,
+      
+      kCREATE,  
+      kCANCEL
+    };//enum ButtonId
+    
+    
+    //gClient->GetRoot(), gClient->GetDefaultRoot(), graphType = CgmsDataImport::InfoType )
+    ConstructNLSimple( NLSimple *&model, const TGWindow *parent, const TGWindow *main);
+    virtual ~ConstructNLSimple();
+    
+    bool enableCreateButton();
+    void handleButton( int senderId = -1 );
+    
+    void findTimeLimits();
+    void drawPreviews();
+    void constructModel();
+    
+    virtual void CloseWindow();
+    
+    ClassDef(ConstructNLSimple,0)
+};//class ConstructNLSimple : public TGTransientFrame
 
 
 
