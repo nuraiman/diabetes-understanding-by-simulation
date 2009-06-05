@@ -25,6 +25,7 @@
 
 using namespace std;
 
+ClassImp(ConstructNLSimple)
 
 
 NLSimpleGui::NLSimpleGui( NLSimple *model, bool runApp )
@@ -485,5 +486,250 @@ void NLSimpleGui::setModelSettingChanged(UInt_t setting)
   
   Emit( "modelSettingChanged()");
 }//modelSettingChanged()
+
+
+
+
+
+ConstructNLSimple::ConstructNLSimple( NLSimple *&model, 
+                                      const TGWindow *parent, 
+                                      const TGWindow *main ) :
+    TGTransientFrame(parent, main, 640, 520, kVerticalFrame),
+    m_model(model),
+    m_startTimeEntry(NULL), m_endTimeEntry(NULL), m_createButton(NULL),
+    m_userSetTime(false), m_cgmsData(NULL), m_bolusData(NULL), 
+    m_insulinData(NULL), m_carbConsumptionData(NULL), 
+    m_carbAbsortionGraph(NULL), m_meterData(NULL), m_baseTGCanvas(NULL), 
+    m_baseFrame(NULL), m_embededCanvas(NULL), m_minutesGraphPerPage(3 * 60 * 24)
+{
+  SetCleanup(kDeepCleanup);
+  Connect("CloseWindow()", "CreateGraphGui", this, "CloseWindow()");
+  DontCallClose();
+  
+  if( m_model )
+  {
+    cout << "ConstructNLSimple::ConstructNLSimple(ConsentrationGraph *&graph, ...):"
+         << " Warning, recived non-NULL graph pointer, potential memmorry leak" 
+         << endl;
+    m_model = NULL;
+  }//if( m_graph )
+  
+  
+  
+  
+  TGHorizontalFrame *openDefinedF = new TGHorizontalFrame(this, 160, 50, kHorizontalFrame | kFitWidth);
+  TGLayoutHints *openDefinedHint = new TGLayoutHints( kLHintsCenterX | kLHintsTop,2,2,2,2);
+  TGTextButton *openDefined = new TGTextButton(openDefinedF, "Open Defined Model", kSELECT_MODEL_FILE);
+  openDefined->Connect( "Clicked()", "ConstructNLSimple", this, "handleButton()" );
+  openDefinedF->AddFrame(openDefined, openDefinedHint);
+  AddFrame( openDefinedF, openDefinedHint );
+  
+  TGHorizontalFrame *graphF = new TGHorizontalFrame(this, 550, 430, kHorizontalFrame | kFitWidth | kFitHeight);
+  
+  TGVerticalFrame *zoomF = new TGVerticalFrame(graphF, 15, 430, kVerticalFrame );
+  TGLayoutHints *zoomButtonHint = new TGLayoutHints( kLHintsCenterX | kLHintsCenterY | kLHintsExpandX,1,2,1,2);
+  
+  TGTextButton *zoomIn = new TGTextButton(zoomF, "+", kZOOM_PLUS);
+  zoomIn->Connect( "Clicked()", "ConstructNLSimple", this, "handleButton()" );
+  zoomF->AddFrame(zoomIn, zoomButtonHint);
+  
+  TGTextButton *zoomOut = new TGTextButton(zoomF, "-", kZOOM_MINUS);
+  zoomOut->Connect( "Clicked()", "ConstructNLSimple", this, "handleButton()" );
+  zoomF->AddFrame(zoomOut, zoomButtonHint);
+  
+  
+  TGLayoutHints *zoomHints  = new TGLayoutHints(kLHintsCenterY | kLHintsLeft,2,2,2,2);
+  graphF->AddFrame( zoomF, zoomHints );
+  
+  
+  //use below to open each Concentration graph
+  //CreateGraphGui( ConsentrationGraph *&graph, const TGWindow *parent, const TGWindow *main, int graphType = -1 );
+  TGLayoutHints *hintBorderExpand  = new TGLayoutHints(kLHintsExpandY| kLHintsExpandX | kLHintsCenterX | kLHintsCenterY,2,2,2,2);
+  TGLayoutHints *hintNoBorderExpand  = new TGLayoutHints( kLHintsExpandY| kLHintsExpandX | kLHintsRight,0,0,0,0);
+  
+  
+  m_baseTGCanvas  = new TGCanvas( graphF, 450, 430, kFitWidth | kFitHeight );
+  m_baseFrame     = new TGCompositeFrame( m_baseTGCanvas->GetViewPort(), 450, 430, kVerticalFrame );
+  m_baseTGCanvas->SetContainer( m_baseFrame );
+  
+  m_embededCanvas = new TRootEmbeddedCanvas(0,m_baseFrame,450,430);
+  m_baseFrame->AddFrame( m_embededCanvas, hintNoBorderExpand );
+  Int_t modelCanvasId  = m_embededCanvas->GetCanvasWindowId();
+  TCanvas *canvas = new TCanvas("GraphCanvas", 450, 430, modelCanvasId);
+  m_embededCanvas->AdoptCanvas(canvas);
+  canvas->Divide( 1, kNUM_PAD );
+  graphF->AddFrame( m_baseTGCanvas, hintBorderExpand );
+  
+  //okay, now for buttons to open the graphs
+  TGVerticalFrame *openGraphF = new TGVerticalFrame(graphF, 75, 430, kVerticalFrame | kFitWidth | kFitHeight);
+  TGLayoutHints *buttonHint = new TGLayoutHints(kLHintsExpandX | kLHintsExpandY| kLHintsTop | kLHintsCenterX,10,10,10,10);
+  
+  TGTextButton *cgmsButton = new TGTextButton(openGraphF, "Open CGMS Data", kSELECT_CGMS_DATA);
+  cgmsButton->Connect( "Clicked()", "ConstructNLSimple", this, "handleButton()" );
+  openGraphF->AddFrame(cgmsButton, buttonHint);
+  
+  TGTextButton *bolusButton = new TGTextButton(openGraphF, "Open Bolus Data", kSELECT_BOLUS_DATA);
+  bolusButton->Connect( "Clicked()", "ConstructNLSimple", this, "handleButton()" );
+  openGraphF->AddFrame(bolusButton, buttonHint);
+  
+  TGTextButton *carbButton = new TGTextButton(openGraphF, "Open Carb Data", kSELECT_CARB_DATA);
+  carbButton->Connect( "Clicked()", "ConstructNLSimple", this, "handleButton()" );
+  openGraphF->AddFrame(carbButton, buttonHint);
+  
+  TGTextButton *meterButton = new TGTextButton(openGraphF, "Meter (optional)", kSELECT_METER_DATA);
+  meterButton->Connect( "Clicked()", "ConstructNLSimple", this, "handleButton()" );
+  openGraphF->AddFrame(meterButton, buttonHint);
+  
+  TGLayoutHints *buttonFramehint  = new TGLayoutHints( kLHintsRight | kLHintsExpandY,0,0,0,0);
+  graphF->AddFrame(openGraphF, buttonFramehint);
+  
+  TGLayoutHints *graphFramehint  = new TGLayoutHints( kLHintsRight | kLHintsTop | kLHintsExpandY | kLHintsExpandX,0,0,0,0);
+  AddFrame( graphF, graphFramehint );
+  
+  
+  //Now add the create model, or cancel buttons, as well as the ending and beggining times
+  TGHorizontalFrame *bottomButtonsF = new TGHorizontalFrame(this, 640, 40, kHorizontalFrame | kFitWidth);
+  
+  m_startTimeEntry = new TGNumberEntry( bottomButtonsF, 0.0, 6, kSTART_TIME, TGNumberFormat::kNESHourMin, TGNumberFormat::kNEANonNegative);
+  m_startDateEntry = new TGNumberEntry( bottomButtonsF, 0.0, 9, kSTART_TIME, TGNumberFormat::kNESDayMYear, TGNumberFormat::kNEANonNegative);
+  m_endTimeEntry   = new TGNumberEntry( bottomButtonsF, 0.0, 6, kEND_TIME, TGNumberFormat::kNESHourMin, TGNumberFormat::kNEANonNegative);
+  m_endDateEntry   = new TGNumberEntry( bottomButtonsF, 0.0, 9, kEND_TIME, TGNumberFormat::kNESDayMYear, TGNumberFormat::kNEANonNegative);
+  
+  TGLayoutHints *buttonTimehint = new TGLayoutHints( kLHintsLeft | kLHintsCenterY,0,0,0,5);
+  TGLayoutHints *texthint = new TGLayoutHints( kLHintsLeft | kLHintsCenterY,20,0,0,0);
+  TGLabel *label = new TGLabel(bottomButtonsF, "Start Time");
+  bottomButtonsF->AddFrame( label, texthint );
+  bottomButtonsF->AddFrame( m_startDateEntry, buttonTimehint );
+  bottomButtonsF->AddFrame( m_startTimeEntry, buttonTimehint );
+  
+  label = new TGLabel(bottomButtonsF, "End Time");
+  bottomButtonsF->AddFrame( label, texthint );
+  bottomButtonsF->AddFrame( m_endDateEntry, buttonTimehint );
+  bottomButtonsF->AddFrame( m_endTimeEntry, buttonTimehint );
+  
+  
+  TGHorizontalFrame *createCancelF = new TGHorizontalFrame(bottomButtonsF, 75, 40, kHorizontalFrame | kFitWidth | kFitHeight);
+  
+  TGTextButton *cancelButton = new TGTextButton(createCancelF, "Cancel", kCANCEL);
+  m_createButton = new TGTextButton(createCancelF, "Create", kCREATE);
+  m_createButton->SetEnabled( kFALSE );
+  TGLayoutHints *actionHint = new TGLayoutHints( kLHintsRight | kLHintsCenterY | kLHintsExpandY,0,0,0,0);
+  
+  createCancelF->AddFrame( m_createButton, actionHint );
+  actionHint = new TGLayoutHints( kLHintsRight | kLHintsCenterY | kLHintsExpandY,0,0,0,0);
+  createCancelF->AddFrame( cancelButton, actionHint );
+  
+  TGLayoutHints *creatCancelHint  = new TGLayoutHints( kLHintsRight | kLHintsExpandY,0,15,0,5);
+  bottomButtonsF->AddFrame( createCancelF, creatCancelHint );
+  
+  
+  TGLayoutHints *bottomButtonhint  = new TGLayoutHints( kLHintsLeft | kLHintsBottom | kLHintsExpandX,0,0,2,2);
+  AddFrame( bottomButtonsF, bottomButtonhint);
+    
+  MapSubwindows();
+  TGDimension size = GetDefaultSize();
+  Resize(size);
+  CenterOnParent();
+  SetWMSize(size.fWidth, size.fHeight);
+  SetWindowName("Open or Construct NLSimple Model");
+  MapWindow();
+  Resize( 640, 520 );
+
+  fClient->WaitFor(this);
+}//ConstructNLSimple
+
+
+
+
+
+
+
+
+
+
+ConstructNLSimple::~ConstructNLSimple()
+{
+  CloseWindow();
+  
+}//~ConstructNLSimple()
+
+
+void ConstructNLSimple::CloseWindow()
+{
+  //I know you don't need the if's below
+  if( m_cgmsData )            delete m_cgmsData;
+  if( m_insulinData )         delete m_insulinData;
+  if( m_carbConsumptionData ) delete m_carbConsumptionData;
+  if( m_carbAbsortionGraph )  delete m_carbAbsortionGraph;
+  if( m_meterData )           delete m_meterData;
+  if( m_bolusData )           delete m_bolusData;
+  
+  DeleteWindow();
+}//CloseWindow(
+
+
+
+
+bool ConstructNLSimple::enableCreateButton()
+{
+  return ( m_cgmsData && (m_insulinData || m_bolusData) 
+           && ( m_carbConsumptionData || m_carbAbsortionGraph ) );
+}//enableCreateButton
+
+
+void ConstructNLSimple::handleButton( int senderId )
+{
+  if( senderId < 0 )
+  {
+    TGButton *btn = (TGButton *) gTQSender;
+    senderId = btn->WidgetId();
+  }//senderId
+  
+  switch( senderId )
+  {
+    case kSELECT_MODEL_FILE:
+    break;
+    
+    case kSELECT_CGMS_DATA:
+    break;
+    
+    case kSELECT_BOLUS_DATA:
+    break;
+    
+    case kSELECT_CARB_DATA:
+    break;
+      
+    case kSELECT_METER_DATA:
+    break;
+    
+    case kZOOM_PLUS:
+    break; 
+    
+    case kZOOM_MINUS:
+    break;
+    
+    case kSTART_TIME:
+    break;
+    
+    case kEND_TIME:
+    break;
+    
+    case kCREATE:
+    break;
+    
+    case kCANCEL:
+    break;
+    
+    assert(0);
+  }//switch( senderId )
+}//void ConstructNLSimple::handleButton( int senderId )
+
+
+void ConstructNLSimple::findTimeLimits(){}
+void ConstructNLSimple::drawPreviews(){}
+void ConstructNLSimple::constructModel(){}
+
+
+
     
     

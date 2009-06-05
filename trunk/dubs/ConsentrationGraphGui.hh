@@ -15,9 +15,11 @@ class ConsentrationGraph;
 class CreateGraphGui : public TGTransientFrame
 {
   public:  
-    bool m_debug;
+    bool m_debug; //unused currently
     
     ConsentrationGraph *&m_graph;
+    
+    int m_graphType; //specified by CgmsDataImport::InfoType
     
     TGTextEntry *m_filePath;
     TGFileInfo *m_FileInfo;
@@ -35,8 +37,8 @@ class CreateGraphGui : public TGTransientFrame
     };//enum ButtonId
     
     
-    //gClient->GetRoot(), gClient->GetDefaultRoot()
-    CreateGraphGui( ConsentrationGraph *&graph, const TGWindow *parent, const TGWindow *main );
+    //gClient->GetRoot(), gClient->GetDefaultRoot(), graphType = CgmsDataImport::InfoType )
+    CreateGraphGui( ConsentrationGraph *&graph, const TGWindow *parent, const TGWindow *main, int graphType = -1 );
     virtual ~CreateGraphGui();
     
     void fileNameUpdated();
