@@ -19,9 +19,11 @@
 
 #include "NLSimpleGui.hh"
 #include "ResponseModel.hh"
+#include "CgmsDataImport.hh"
 #include "ProgramOptions.hh"
 #include "ArtificialPancrease.hh"
 #include "RungeKuttaIntegrater.hh"
+#include "ConsentrationGraphGui.hh"
 
 using namespace std;
 
@@ -280,7 +282,7 @@ std::string NLSimpleGui::getFileName( bool forOpening )
 {
   assert( gApplication );
   
-  const char* fileTypes[2] = {"dubm file", "*.dubm"};
+  const char* fileTypes[] = {"dubm file", "*.dubm", 0, 0};
   TGFileInfo fi;
   fi.fFileTypes = fileTypes;
   fi.fIniDir    = StrDup("../data/");
@@ -648,9 +650,8 @@ ConstructNLSimple::ConstructNLSimple( NLSimple *&model,
 
 
 ConstructNLSimple::~ConstructNLSimple()
-{
+{ 
   CloseWindow();
-  
 }//~ConstructNLSimple()
 
 
@@ -670,10 +671,11 @@ void ConstructNLSimple::CloseWindow()
 
 
 
-bool ConstructNLSimple::enableCreateButton()
+void ConstructNLSimple::enableCreateButton()
 {
-  return ( m_cgmsData && (m_insulinData || m_bolusData) 
-           && ( m_carbConsumptionData || m_carbAbsortionGraph ) );
+  if( m_cgmsData && (m_insulinData || m_bolusData) 
+           && ( m_carbConsumptionData || m_carbAbsortionGraph ) ) 
+    m_createButton->SetEnabled( kTRUE );
 }//enableCreateButton
 
 
@@ -688,24 +690,86 @@ void ConstructNLSimple::handleButton( int senderId )
   switch( senderId )
   {
     case kSELECT_MODEL_FILE:
-    break;
+    {
+      const char* fileTypes[4] = {"dubm file", "*.dubm", 0, 0};
+      TGFileInfo fi;
+      fi.fFileTypes = fileTypes;
+      fi.fIniDir    = StrDup("../data/");
+      new TGFileDialog(gClient->GetRoot(), gClient->GetDefaultRoot(), kFDOpen, &fi);
+  
+      if( fi.fFilename == NULL ) return;
+      
+      m_model = new NLSimple( fi.fFilename );
     
+      CloseWindow();
+      break;
+    }//case kSELECT_MODEL_FILE:
+    
+      
     case kSELECT_CGMS_DATA:
+      if( m_cgmsData ) delete m_cgmsData;
+      m_cgmsData = NULL;
+      new CreateGraphGui( m_cgmsData, gClient->GetRoot(), 
+                          gClient->GetDefaultRoot(), 
+                          CgmsDataImport::CgmsReading );
+      drawPreviews( kCGMS_PAD );
+      enableCreateButton();
     break;
     
     case kSELECT_BOLUS_DATA:
+      if( m_bolusData ) delete m_bolusData;
+      if( m_insulinData ) delete m_insulinData;
+      m_bolusData = m_insulinData = NULL;
+      new CreateGraphGui( m_bolusData, gClient->GetRoot(), 
+                          gClient->GetDefaultRoot(), 
+                          CgmsDataImport::BolusTaken );
+      if( m_bolusData ) 
+      {
+        ConsentrationGraph insulinG = CgmsDataImport::bolusGraphToInsulinGraph
+                                            ( *m_bolusData, 
+                                             PersonConstants::kPersonsWeight );
+        m_insulinData = new ConsentrationGraph(insulinG);
+      }//if( m_bolusData )
+      
+      drawPreviews( kBOLUS_PAD );
+      enableCreateButton();
     break;
     
     case kSELECT_CARB_DATA:
+      if( m_carbAbsortionGraph )  delete m_carbAbsortionGraph;
+      if( m_carbConsumptionData ) delete m_carbConsumptionData;
+      m_carbAbsortionGraph = m_carbConsumptionData = NULL;
+      new CreateGraphGui( m_carbConsumptionData, gClient->GetRoot(), 
+                          gClient->GetDefaultRoot(), 
+                          CgmsDataImport::GlucoseEaten );
+      if( m_carbConsumptionData )
+      {
+        ConsentrationGraph consumpG = CgmsDataImport::carbConsumptionToSimpleCarbAbsorbtionGraph(*m_carbConsumptionData);
+        m_carbAbsortionGraph = new ConsentrationGraph(consumpG);
+      }//if( m_carbConsumptionData )
+      
+      drawPreviews( kCARB_PAD );
+      enableCreateButton();
     break;
       
     case kSELECT_METER_DATA:
+      if( m_meterData ) delete m_meterData;
+      m_meterData = NULL;
+      new CreateGraphGui( m_meterData, gClient->GetRoot(), 
+                          gClient->GetDefaultRoot(), 
+                          CgmsDataImport::MeterReading );
+      drawPreviews( kMERTER_PAD );
+      enableCreateButton();
     break;
     
     case kZOOM_PLUS:
+      m_minutesGraphPerPage = 0.9 * m_minutesGraphPerPage;
+      updateModelGraphSize();
     break; 
     
     case kZOOM_MINUS:
+      m_minutesGraphPerPage = 1.1 * m_minutesGraphPerPage;
+      updateModelGraphSize();
     break;
     
     case kSTART_TIME:
@@ -715,9 +779,15 @@ void ConstructNLSimple::handleButton( int senderId )
     break;
     
     case kCREATE:
+      constructModel();
+      CloseWindow();
+      return;
     break;
     
     case kCANCEL:
+      assert( !m_model );
+      CloseWindow();
+      return;
     break;
     
     assert(0);
@@ -725,9 +795,107 @@ void ConstructNLSimple::handleButton( int senderId )
 }//void ConstructNLSimple::handleButton( int senderId )
 
 
-void ConstructNLSimple::findTimeLimits(){}
-void ConstructNLSimple::drawPreviews(){}
-void ConstructNLSimple::constructModel(){}
+
+
+
+void ConstructNLSimple::findTimeLimits()
+{
+  cout << "void ConstructNLSimple::findTimeLimits(): is not implemented yet" << endl;
+}//void ConstructNLSimple::findTimeLimits()
+
+
+void ConstructNLSimple::drawPreviews( GraphPad pad )
+{
+  TCanvas *can = m_embededCanvas->GetCanvas();
+  can->SetEditable( kTRUE );
+  
+  can->cd( pad + 1 );
+  
+  switch( pad )
+  {
+    case kCGMS_PAD:
+      if(m_cgmsData) m_cgmsData->draw( "", "", false, 0 );
+    break;
+      
+    case kCARB_PAD:
+      if( m_carbConsumptionData && m_carbAbsortionGraph )
+      {
+        m_carbConsumptionData->draw( "", "", false, 0 );
+        m_carbAbsortionGraph->draw( "SAME l", "", false, 2 );
+      }//if both defined
+    break;
+    
+    case kMERTER_PAD:
+      if(m_meterData) m_meterData->draw( "", "", false, 0 );
+    break;
+    
+    case kBOLUS_PAD:
+      if(m_bolusData) m_bolusData->draw( "", "", false, 0 );
+      // m_insulinData
+    break;
+    
+    case kNUM_PAD:
+    break;
+  };//switch( pad )
+  
+  updateModelGraphSize();
+}//drawPreviews
+
+
+void ConstructNLSimple::updateModelGraphSize()
+{
+  TCanvas *can = m_embededCanvas->GetCanvas();
+  can->SetEditable( kTRUE );
+  can->Update(); //need this or else TCanvas won't have updated axis range
+  
+  // can->cd(1);
+  double xmin, xmax, ymin, ymax;
+  can->GetRangeAxis( xmin, ymin, xmax, ymax );
+  double nMinutes = xmax - xmin;
+  // cout << m_minutesGraphPerPage << "  " << nMinutes << endl;
+  // cout << "X Range of " << xmin << " to " << xmax << endl; 
+  
+  //always fill up screen
+  if( nMinutes < m_minutesGraphPerPage ) m_minutesGraphPerPage = nMinutes;
+  
+  int pageWidth = m_baseTGCanvas->GetWidth();
+  double nPages = nMinutes / m_minutesGraphPerPage;
+  m_embededCanvas->SetWidth( nPages * pageWidth );
+
+  
+  //need to make ROOT update gPad now
+  int w = m_embededCanvas->GetWidth();
+  int h = m_baseTGCanvas->GetHeight();
+  int scrollWidth = m_baseTGCanvas->GetHScrollbar()->GetHeight();
+  can->SetCanvasSize( w, h-scrollWidth );
+  can->SetWindowSize( w + (w-can->GetWw()), h+(h-can->GetWh()) -scrollWidth);
+  
+  m_baseFrame->SetHeight( h - scrollWidth);
+  m_baseFrame->SetSize( m_baseFrame->GetSize() );
+  
+  m_embededCanvas->SetHeight( h -scrollWidth);
+  m_embededCanvas->SetSize( m_embededCanvas->GetSize() );
+  can->Update();
+  
+  MapSubwindows();
+  can->SetEditable( kFALSE );
+}//void ConstructNLSimple::updateModelGraphSize()
+
+
+void ConstructNLSimple::constructModel()
+{
+  assert( m_cgmsData );
+  // m_insulinData;
+  // m_carbConsumptionData;
+  assert( m_carbAbsortionGraph );
+  // m_meterData;
+  assert( m_bolusData );
+  
+  m_model = new NLSimple( "SimpleModel", 0, 0, m_bolusData->getT0() );
+  m_model->addBolusData( *m_bolusData );
+  m_model->addCgmsData( *m_cgmsData );
+  m_model->addGlucoseAbsorption( *m_carbAbsortionGraph );
+}//void ConstructNLSimple::constructModel()
 
 
 

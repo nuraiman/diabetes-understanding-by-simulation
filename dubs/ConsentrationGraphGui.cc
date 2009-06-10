@@ -258,10 +258,13 @@ void CreateGraphGui::handleButton( int senderId )
    
     case kOPEN_FILE_BUTTON:
     {
-      string fileToOpen = m_filePath->GetText();
+      const string fileToOpen = m_filePath->GetText();
+      const size_t dotPos = fileToOpen.find_last_of( "." );
+      const string ending = fileToOpen.substr( dotPos, string::npos );
+      
       if( fileToOpen.empty() ) return;
       
-      if( m_graphTypeListBox->GetNumberOfEntries() > 0 ) 
+      if( m_graphTypeListBox->GetNumberOfEntries() > 0 && ending != ".dub" ) 
       {
         CgmsDataImport::InfoType graphType = CgmsDataImport::InfoType( m_graphTypeListBox->GetSelected() );
         // cout << "Getting graph type " << graphType << " from " << fileToOpen << endl;
@@ -331,6 +334,7 @@ void CreateGraphGui::handleButton( int senderId )
 void CreateGraphGui::CloseWindow()
 {
   // delete m_FileInfo;
+  
   DeleteWindow();
 }//CloseWindow()
 

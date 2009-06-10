@@ -101,8 +101,8 @@ int main( int argc, char** argv )
   // gApplication->Run(kTRUE);
   
   //lets test 'CreateGraphGui'
-  ConsentrationGraph myTest( "" );
-  myTest.draw();
+  // ConsentrationGraph myTest( "" );
+  // myTest.draw();
   
   NLSimple guiModel( "../data/optimizedMarch31ThroughApril1Model" );
   guiModel.runGui();

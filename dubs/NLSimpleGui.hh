@@ -156,9 +156,9 @@ class ConstructNLSimple : public TGTransientFrame
     enum GraphPad
     {
       kCGMS_PAD,
+      kBOLUS_PAD,
       kCARB_PAD,
       kMERTER_PAD,
-      kBOLUS_PAD,
       kNUM_PAD
     };//enum GraphCanvas
     
@@ -186,11 +186,12 @@ class ConstructNLSimple : public TGTransientFrame
     ConstructNLSimple( NLSimple *&model, const TGWindow *parent, const TGWindow *main);
     virtual ~ConstructNLSimple();
     
-    bool enableCreateButton();
+    void enableCreateButton();
     void handleButton( int senderId = -1 );
     
     void findTimeLimits();
-    void drawPreviews();
+    void drawPreviews( GraphPad pad );
+    void updateModelGraphSize();
     void constructModel();
     
     virtual void CloseWindow();
