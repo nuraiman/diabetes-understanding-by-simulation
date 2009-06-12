@@ -187,7 +187,9 @@ class ConstructNLSimple : public TGTransientFrame
     virtual ~ConstructNLSimple();
     
     void enableCreateButton();
-    void handleButton( int senderId = -1 );
+    void handleButton();
+    void handleTimeLimitButton();  //kinda a hack, WidgetId for timeLimit buttons seems messed up see src
+    
     
     void findTimeLimits();
     void drawPreviews( GraphPad pad );

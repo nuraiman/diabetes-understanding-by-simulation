@@ -38,6 +38,8 @@
 
 #include "boost/date_time/gregorian/gregorian.hpp"
 #include "boost/date_time/posix_time/posix_time.hpp"
+#include "boost/date_time/posix_time/time_serialize.hpp"
+#include "boost/date_time/gregorian/greg_serialize.hpp"
 #include "boost/foreach.hpp"
 #include "boost/bind.hpp"
 #include "boost/ref.hpp"
