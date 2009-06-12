@@ -36,6 +36,9 @@
 #include "boost/algorithm/string/trim.hpp"
 #include "boost/date_time/gregorian/gregorian.hpp"
 #include "boost/date_time/posix_time/posix_time.hpp"
+#include "boost/date_time/posix_time/time_serialize.hpp"
+#include "boost/date_time/gregorian/greg_serialize.hpp"
+
 #include "boost/foreach.hpp"
 #include "boost/assign/list_of.hpp" //for 'list_of()'
 #include "boost/assign/list_inserter.hpp"
@@ -1352,13 +1355,15 @@ TGraph *ConsentrationGraph::getTGraph( boost::posix_time::ptime t_start,
   if( every60MinuteLabel.size() > 15 ) 
     nLabelSkip = every60MinuteLabel.size() / 15;
   
+  const int nBins = graph->GetXaxis()->GetNbins();
+  
   if( newDayLabel.size() < 4 )
   {
     for( size_t i = 0; i < every60MinuteLabel.size(); i += nLabelSkip )
     {
       pair<double,string> label = every60MinuteLabel[i];
       int bin = graph->GetXaxis()->FindBin( label.first );
-      graph->GetXaxis()->SetBinLabel( bin, label.second.c_str() );
+      if( bin <= nBins ) graph->GetXaxis()->SetBinLabel( bin, label.second.c_str() );
     }//foreach 15 minute label
   }//if( graph is less than three days long )
   
@@ -1366,7 +1371,7 @@ TGraph *ConsentrationGraph::getTGraph( boost::posix_time::ptime t_start,
   {
     pair<double,string> label = newDayLabel[i];
     int bin = graph->GetXaxis()->FindBin( label.first );
-    graph->GetXaxis()->SetBinLabel( bin, label.second.c_str() );
+    if( bin <= nBins ) graph->GetXaxis()->SetBinLabel( bin, label.second.c_str() );
   }//foreach 15 minute label
   
   // cout << "Axis has " << graph->GetXaxis()->GetNbins() << " bins" << endl;

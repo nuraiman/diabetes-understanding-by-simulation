@@ -609,6 +609,17 @@ ConstructNLSimple::ConstructNLSimple( NLSimple *&model,
   bottomButtonsF->AddFrame( m_endDateEntry, buttonTimehint );
   bottomButtonsF->AddFrame( m_endTimeEntry, buttonTimehint );
   
+  m_startTimeEntry->SetEditDisabled( kTRUE );  //doesnt' actually do what I want it too
+  m_endTimeEntry->SetEditDisabled( kTRUE );
+  m_startDateEntry->SetEditDisabled( kTRUE );
+  m_endDateEntry->SetEditDisabled( kTRUE );
+    
+  //should try explicitly casting below to TGNumberEntry
+  m_startTimeEntry->Connect( "ValueSet(Long_t)", "ConstructNLSimple", this, "handleTimeLimitButton()" );
+  m_endTimeEntry->Connect( "ValueSet(Long_t)", "ConstructNLSimple", this, "handleTimeLimitButton()" );
+  m_startDateEntry->Connect( "ValueSet(Long_t)", "ConstructNLSimple", this, "handleTimeLimitButton()" );
+  m_endDateEntry->Connect( "ValueSet(Long_t)", "ConstructNLSimple", this, "handleTimeLimitButton()" );
+  
   
   TGHorizontalFrame *createCancelF = new TGHorizontalFrame(bottomButtonsF, 75, 40, kHorizontalFrame | kFitWidth | kFitHeight);
   
@@ -679,13 +690,22 @@ void ConstructNLSimple::enableCreateButton()
 }//enableCreateButton
 
 
-void ConstructNLSimple::handleButton( int senderId )
+//When handleButton is called for one of the time limits entry boxes,
+//  the widget ID isn't actually the ID assigned to the entry widget,
+//  so using this seperate function get araound that
+void ConstructNLSimple::handleTimeLimitButton()
 {
-  if( senderId < 0 )
-  {
-    TGButton *btn = (TGButton *) gTQSender;
-    senderId = btn->WidgetId();
-  }//senderId
+  m_userSetTime = true;
+  for( GraphPad pad = kCGMS_PAD; pad < kNUM_PAD; pad = GraphPad(pad + 1) )
+    drawPreviews( pad );
+}//void ConstructNLSimple::handleTimeLimitButton()
+
+
+
+void ConstructNLSimple::handleButton()
+{
+  TGButton *btn = (TGButton *) gTQSender;
+  int senderId = btn->WidgetId();
   
   switch( senderId )
   {
@@ -712,6 +732,7 @@ void ConstructNLSimple::handleButton( int senderId )
       new CreateGraphGui( m_cgmsData, gClient->GetRoot(), 
                           gClient->GetDefaultRoot(), 
                           CgmsDataImport::CgmsReading );
+      findTimeLimits();
       drawPreviews( kCGMS_PAD );
       enableCreateButton();
     break;
@@ -773,9 +794,8 @@ void ConstructNLSimple::handleButton( int senderId )
     break;
     
     case kSTART_TIME:
-    break;
-    
     case kEND_TIME:
+      handleTimeLimitButton();
     break;
     
     case kCREATE:
@@ -795,12 +815,61 @@ void ConstructNLSimple::handleButton( int senderId )
 }//void ConstructNLSimple::handleButton( int senderId )
 
 
-
-
+// 
 
 void ConstructNLSimple::findTimeLimits()
 {
-  cout << "void ConstructNLSimple::findTimeLimits(): is not implemented yet" << endl;
+  //Don't let user control time span before loading any graphs
+  if( m_userSetTime )
+  {
+    m_userSetTime = ( m_cgmsData || m_insulinData || m_bolusData 
+                      || m_carbConsumptionData || m_carbAbsortionGraph
+                      || m_meterData );
+  }//if( m_userSetTime )
+  
+  if( m_userSetTime ) return;
+  
+  
+  if( m_cgmsData )
+  {
+    m_startTimeEntry->SetEditDisabled( kFALSE );
+    m_endTimeEntry->SetEditDisabled( kFALSE );
+    m_startDateEntry->SetEditDisabled( kFALSE );
+    m_endDateEntry->SetEditDisabled( kFALSE );
+    
+    PosixTime endTime = m_cgmsData->getEndTime();
+    PosixTime startTime = m_cgmsData->getStartTime();
+    // cout << "StartTime=" << startTime << " and endTime=" << endTime << endl;
+    
+    int startHours = startTime.time_of_day().hours();
+    int startMinutes = startTime.time_of_day().minutes();
+    int endHours = endTime.time_of_day().hours();
+    int endMinutes = endTime.time_of_day().minutes();
+    
+    int startIntTime = 60*startHours + startMinutes;
+    int endIntTime = 60*endHours + endMinutes;
+    
+    int startYear = startTime.date().year();
+    int startMonth = startTime.date().month();
+    int startDay = startTime.date().day();
+    int endYear = endTime.date().year();
+    int endMonth = endTime.date().month();
+    int endDay = endTime.date().day();
+    
+    int startIntDate = 10000 * startYear + 100 * startMonth + startDay;
+    int endIntDate = 10000 * endYear + 100 * endMonth + endDay;
+    
+    m_startTimeEntry->SetLimits(TGNumberFormat::kNELLimitMinMax, startIntTime, endIntTime);
+    m_endTimeEntry->SetLimits(TGNumberFormat::kNELLimitMinMax, startIntTime, endIntTime);
+    m_startDateEntry->SetLimits(TGNumberFormat::kNELLimitMinMax, startIntDate, endIntDate);
+    m_endDateEntry->SetLimits(TGNumberFormat::kNELLimitMinMax, startIntDate, endIntDate);
+    
+    m_startTimeEntry->SetTime(startHours, startMinutes, 0 );
+    m_endTimeEntry->SetTime(endHours, endMinutes, 0 );
+    m_startDateEntry->SetDate( startYear, startMonth, startDay );
+    m_endDateEntry->SetDate( endYear, endMonth, endDay );
+  }//if( m_cgmsData )
+  
 }//void ConstructNLSimple::findTimeLimits()
 
 
@@ -810,33 +879,61 @@ void ConstructNLSimple::drawPreviews( GraphPad pad )
   can->SetEditable( kTRUE );
   
   can->cd( pad + 1 );
+  vector<TGraph *>graphs;
+  
+  
+  int year, month, day, hour, min, sec;
+  m_startTimeEntry->GetTime(hour, min, sec);
+  const TimeDuration startTimeDur( hour, min, sec, 0);
+  
+  m_endTimeEntry->GetTime(hour, min, sec);
+  const TimeDuration endTimeDur( hour, min, sec, 0);
+  
+  m_startDateEntry->GetDate(year, month, day);
+  const boost::gregorian::date startDate( year, month, day );
+  
+  m_endDateEntry->GetDate(year, month, day);
+  const boost::gregorian::date endDate( year, month, day );
+  
+  PosixTime endTime( endDate, endTimeDur );
+  PosixTime startTime( startDate, startTimeDur );
+  
+  if( !m_cgmsData ) endTime = startTime = kGenericT0;
+  
   
   switch( pad )
   {
     case kCGMS_PAD:
-      if(m_cgmsData) m_cgmsData->draw( "", "", false, 0 );
+      if(m_cgmsData) graphs.push_back( m_cgmsData->getTGraph(startTime, endTime) ); 
     break;
       
     case kCARB_PAD:
       if( m_carbConsumptionData && m_carbAbsortionGraph )
       {
-        m_carbConsumptionData->draw( "", "", false, 0 );
-        m_carbAbsortionGraph->draw( "SAME l", "", false, 2 );
+        graphs.push_back( m_carbConsumptionData->getTGraph(startTime, endTime) );
+        graphs.push_back( m_carbAbsortionGraph->getTGraph(startTime, endTime) );
       }//if both defined
     break;
     
     case kMERTER_PAD:
-      if(m_meterData) m_meterData->draw( "", "", false, 0 );
+      if(m_meterData) graphs.push_back( m_meterData->getTGraph(startTime, endTime) );
     break;
     
     case kBOLUS_PAD:
-      if(m_bolusData) m_bolusData->draw( "", "", false, 0 );
+      if(m_bolusData) graphs.push_back( m_bolusData->getTGraph(startTime, endTime) );
       // m_insulinData
     break;
     
     case kNUM_PAD:
     break;
   };//switch( pad )
+  
+  for( size_t i = 0; i < graphs.size(); ++i )
+  {
+    graphs[i]->SetLineColor( i+1 );
+    if( i==0 ) graphs[i]->Draw( "Al" );
+    else graphs[i]->Draw( "l" );
+  }//for( size_t i = 0; i < graphs.size(); ++i )
   
   updateModelGraphSize();
 }//drawPreviews
@@ -890,6 +987,27 @@ void ConstructNLSimple::constructModel()
   assert( m_carbAbsortionGraph );
   // m_meterData;
   assert( m_bolusData );
+  
+  int year, month, day, hour, min, sec;
+  m_startTimeEntry->GetTime(hour, min, sec);
+  const TimeDuration startTimeDur( hour, min, sec, 0);
+  
+  m_endTimeEntry->GetTime(hour, min, sec);
+  const TimeDuration endTimeDur( hour, min, sec, 0);
+  
+  m_startDateEntry->GetDate(year, month, day);
+  const boost::gregorian::date startDate( year, month, day );
+  
+  m_endDateEntry->GetDate(year, month, day);
+  const boost::gregorian::date endDate( year, month, day );
+  
+  PosixTime endTime( endDate, endTimeDur );
+  PosixTime startTime( startDate, startTimeDur );
+  
+  m_bolusData->trim( startTime - TimeDuration(4,0,0,0), endTime );
+  m_cgmsData->trim( startTime, endTime );
+  m_carbAbsortionGraph->trim( startTime - TimeDuration(4,0,0,0), endTime );
+  
   
   m_model = new NLSimple( "SimpleModel", 0, 0, m_bolusData->getT0() );
   m_model->addBolusData( *m_bolusData );

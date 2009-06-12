@@ -289,33 +289,33 @@ BOOST_CLASS_VERSION(ConsentrationGraph, 0)
 //We need to be able to serialize ptime, so we can save ConsentrationGraph.
 //  functions must be in header or compiler complains when using these 
 //  serializtions for other classes
-namespace boost {
-  namespace serialization {
-    //serialize(...) has to write and read the time, so it's a bit awkward, but 
-    //  I don't care to do it properly right now, this works
-    template<class Archive>
-    void serialize(Archive & ar, PosixTime &time, const unsigned int version)
-    {
-      assert( version==version ); //to keep compiler from complaining
-      std::string ts = boost::posix_time::to_simple_string(time);
-      
-      ar & ts;
-      
-      time = boost::posix_time::time_from_string(ts);
-    }//
-    
-    template<class Archive>
-    void serialize(Archive & ar, TimeDuration &td, const unsigned int version)
-    {
-      assert( version==version ); //to keep compiler from complaining
-      std::string ts = boost::posix_time::to_simple_string(td);
-      
-      ar & ts;
-      
-      td = boost::posix_time::duration_from_string(ts);
-    }
-  } // namespace serialization
-} // namespace boost
+// namespace boost {
+  // namespace serialization {
+    // //serialize(...) has to write and read the time, so it's a bit awkward, but 
+    // //  I don't care to do it properly right now, this works
+    // template<class Archive>
+    // void serialize(Archive & ar, PosixTime &time, const unsigned int version)
+    // {
+      // assert( version==version ); //to keep compiler from complaining
+      // std::string ts = boost::posix_time::to_simple_string(time);
+      // 
+      // ar & ts;
+      // 
+      // time = boost::posix_time::time_from_string(ts);
+    // }//
+    // 
+    // template<class Archive>
+    // void serialize(Archive & ar, TimeDuration &td, const unsigned int version)
+    // {
+      // assert( version==version ); //to keep compiler from complaining
+      // std::string ts = boost::posix_time::to_simple_string(td);
+      // 
+      // ar & ts;
+      // 
+      // td = boost::posix_time::duration_from_string(ts);
+    // }
+  // } // namespace serialization
+// } // namespace boost
 
 
 #endif //CONSENTRATION_GRAPH_HH
