@@ -22,6 +22,7 @@ typedef std::vector<double>               DVec;
 typedef boost::posix_time::ptime          PosixTime;
 typedef boost::posix_time::time_duration  TimeDuration;
 typedef std::vector<PosixTime>            PTimeVec;
+typedef std::vector<TimeDuration>         PTimeDurationVec;
 typedef std::pair<PosixTime, PosixTime>   TimeRange;
 typedef std::vector<TimeRange>            TimeRangeVec;
 

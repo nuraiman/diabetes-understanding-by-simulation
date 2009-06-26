@@ -222,7 +222,7 @@ class NLSimple
     //returns true  if all information is updated to time
     //  Only modifes cgmsData, X, and predictedGlucose graphs
     //  X and predictedGlucose will end at cgmsEndTime - m_cgmsDelay
-    bool removeInfoAfter( const PosixTime &cgmsEndTime );
+    bool removeInfoAfter( const PosixTime &cgmsEndTime, bool removeCgms = true );
     
     void updateXUsingCgmsInfo( bool recomputeAll = true );
     
@@ -280,7 +280,7 @@ BOOST_CLASS_VERSION(NLSimple, 0)
 
 
 //An interace for NLSimple to Minuit2 and the Genetic Optimizer
-class ModelTestFCN : public ROOT::Minuit2::FCNBase,  public TMVA::IFitterTarget
+class ModelTestFCN : public ROOT::Minuit2::FCNBase, public TMVA::IFitterTarget
 {
   public:
     //function forMinuit2
@@ -306,5 +306,69 @@ class ModelTestFCN : public ROOT::Minuit2::FCNBase,  public TMVA::IFitterTarget
     PosixTime m_tStart;
     PosixTime m_tEnd;
 };//class ModelTestFCN
+
+
+
+// namespace ROOT{ namespace Minuit2{ class MnMigrad;};};
+
+
+//This class fits for events such as unrecorded meal or unrecorded injection
+//  currently only GraphType's: 
+//  BolusGraph and InsulinGraph (modeled with novologConsentrationGraph(...)), 
+//  GlucoseAbsorbtionRateGraph, and GlucoseConsumptionGraph 
+//  (modeled with yatesGlucoseAbsorptionRate(...)) are fit for.
+//  This class to be used with ROOT::Minuit2::MnMigrad, or TMVA based fitters
+//  As with everything else, this class is very un-optimized
+class FitNLSimpleEvent: public ROOT::Minuit2::FCNBase, public TMVA::IFitterTarget
+{
+  public:
+    FitNLSimpleEvent( const NLSimple *model );
+    ~FitNLSimpleEvent(){};
+    
+    //Event type to be fitted for is determined via fitResult->getGraphType()
+    //  *fitResult and *pars must remain to be valid objects 
+    //  returns the place in m_fitForEvents this graph ocupies
+    //  InsulinGraph and BolusGraph must have 1 paramater in vector (amount insulin)
+    //  GlucoseAbsorbtionRateGraph and BloodGlucoseConcenDeriv
+    //  must have 1 (amount ingented) or 5 paramaters (the Yates model paramters)
+    unsigned int addEventToFitFor( ConsentrationGraph *fitResult,
+                                   PosixTime *startTime,
+                                   const TimeDuration &timeUncert,
+                                   std::vector<double> *pars );
+    
+    //function forMinuit2
+    //below parameters are ordered by m_fitParamters 
+    // (m_fitParamters[0][0], m_fitParamters[0][1]..., t0,m_fitParamters[1][0] ),
+    // t0 is number minutes after m_fitForEvents[i]->m_t0
+    virtual double operator()(const std::vector<double>& parameters) const;
+    virtual double Up() const;
+    virtual void SetErrorDef(double dof);
+    
+    //Function for TMVA fitters
+    virtual Double_t EstimatorFunction( std::vector<Double_t>& parameters );
+    
+  private:
+    const NLSimple *m_model; //model passed in to the constructor
+  
+    //Each graph in m_fitForEvents gets it's own set of paramaters
+    //  the paramaters passed in through addEventToFitFor(...) are used
+    //  for storage as well as modified with intermediate and final result
+    //  below are mutable so operator() can stay const as required by Minuit2
+    //  (I could have programmed this class better so this wasn't necassary)
+    mutable std::vector<std::vector<double> *>  m_fitParamters; 
+    
+    mutable std::vector<PosixTime *>            m_startTimes;
+    mutable std::vector<TimeDuration>           m_startTimeUncerts;
+    mutable std::vector<ConsentrationGraph *>   m_fitForEvents;
+    
+    NLSimple getModelForNewFit() const; //fills in model returned with current guesses
+    
+    //below calls updateFitForEvents() and then add these to the model passed in
+    //  also updates m_fitForEvents from m_fitParamters
+    //  should be called from within getModelForNewFit() only.
+    void updateModelWithCurrentGuesses( NLSimple &model ) const; 
+};//class FitNLSimpleEvent
+
+
 
 #endif //RESPONSE_MODEL_HH

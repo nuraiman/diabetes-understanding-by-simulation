@@ -677,7 +677,7 @@ double NLSimple::getGraphOfMaxTimePredictions( ConsentrationGraph &predBg,
                                                PosixTime lastCgmsTime,
                                                double lastPointChi2Weight )
 {
-  predBg.clear();
+  // predBg.clear();
   updateXUsingCgmsInfo(false);
   double chi2 = 0.0;
   const ptime knownBgEndTime = m_cgmsData.getEndTime() - m_cgmsDelay;
@@ -710,6 +710,9 @@ double NLSimple::getGraphOfMaxTimePredictions( ConsentrationGraph &predBg,
   }//if( m_cgmsData.getEndTime() < lastCgmsTime )
   
   assert( firstCgmsTime <= lastCgmsTime );
+  
+  if( !predBg.empty() ) cout << "Warning, untested trimming" << endl;
+  predBg.trim( kGenericT0, firstCgmsTime-TimeDuration(0,0,0,1) );
   
   ConstGraphIter startIter = m_cgmsData.lower_bound(firstCgmsTime);
   ConstGraphIter endIter = m_cgmsData.upper_bound(lastCgmsTime);
@@ -1444,7 +1447,8 @@ double NLSimple::geneticallyOptimizeModel( double endPredChi2Weight,
 }//geneticallyOptimizeModel
 
 //returns true  if all information is updated to time
-bool NLSimple::removeInfoAfter( const boost::posix_time::ptime &cgmsEndTime )
+bool NLSimple::removeInfoAfter( const boost::posix_time::ptime &cgmsEndTime, 
+                                bool removeCgms )
 {
   //I think maybe 
   const ptime time = cgmsEndTime - m_cgmsDelay; ;  
@@ -1453,7 +1457,7 @@ bool NLSimple::removeInfoAfter( const boost::posix_time::ptime &cgmsEndTime )
   ConstGraphIter lastPBGPoint  = m_predictedBloodGlucose.lower_bound( time );
     
   unsigned int nUpdated = 0;
-  if( lastCgmsPoint != m_cgmsData.end() )
+  if( removeCgms && lastCgmsPoint != m_cgmsData.end() )
   {
     ++nUpdated;
     const double val = m_cgmsData.value(time);
@@ -1477,7 +1481,9 @@ bool NLSimple::removeInfoAfter( const boost::posix_time::ptime &cgmsEndTime )
     m_predictedBloodGlucose.insert( time, val );
   }//if( lastPBGPoint != m_predictedBloodGlucose.end() )
   
-  return (nUpdated == 3);
+  
+  if(removeCgms) return (nUpdated == 3);
+  return (nUpdated == 2);
 }//removeInfoAfter
     
     
@@ -2038,6 +2044,244 @@ double ModelTestFCN::operator()(const std::vector<double>& x) const
 {
   return testParamaters(x, false);
 }//operator()
+
+
+
+
+
+
+
+
+
+
+
+
+FitNLSimpleEvent::FitNLSimpleEvent( const NLSimple *model ) : m_model(model){};
+
+   
+unsigned int FitNLSimpleEvent::addEventToFitFor( ConsentrationGraph *fitResult,
+                                                 PosixTime *startTime,
+                                                 const TimeDuration &timeUncert,
+                                                 vector<double> *pars )
+{
+  assert( pars );
+  assert( fitResult );
+  
+  m_fitParamters.push_back( pars ); 
+  m_startTimes.push_back( startTime );
+  m_startTimeUncerts.push_back( timeUncert );
+  m_fitForEvents.push_back( fitResult );
+  
+  switch( fitResult->getGraphType() )
+  {
+    case InsulinGraph:
+    case BolusGraph:
+      //When I implement a better insulin model, below will change.
+      assert( pars->size() == 1 );
+    break;
+      
+    case GlucoseAbsorbtionRateGraph:
+    case GlucoseConsumptionGraph:
+      assert( pars->size() == 1 || pars->size() == 5 );
+    break;
+  
+    case GlucoseConsentrationGraph:
+    case BloodGlucoseConcenDeriv:
+    case NumGraphType:
+      cout << "FitNLSimpleEvent::addEventToFitFor(...) only accepts inputs of"
+           << " type InsulinGraph, BolusGraph, GlucoseAbsorbtionRateGraph,"
+           << " or GlucoseConsumptionGraph, and not " 
+           << fitResult->getGraphType() << endl;
+      exit(-1);
+    break;
+  };//switch( fitResult->getGraphType() )
+    
+  return m_fitForEvents.size() - 1;
+}//FitNLSimpleEvent::addEventToFitFor(...)
+
+
+
+NLSimple FitNLSimpleEvent::getModelForNewFit() const
+{
+  NLSimple newModel( "", 1.0 );
+  newModel = *m_model;
+  
+  if( m_fitForEvents.empty() )
+  {
+    cout << "You must call FitNLSimpleEvent::addEventToFitFor(...) before"
+         << " calling FitNLSimpleEvent::getModelForNewFit()" << endl;
+    exit(-1);
+  }//if( m_fitForEvents.empty() )
+  
+  
+  PosixTime minTime = *(m_startTimes[0]);  
+  for( size_t i=0; i < m_startTimes.size(); ++i ) 
+  {
+    PosixTime thisStartTime = *(m_startTimes[i]);
+    minTime = std::min( minTime, thisStartTime );
+  }//for( loop over events i )
+  
+  const bool removeCgms = false;
+  newModel.removeInfoAfter( minTime, removeCgms ); //removes X and Predicted
+  
+  updateModelWithCurrentGuesses( newModel );
+  
+  return newModel;
+}//FitNLSimpleEvent::getModelForNewFit()
+    
+
+//function forMinuit2
+//below parameters are ordered by m_fitParamters 
+// (m_fitParamters[0][0], m_fitParamters[0][1]...), then by t0 of
+// each m_fitForEvents where the double is number of 
+// minutes after m_fitForEvents[i]->m_t0
+double FitNLSimpleEvent::operator()(const std::vector<double>& x) const
+{
+  assert( m_fitParamters.size() );
+  
+  //For this function we have to:
+  // 1) set new paramaters, including times
+  //     so m_fitParamters and m_startTimes will be updated
+  // 2) create new model
+  // 3) make predictions that include the guessed event
+  // 4) get chi2 of the time range --how to calc time range is still undecided
+  // 5) return the chi2
+  PosixTime minTime(pos_infin);
+  PosixTime maxTime(neg_infin);
+  unsigned int currPar = 0;
+  unsigned int currParSet = 0;
+  vector<double> *currParSetPtr = m_fitParamters[currParSet];
+  TimeRangeVec effectedTimes;
+  
+  for( unsigned int par=0; par < x.size(); ++par )
+  {
+    if( currPar > currParSetPtr->size() )
+    {
+      currPar = 0;
+      currParSetPtr = m_fitParamters[++currParSet];
+    }//if( currPar == currParSet->size() )
+    
+    if( currPar != currParSetPtr->size() )
+    {
+      (*currParSetPtr)[currPar] = x[par];
+    }else
+    {
+      ConsentrationGraph *thisGraph = m_fitForEvents[currParSet];
+      const PosixTime thisTime = thisGraph->getAbsoluteTime( x[par] );
+      (*(m_startTimes[currParSet])) = thisTime;
+      minTime = std::min( minTime, thisTime );
+      maxTime = std::max( maxTime, thisTime  + hours(3) );
+      effectedTimes.push_back( make_pair(thisTime, thisTime  + hours(3)) );
+    }//if( a normal paramater ) / else ( the start time )
+    
+    ++currPar;
+  }//for(...)
+  
+  assert( effectedTimes.size() == m_fitForEvents.size() );
+  assert( !minTime.is_infinity() );
+  
+  NLSimple thisModel = getModelForNewFit();
+  
+  double chi2 = 0.0;
+  
+  for( unsigned int event = 0; event < m_fitForEvents.size(); ++event )
+  {
+    ConsentrationGraph pred = thisModel.m_predictedBloodGlucose;
+    pred.clear();
+    
+    PosixTime startime = effectedTimes[event].first;
+    PosixTime endtime = effectedTimes[event].second;
+    chi2 += thisModel.getGraphOfMaxTimePredictions( pred, startime, endtime,
+                                                   ModelDefaults::kLastPredictionWeight );
+  }//for( loop over events to fit for )
+  
+  return chi2;
+}//FitNLSimpleEvent::operator()
+
+
+double FitNLSimpleEvent::Up() const
+{
+  return static_cast<double>( m_fitForEvents.size() );
+}//FitNLSimpleEvent::Up()
+
+
+void FitNLSimpleEvent::SetErrorDef(double dof)
+{
+  cout << "why are you calling void FitNLSimpleEvent::SetErrorDef( " 
+       << dof << " ) ?" << endl;
+}//FitNLSimpleEvent::SetErrorDef(double dof)
+    
+    //Function for TMVA fitters
+Double_t FitNLSimpleEvent::EstimatorFunction( std::vector<Double_t>& parameters )
+{
+  return operator()(parameters);
+}//FitNLSimpleEvent::EstimatorFunction( std::vector<double>& parameters )
+
+
+//below calls updateFitForEvents() and then add these to the model passed in
+void FitNLSimpleEvent::updateModelWithCurrentGuesses( NLSimple &model ) const
+{
+  
+  for( size_t i=0; i < m_fitForEvents.size(); ++i )
+  {
+    const PosixTime startTime = *(m_startTimes[i]);
+    ConsentrationGraph *graph = m_fitForEvents[i];
+    const vector<double> &pars = *(m_fitParamters[i]);
+    graph->clear();
+    const GraphType graphType = graph->getGraphType();
+    
+    switch( graphType )
+    {
+      case InsulinGraph:
+      case BolusGraph:
+      {
+        assert( pars.size() == 1 );
+        const double dt = 1.0;
+        ConsentrationGraph concG = novologConsentrationGraph( startTime, pars[0], dt );
+        if( graphType == InsulinGraph ) *graph = concG;
+        else if( graphType == BolusGraph ) graph->insert( startTime, pars[0] );
+        else assert(0);
+        
+        model.addBolusData( concG );
+        break;
+      }//case InsulinGraph: case BolusGraph
+      
+      
+      case GlucoseAbsorbtionRateGraph:
+      case GlucoseConsumptionGraph:
+      {
+        const double dt = 1.0;
+        ConsentrationGraph foodConsumed( startTime, dt, GlucoseConsumptionGraph );
+        ConsentrationGraph foodAbsorbed( startTime, dt, GlucoseAbsorbtionRateGraph );
+        foodConsumed.insert( startTime, pars[0] );
+        
+        if( pars.size() == 5)
+        {
+          foodAbsorbed = yatesGlucoseAbsorptionRate( 
+                  startTime, pars[0], pars[1], pars[2], pars[3], pars[4], 1.0 );
+        }else if( pars.size() == 1)
+        {   
+          foodAbsorbed = CgmsDataImport::carbConsumptionToSimpleCarbAbsorbtionGraph(foodConsumed);
+        }else assert(0);
+        
+        if( graphType == GlucoseAbsorbtionRateGraph ) *graph = foodAbsorbed;
+        else if( graphType == GlucoseConsumptionGraph ) *graph = foodConsumed;
+        else assert(0);
+        
+        model.addGlucoseAbsorption( foodAbsorbed );
+        break;
+      };//case GlucoseAbsorbtionRateGraph: case GlucoseConsumptionGraph:
+      
+      
+      case GlucoseConsentrationGraph: case BloodGlucoseConcenDeriv: 
+      case NumGraphType:
+        assert(0);
+      break;
+    };//switch( graph->getGraphType() )
+  }//foreach( of the fit for events )
+  
+}//updateModelWithCurrentGuesses( NLSimple &model )
+
 
 
 
