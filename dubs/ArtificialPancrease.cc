@@ -88,7 +88,9 @@ int main( int argc, char** argv )
   NLSimple *modelCreateTest = NULL;
   new ConstructNLSimple( modelCreateTest, gClient->GetRoot(), gClient->GetDefaultRoot() );
   
-  ConsentrationGraph mmData( "../data/mmCgmsData_march31_April7.dub" );
+  if( !modelCreateTest ) return 0;
+  modelCreateTest->runGui();
+  // ConsentrationGraph mmData( "../data/mmCgmsData_march31_April7.dub" );
   
   // TCanvas *can = new TCanvas(); 
   // mmData.draw("", "", false);
@@ -104,9 +106,9 @@ int main( int argc, char** argv )
   // ConsentrationGraph myTest( "" );
   // myTest.draw();
   
-  NLSimple guiModel( "../data/optimizedMarch31ThroughApril1Model" );
-  guiModel.runGui();
-  return 0;
+  // NLSimple guiModel( "../data/optimizedMarch31ThroughApril1Model" );
+  // guiModel.runGui();
+  // return 0;
   // NLSimple model1 = createMar31Model();  
   //void testSmoothing();
   // void testKineticModels();

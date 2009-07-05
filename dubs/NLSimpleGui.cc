@@ -311,7 +311,7 @@ void NLSimpleGui::zoomXAxis( double amount )
 
 void NLSimpleGui::drawModel()
 {
-  if( !modelDefined() ) return;
+  if( !m_model ) return;
   
   m_tabWidget->SetTab(0);
   
@@ -431,7 +431,7 @@ void NLSimpleGui::handleMenu(Int_t menuAction)
 
 void NLSimpleGui::doGeneticOptimization()
 {
-  if( !modelDefined() ) return;
+  if( !m_model ) return;
   
   m_tabWidget->SetTab(0);
   drawModel();
@@ -446,7 +446,7 @@ void NLSimpleGui::doGeneticOptimization()
 
 void NLSimpleGui::doMinuit2Fit()
 {
-  if( !modelDefined() ) return;
+  if( !m_model ) return;
 
   m_model->fitModelToDataViaMinuit2( ModelDefaults::kLastPredictionWeight );
   
@@ -498,7 +498,8 @@ ConstructNLSimple::ConstructNLSimple( NLSimple *&model,
                                       const TGWindow *main ) :
     TGTransientFrame(parent, main, 640, 520, kVerticalFrame),
     m_model(model),
-    m_startTimeEntry(NULL), m_endTimeEntry(NULL), m_createButton(NULL),
+    m_startTimeEntry(NULL), m_endTimeEntry(NULL), m_basalInsulinAmount(NULL),
+    m_createButton(NULL),
     m_userSetTime(false), m_cgmsData(NULL), m_bolusData(NULL), 
     m_insulinData(NULL), m_carbConsumptionData(NULL), 
     m_carbAbsortionGraph(NULL), m_meterData(NULL), m_baseTGCanvas(NULL), 
@@ -524,6 +525,18 @@ ConstructNLSimple::ConstructNLSimple( NLSimple *&model,
   TGTextButton *openDefined = new TGTextButton(openDefinedF, "Open Defined Model", kSELECT_MODEL_FILE);
   openDefined->Connect( "Clicked()", "ConstructNLSimple", this, "handleButton()" );
   openDefinedF->AddFrame(openDefined, openDefinedHint);
+  
+  TGTextButton *cancelButton = new TGTextButton(openDefinedF, "Cancel", kCANCEL);
+  m_createButton = new TGTextButton(openDefinedF, "Create", kCREATE);
+  m_createButton->Connect( "Clicked()", "ConstructNLSimple", this, "handleButton()" );
+  cancelButton->Connect( "Clicked()", "ConstructNLSimple", this, "handleButton()" );
+  m_createButton->SetEnabled( kFALSE );
+  TGLayoutHints *actionHinta = new TGLayoutHints( kLHintsRight | kLHintsCenterY | kLHintsExpandY,0,15,0,0);
+  openDefinedF->AddFrame( m_createButton, actionHinta );
+  actionHinta = new TGLayoutHints( kLHintsRight | kLHintsCenterY | kLHintsExpandY,0,0,0,0);
+  openDefinedF->AddFrame( cancelButton, actionHinta );
+
+  openDefinedHint = new TGLayoutHints( kLHintsCenterX | kLHintsTop| kLHintsExpandX,2,2,2,2);
   AddFrame( openDefinedF, openDefinedHint );
   
   TGHorizontalFrame *graphF = new TGHorizontalFrame(this, 550, 430, kHorizontalFrame | kFitWidth | kFitHeight);
@@ -592,11 +605,12 @@ ConstructNLSimple::ConstructNLSimple( NLSimple *&model,
   //Now add the create model, or cancel buttons, as well as the ending and beggining times
   TGHorizontalFrame *bottomButtonsF = new TGHorizontalFrame(this, 640, 40, kHorizontalFrame | kFitWidth);
   
-  m_startTimeEntry = new TGNumberEntry( bottomButtonsF, 0.0, 6, kSTART_TIME, TGNumberFormat::kNESHourMin, TGNumberFormat::kNEANonNegative);
-  m_startDateEntry = new TGNumberEntry( bottomButtonsF, 0.0, 9, kSTART_TIME, TGNumberFormat::kNESDayMYear, TGNumberFormat::kNEANonNegative);
-  m_endTimeEntry   = new TGNumberEntry( bottomButtonsF, 0.0, 6, kEND_TIME, TGNumberFormat::kNESHourMin, TGNumberFormat::kNEANonNegative);
-  m_endDateEntry   = new TGNumberEntry( bottomButtonsF, 0.0, 9, kEND_TIME, TGNumberFormat::kNESDayMYear, TGNumberFormat::kNEANonNegative);
-  
+  m_startTimeEntry     = new TGNumberEntry( bottomButtonsF, 0.0, 6, kSTART_TIME, TGNumberFormat::kNESHourMin, TGNumberFormat::kNEANonNegative);
+  m_startDateEntry     = new TGNumberEntry( bottomButtonsF, 0.0, 9, kSTART_TIME, TGNumberFormat::kNESDayMYear, TGNumberFormat::kNEANonNegative);
+  m_endTimeEntry       = new TGNumberEntry( bottomButtonsF, 0.0, 6, kEND_TIME, TGNumberFormat::kNESHourMin, TGNumberFormat::kNEANonNegative);
+  m_endDateEntry       = new TGNumberEntry( bottomButtonsF, 0.0, 9, kEND_TIME, TGNumberFormat::kNESDayMYear, TGNumberFormat::kNEANonNegative);
+  m_basalInsulinAmount = new TGNumberEntry( bottomButtonsF, 0.0, 4, kBASAL_AMOUNT, TGNumberFormat::kNESRealTwo, TGNumberFormat::kNEANonNegative);
+    
   TGLayoutHints *buttonTimehint = new TGLayoutHints( kLHintsLeft | kLHintsCenterY,0,0,0,5);
   TGLayoutHints *texthint = new TGLayoutHints( kLHintsLeft | kLHintsCenterY,20,0,0,0);
   TGLabel *label = new TGLabel(bottomButtonsF, "Start Time");
@@ -609,6 +623,10 @@ ConstructNLSimple::ConstructNLSimple( NLSimple *&model,
   bottomButtonsF->AddFrame( m_endDateEntry, buttonTimehint );
   bottomButtonsF->AddFrame( m_endTimeEntry, buttonTimehint );
   
+  label = new TGLabel(bottomButtonsF, "Basal Insulin (U/h)");
+  bottomButtonsF->AddFrame( label, texthint );
+  bottomButtonsF->AddFrame( m_basalInsulinAmount, buttonTimehint );
+  
   m_startTimeEntry->SetEditDisabled( kTRUE );  //doesnt' actually do what I want it too
   m_endTimeEntry->SetEditDisabled( kTRUE );
   m_startDateEntry->SetEditDisabled( kTRUE );
@@ -619,19 +637,10 @@ ConstructNLSimple::ConstructNLSimple( NLSimple *&model,
   m_endTimeEntry->Connect( "ValueSet(Long_t)", "ConstructNLSimple", this, "handleTimeLimitButton()" );
   m_startDateEntry->Connect( "ValueSet(Long_t)", "ConstructNLSimple", this, "handleTimeLimitButton()" );
   m_endDateEntry->Connect( "ValueSet(Long_t)", "ConstructNLSimple", this, "handleTimeLimitButton()" );
-  
+  m_basalInsulinAmount->Connect( "ValueSet(Long_t)", "ConstructNLSimple", this, "enableCreateButton()" );
   
   TGHorizontalFrame *createCancelF = new TGHorizontalFrame(bottomButtonsF, 75, 40, kHorizontalFrame | kFitWidth | kFitHeight);
-  
-  TGTextButton *cancelButton = new TGTextButton(createCancelF, "Cancel", kCANCEL);
-  m_createButton = new TGTextButton(createCancelF, "Create", kCREATE);
-  m_createButton->SetEnabled( kFALSE );
-  TGLayoutHints *actionHint = new TGLayoutHints( kLHintsRight | kLHintsCenterY | kLHintsExpandY,0,0,0,0);
-  
-  createCancelF->AddFrame( m_createButton, actionHint );
-  actionHint = new TGLayoutHints( kLHintsRight | kLHintsCenterY | kLHintsExpandY,0,0,0,0);
-  createCancelF->AddFrame( cancelButton, actionHint );
-  
+    
   TGLayoutHints *creatCancelHint  = new TGLayoutHints( kLHintsRight | kLHintsExpandY,0,15,0,5);
   bottomButtonsF->AddFrame( createCancelF, creatCancelHint );
   
@@ -676,6 +685,13 @@ void ConstructNLSimple::CloseWindow()
   if( m_meterData )           delete m_meterData;
   if( m_bolusData )           delete m_bolusData;
   
+  m_cgmsData = NULL;
+  m_insulinData = NULL;
+  m_carbConsumptionData = NULL;
+  m_carbAbsortionGraph = NULL;
+  m_meterData = NULL;
+  m_bolusData = NULL;
+  
   DeleteWindow();
 }//CloseWindow(
 
@@ -684,8 +700,11 @@ void ConstructNLSimple::CloseWindow()
 
 void ConstructNLSimple::enableCreateButton()
 {
+  double insalinValue = m_basalInsulinAmount->GetNumber();
+  
   if( m_cgmsData && (m_insulinData || m_bolusData) 
-           && ( m_carbConsumptionData || m_carbAbsortionGraph ) ) 
+           && ( m_carbConsumptionData || m_carbAbsortionGraph )
+           && (insalinValue > 0.0) ) 
     m_createButton->SetEnabled( kTRUE );
 }//enableCreateButton
 
@@ -699,7 +718,6 @@ void ConstructNLSimple::handleTimeLimitButton()
   for( GraphPad pad = kCGMS_PAD; pad < kNUM_PAD; pad = GraphPad(pad + 1) )
     drawPreviews( pad );
 }//void ConstructNLSimple::handleTimeLimitButton()
-
 
 
 void ConstructNLSimple::handleButton()
@@ -734,6 +752,9 @@ void ConstructNLSimple::handleButton()
                           CgmsDataImport::CgmsReading );
       findTimeLimits();
       drawPreviews( kCGMS_PAD );
+      drawPreviews( kCARB_PAD );
+      drawPreviews( kMERTER_PAD );
+      drawPreviews( kBOLUS_PAD );
       enableCreateButton();
     break;
     
@@ -752,7 +773,12 @@ void ConstructNLSimple::handleButton()
         m_insulinData = new ConsentrationGraph(insulinG);
       }//if( m_bolusData )
       
+      findTimeLimits();
       drawPreviews( kBOLUS_PAD );
+      drawPreviews( kCGMS_PAD );
+      drawPreviews( kCARB_PAD );
+      drawPreviews( kMERTER_PAD );
+      
       enableCreateButton();
     break;
     
@@ -769,7 +795,12 @@ void ConstructNLSimple::handleButton()
         m_carbAbsortionGraph = new ConsentrationGraph(consumpG);
       }//if( m_carbConsumptionData )
       
+      findTimeLimits();
       drawPreviews( kCARB_PAD );
+      drawPreviews( kCGMS_PAD );
+      drawPreviews( kMERTER_PAD );
+      drawPreviews( kBOLUS_PAD );
+      
       enableCreateButton();
     break;
       
@@ -779,6 +810,7 @@ void ConstructNLSimple::handleButton()
       new CreateGraphGui( m_meterData, gClient->GetRoot(), 
                           gClient->GetDefaultRoot(), 
                           CgmsDataImport::MeterReading );
+      
       drawPreviews( kMERTER_PAD );
       enableCreateButton();
     break;
@@ -798,6 +830,10 @@ void ConstructNLSimple::handleButton()
       handleTimeLimitButton();
     break;
     
+    case kBASAL_AMOUNT:
+      enableCreateButton();
+    break;
+    
     case kCREATE:
       constructModel();
       CloseWindow();
@@ -807,7 +843,7 @@ void ConstructNLSimple::handleButton()
     case kCANCEL:
       assert( !m_model );
       CloseWindow();
-      return;
+      // return;
     break;
     
     assert(0);
@@ -829,16 +865,42 @@ void ConstructNLSimple::findTimeLimits()
   
   if( m_userSetTime ) return;
   
+  PosixTime endTime = kGenericT0;
+  PosixTime startTime = kGenericT0;
   
   if( m_cgmsData )
+  {
+    endTime = m_cgmsData->getEndTime();
+    startTime = m_cgmsData->getStartTime();
+  }//if( m_cgmsData )
+  
+  if( m_bolusData )
+  {
+    PosixTime end = m_bolusData->getEndTime() + TimeDuration( 24, 0, 0, 0 );
+    PosixTime start = m_bolusData->getStartTime() - TimeDuration( 24, 0, 0, 0 );
+    startTime = std::max( startTime, start );
+    endTime = std::min( endTime, end );
+  }//if( m_bolusData )
+  
+  if( m_carbConsumptionData )
+  {
+    PosixTime end = m_carbConsumptionData->getEndTime() + TimeDuration( 24, 0, 0, 0 );
+    PosixTime start = m_carbConsumptionData->getStartTime() - TimeDuration( 24, 0, 0, 0 );
+    startTime = std::max( startTime, start );
+    endTime = std::min( endTime, end );
+  }//if( m_carbConsumptionData )
+  
+  
+  
+  if( (endTime != kGenericT0) && (startTime != kGenericT0) )
   {
     m_startTimeEntry->SetEditDisabled( kFALSE );
     m_endTimeEntry->SetEditDisabled( kFALSE );
     m_startDateEntry->SetEditDisabled( kFALSE );
     m_endDateEntry->SetEditDisabled( kFALSE );
     
-    PosixTime endTime = m_cgmsData->getEndTime();
-    PosixTime startTime = m_cgmsData->getStartTime();
+    // PosixTime endTime = m_cgmsData->getEndTime();
+    // PosixTime startTime = m_cgmsData->getStartTime();
     // cout << "StartTime=" << startTime << " and endTime=" << endTime << endl;
     
     int startHours = startTime.time_of_day().hours();
@@ -868,7 +930,7 @@ void ConstructNLSimple::findTimeLimits()
     m_endTimeEntry->SetTime(endHours, endMinutes, 0 );
     m_startDateEntry->SetDate( startYear, startMonth, startDay );
     m_endDateEntry->SetDate( endYear, endMonth, endDay );
-  }//if( m_cgmsData )
+  }//if( we have time limits )
   
 }//void ConstructNLSimple::findTimeLimits()
 
@@ -930,6 +992,12 @@ void ConstructNLSimple::drawPreviews( GraphPad pad )
   
   for( size_t i = 0; i < graphs.size(); ++i )
   {
+    if( graphs[i]->GetN() < 2 ) 
+    {
+      cout << "Refusing to display " << graphs[i]->GetN() << " points" << endl;
+      continue;
+    }//if( graphs[i]->GetN() < 2 ) 
+    
     graphs[i]->SetLineColor( i+1 );
     if( i==0 ) graphs[i]->Draw( "Al" );
     else graphs[i]->Draw( "l" );
@@ -1004,15 +1072,23 @@ void ConstructNLSimple::constructModel()
   PosixTime endTime( endDate, endTimeDur );
   PosixTime startTime( startDate, startTimeDur );
   
-  m_bolusData->trim( startTime - TimeDuration(4,0,0,0), endTime );
+  m_bolusData->trim( startTime, endTime );
   m_cgmsData->trim( startTime, endTime );
-  m_carbAbsortionGraph->trim( startTime - TimeDuration(4,0,0,0), endTime );
+  m_carbAbsortionGraph->trim( startTime, endTime );
   
+  double insPerHour = m_basalInsulinAmount->GetNumber();
+  insPerHour /= PersonConstants::kPersonsWeight;
+  assert( insPerHour > 0.0 );
   
-  m_model = new NLSimple( "SimpleModel", 0, 0, m_bolusData->getT0() );
+  m_model = new NLSimple( "SimpleModel", insPerHour, 0, m_bolusData->getT0() );
   m_model->addBolusData( *m_bolusData );
   m_model->addCgmsData( *m_cgmsData );
   m_model->addGlucoseAbsorption( *m_carbAbsortionGraph );
+  
+  // m_model->m_freePlasmaInsulin = *m_bolusData;
+  // m_model->m_cgmsData = *m_cgmsData;
+  // m_model->m_glucoseAbsorbtionRate = *m_carbAbsortionGraph;
+  
 }//void ConstructNLSimple::constructModel()
 
 

@@ -244,7 +244,7 @@ class ConsentrationGraph : public std::set<GraphElement>
                   std::string title = "", 
                   bool pause = true,
                   int color = 0 ) const;
-    TGraph *ConsentrationGraph::getTGraph( PosixTime t_start = kGenericT0,
+    TGraph *getTGraph( PosixTime t_start = kGenericT0,
                                            PosixTime t_end = kGenericT0  ) const;
     
     void guiDisplay( bool pause = false );

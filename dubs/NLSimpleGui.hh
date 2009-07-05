@@ -134,6 +134,7 @@ class ConstructNLSimple : public TGTransientFrame
     TGNumberEntry *m_endDateEntry;
     TGNumberEntry *m_startTimeEntry;
     TGNumberEntry *m_endTimeEntry;
+    TGNumberEntry *m_basalInsulinAmount;
     
     TGButton *m_createButton;
     
@@ -177,6 +178,8 @@ class ConstructNLSimple : public TGTransientFrame
       kSTART_TIME,
       kEND_TIME,
       
+      kBASAL_AMOUNT,
+      
       kCREATE,  
       kCANCEL
     };//enum ButtonId
@@ -189,7 +192,6 @@ class ConstructNLSimple : public TGTransientFrame
     void enableCreateButton();
     void handleButton();
     void handleTimeLimitButton();  //kinda a hack, WidgetId for timeLimit buttons seems messed up see src
-    
     
     void findTimeLimits();
     void drawPreviews( GraphPad pad );

@@ -72,15 +72,17 @@ class ProgramOptionsGui : public TGCompositeFrame
     ProgramOptionsGui( const TGWindow *parentW, NLSimple *model, UInt_t w, UInt_t h );
     
     TGNumberEntry *addNewEntryField( TGVerticalFrame *parentFrame, 
-                                     char *label, double defaultNumer,
+                                     const char *label, double defaultNumer,
                                      TGNumberFormat::EStyle format, 
-                                     char *connect = NULL );
+                                     const char *connect = NULL );
         
     //The below both actually change the value of an option
     void valueChanged(UInt_t bitmask); // *SIGNAL*
     void optionValueChanged();         // *SIGNAL*
     void modelCalcValueChanged();      // *SIGNAL*
     void personConstChanged();         // *SIGNAL*
+    
+    ClassDef(ProgramOptionsGui, 0 );
 };
 
 

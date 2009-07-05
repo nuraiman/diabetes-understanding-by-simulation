@@ -41,7 +41,7 @@ endif
 
 # MacOS X 10.4.5 (gcc 4.0)
 ifeq ($(ARCH),macosx)
-MACOSX_DEPLOYMENT_TARGET = 10.4
+MACOSX_DEPLOYMENT_TARGET = 10.5
 DllSuf            = dylib
 CXX               = g++
 CFLAGS            = -g -pipe -W -Wall -Woverloaded-virtual -fsigned-char -fno-common -D__REGEXP -DG__UNIX -DG__SHAREDLIB -DG__ROOT -DG__REDIRECTIO -DG__OSFDLL
@@ -54,7 +54,7 @@ endif
 LIBDIR=.
 
 ROOTLIBS=$(shell root-config --glibs) -lMinuit -lMLP -lTreePlayer -lMinuit2 -lTMVA
-BOOSTLIBS=/usr/local/lib/libboost_date_time-xgcc40-mt.a  /usr/local/lib/libboost_serialization-xgcc40-mt.a /usr/local/lib/libboost_program_options-xgcc40-mt.a
+BOOSTLIBS=/lib/libboost_date_time-xgcc40-mt.a  /lib/libboost_serialization-xgcc40-mt.a /lib/libboost_program_options-xgcc40-mt.a
 GSLLIBS=/usr/local/lib/libgsl.a  /usr/local/lib/libgslcblas.a 
 
 CFLAGS += $(INCS)

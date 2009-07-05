@@ -48,7 +48,7 @@
 *      --Also make m_predictAhead be time ahead of current time, instead ofcgms
 *  Make a class (or function to NLSimple) that takes a NLSimple and performs
 *     'real-time' analasys.
-*  Add a belowBgBasalSigma, and aboveBgBasalSigma to BLSimple Class
+*  Add a belowBgBasalSigma, and aboveBgBasalSigma to NLSimple Class
 *    --to be used in the 'Solver' that solves what correction needs to be taken
 *  The 'Solver' should decide what correction should be taken (maybe make a correction class)
 *      to describe what correction should be taken
@@ -230,14 +230,18 @@ class NLSimple
                          PosixTime t_start = kGenericT0,
                          PosixTime t_end = kGenericT0 );
     
+    //useAssymetricErrors - set 'false' for determining accuracy, 'true' for optimizing insulin to be taken
     double getChi2ComparedToCgmsData( ConsentrationGraph &inputData,
                                       double fracDerivChi2 = 0.0,
+                                      bool useAssymetricErrors = false,
                                       PosixTime t_start = kGenericT0,
                                       PosixTime t_end = kGenericT0 );
     
     //Below gives chi^2 based only on height differences of graphs
+    //useAssymetricErrors - set 'false' for determining accuracy, 'true' for optimizing insulin to be taken
     double getBgValueChi2( const ConsentrationGraph &modelData,
                            const ConsentrationGraph &cgmsData,
+                           bool useAssymetricErrors,
                            PosixTime t_start, PosixTime t_end ) const;
     
     //Below gives chi^2 based on the differences in derivitaves of graphs
@@ -261,6 +265,13 @@ class NLSimple
     
     DVec chi2DofStudy( double endPredChi2Weight,
                              TimeRangeVec timeRanges = TimeRangeVec(0) ) const;
+    
+    // timeRanges -- the time range of events your fitting
+    // paramaterV -- contains answers and starting values
+    // resultGV   -- the result of the fit, must be of the proper type of graph
+    bool fitEvents( TimeRangeVec timeRanges, 
+                    std::vector< std::vector<double> *> &paramaterV, 
+                    std::vector<ConsentrationGraph *> resultGV );
     
     friend class NLSimpleGui;
     void runGui();
@@ -321,6 +332,12 @@ class ModelTestFCN : public ROOT::Minuit2::FCNBase, public TMVA::IFitterTarget
 //  As with everything else, this class is very un-optimized
 class FitNLSimpleEvent: public ROOT::Minuit2::FCNBase, public TMVA::IFitterTarget
 {
+  //TO DO:1)When fitting multiple events of the same type, right now Minuit2 
+  //        will treat the paramaters of each event seperately.  I should add
+  //        a term to the chi2 to tie these paramaters together.  This will
+  //        necessatate an accessor to get the mean and error of the paramaters
+  //      2)Create a method to constrain magnitude of events within an uncert.
+  
   public:
     FitNLSimpleEvent( const NLSimple *model );
     ~FitNLSimpleEvent(){};
@@ -330,7 +347,7 @@ class FitNLSimpleEvent: public ROOT::Minuit2::FCNBase, public TMVA::IFitterTarge
     //  returns the place in m_fitForEvents this graph ocupies
     //  InsulinGraph and BolusGraph must have 1 paramater in vector (amount insulin)
     //  GlucoseAbsorbtionRateGraph and BloodGlucoseConcenDeriv
-    //  must have 1 (amount ingented) or 5 paramaters (the Yates model paramters)
+    //  must have 1 (amount ingected) or 5 paramaters (the Yates model paramters)
     unsigned int addEventToFitFor( ConsentrationGraph *fitResult,
                                    PosixTime *startTime,
                                    const TimeDuration &timeUncert,

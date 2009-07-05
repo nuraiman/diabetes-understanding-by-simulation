@@ -206,7 +206,8 @@ void ConsentrationGraph::trim( const PosixTime &t_start, const PosixTime &t_end 
     
     if( lb == end() ) 
     {
-      cout << "ConsentrationGraph::trim(...): Warning, you are to removing"
+      cout << "ConsentrationGraph::trim( \"" << t_start << "\", \"" << t_end
+           << "\" ): Warning, you are to removing"
            << " all data, t_start (" << t_start 
            << ") is after the last data point (" << getEndTime() << ")" << endl;
     }// if( lb == end() ) 
@@ -230,7 +231,8 @@ void ConsentrationGraph::trim( const PosixTime &t_start, const PosixTime &t_end 
     
     if( ub == begin() ) 
     {
-      cout << "ConsentrationGraph::trim(...): Warning, you are to removing"
+      cout << "ConsentrationGraph::trim(\"" << t_start << "\", \"" << t_end
+           << "\" ): Warning, you are to removing"
            << " all data, t_end (" << t_end
            << ") is before first data point (" << getStartTime() << ")" << endl;
     }// if( lb == end() ) 
@@ -601,7 +603,7 @@ ConsentrationGraph ConsentrationGraph::getTotal( const ConsentrationGraph &rhs,
   
   foreach( const GraphElement &ge, static_cast< const GraphElementSet &>(rhs) )
   {
-    const ptime absTime = getAbsoluteTime( ge.m_minutes );
+    const ptime absTime = rhs.getAbsoluteTime( ge.m_minutes );
     
     if( !total.containsTime( absTime ) )
     {
@@ -642,7 +644,7 @@ ConsentrationGraph ConsentrationGraph::getTotal( double amountPerVol,
   
   foreach( const GraphElement &ge, static_cast<GraphElementSet &>(duplicateGraph) )
   {
-    const ptime absTime = total.getAbsoluteTime( ge.m_minutes );
+    const ptime absTime = duplicateGraph.getAbsoluteTime( ge.m_minutes );
     const double functionRelOffset = getDt( functionT0, absTime );
     double val = ge.m_value + f( amountPerVol, functionRelOffset);
     
@@ -1347,7 +1349,12 @@ TGraph *ConsentrationGraph::getTGraph( boost::posix_time::ptime t_start,
   
   TGraph *graph = new TGraph( nPoints, xAxis, yAxis );
   
-  if( nPoints < 4 ) return graph;
+  if( nPoints < 4 ) 
+  {
+    delete [] xAxis;
+    delete [] yAxis;
+    return graph;
+  }//if( nPoints < 4 ) 
   
   //Figure out how sparce to make the labels
   size_t nLabelSkip = 1;
@@ -1357,15 +1364,15 @@ TGraph *ConsentrationGraph::getTGraph( boost::posix_time::ptime t_start,
   
   const int nBins = graph->GetXaxis()->GetNbins();
   
-  if( newDayLabel.size() < 4 )
-  {
+  // if( newDayLabel.size() < 4 )
+  // {
     for( size_t i = 0; i < every60MinuteLabel.size(); i += nLabelSkip )
     {
       pair<double,string> label = every60MinuteLabel[i];
       int bin = graph->GetXaxis()->FindBin( label.first );
       if( bin <= nBins ) graph->GetXaxis()->SetBinLabel( bin, label.second.c_str() );
     }//foreach 15 minute label
-  }//if( graph is less than three days long )
+  // }//if( graph is less than three days long )
   
   for( size_t i=0; i<newDayLabel.size(); ++i )
   {
@@ -1425,6 +1432,11 @@ TGraph *ConsentrationGraph::getTGraph( boost::posix_time::ptime t_start,
   
   graph->SetTitle( graphTitle.c_str() );
   
+  const double startd = getOffset(t_start);
+  const double endd = getOffset(t_end);
+  if( (t_start != kGenericT0) && (t_end != kGenericT0) ) 
+    graph->GetXaxis()->SetLimits( startd, endd );
+      
   
   double *maxHeight = max_element( yAxis+0, yAxis+nPoints );
   double *minHeight = min_element( yAxis+0, yAxis+nPoints );
