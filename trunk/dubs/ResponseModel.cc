@@ -295,6 +295,14 @@ RK_PTimeDFunc NLSimple::getRKDerivFunc() const
 
 double NLSimple::getBasalInsulinConcentration( double unitsPerKiloPerhour )
 {
+  if( unitsPerKiloPerhour <= 0.0 )
+  {
+    cout << "Warning: you have selected a basil insulin rate of "
+         << unitsPerKiloPerhour << "Units Per Kilo Per hour"
+         << ". I am making basal insulin concentration equal 0.0" << endl;
+    return 0.0;
+  }//if( unitsPerKiloPerhour <= 0.0 )
+  
   ConsentrationGraph basalConcen( kGenericT0, 5.0, InsulinGraph );
   
   const double uPer5Min = unitsPerKiloPerhour / 12.0;
@@ -704,7 +712,7 @@ double NLSimple::getGraphOfMaxTimePredictions( ConsentrationGraph &predBg,
   if( firstCgmsTime < m_cgmsData.getStartTime() )
   {
     cout << "NLSimple::getGraphOfMaxTimePredictions(...) you want me to use"
-         << " cgms time from " << firstCgmsTime << " but I only have cgms from"
+         << " cgms time from " << firstCgmsTime << " but I only have cgms from "
          << m_cgmsData.getStartTime() << endl;
     exit(-1);
   }//if( m_cgmsData.getEndTime() < lastCgmsTime )
@@ -756,7 +764,7 @@ double NLSimple::getGraphOfMaxTimePredictions( ConsentrationGraph &predBg,
       const ptime t1 = currPred.getEndTime();  //note the very last time could be double-counted
       if( t1 <= knownBgEndTime )
       {
-        chi2 += getChi2ComparedToCgmsData( currPred, fracDerivChi2, t0, t1 );
+        chi2 += getChi2ComparedToCgmsData( currPred, fracDerivChi2, false, t0, t1 );
       }//if( we can get the chi2 )
     }//if( calcChi2 )
   }//for( loop over cgms points )
@@ -787,7 +795,7 @@ double NLSimple::getGraphOfMaxTimePredictions( ConsentrationGraph &predBg,
     {
       const ptime t0 = predBg.getStartTime();
       const ptime t1 = min( knownBgEndTime, predBg.getEndTime() );
-      double c = getChi2ComparedToCgmsData( predBg, 0.0, t0, t1 );
+      double c = getChi2ComparedToCgmsData( predBg, 0.0, false, t0, t1 );
       // cout << "chi2 of end-points of pred is " << c << endl;
       chi2 += (lastPointChi2Weight * c );
     }//
@@ -1172,13 +1180,14 @@ double NLSimple::getModelChi2( double fracDerivChi2,
                                boost::posix_time::ptime t_start,
                                boost::posix_time::ptime t_end )
 {
-  return getChi2ComparedToCgmsData( m_predictedBloodGlucose, fracDerivChi2, t_start, t_end );
+  return getChi2ComparedToCgmsData( m_predictedBloodGlucose, fracDerivChi2, false, t_start, t_end );
 }//getModelChi2
 
 
 
 double NLSimple::getChi2ComparedToCgmsData( ConsentrationGraph &inputData,
                                             double fracDerivChi2,
+                                            bool useAssymetricErrors,
                                             boost::posix_time::ptime t_start,
                                             boost::posix_time::ptime t_end) 
 {
@@ -1189,6 +1198,12 @@ double NLSimple::getChi2ComparedToCgmsData( ConsentrationGraph &inputData,
   
   if( fracDerivChi2 != 0.0 )
   {
+    if( useAssymetricErrors ) 
+    {
+      cout << "You can-not use assymetric errors when using the derivative to calc chi2" << endl;
+      exit(-1);
+    }//if( useAssymetricErrors ) 
+    
     ConsentrationGraph modelDerivData = inputData.getDerivativeGraph(60.0, BSplineSmoothing);
     ConsentrationGraph cgmsDerivData = m_cgmsData.getDerivativeGraph(60.0, BSplineSmoothing);
     
@@ -1199,7 +1214,7 @@ double NLSimple::getChi2ComparedToCgmsData( ConsentrationGraph &inputData,
   
   if( fracDerivChi2 != 1.0 )
   {
-    double magChi2 = getBgValueChi2( inputData, m_cgmsData, t_start, t_end );
+    double magChi2 = getBgValueChi2( inputData, m_cgmsData, useAssymetricErrors, t_start, t_end );
     chi2 += (1.0 - fracDerivChi2) * magChi2;
   }//if( fracDerivChi2 != 1.0 )
   
@@ -1211,6 +1226,7 @@ double NLSimple::getChi2ComparedToCgmsData( ConsentrationGraph &inputData,
 
 double NLSimple::getBgValueChi2( const ConsentrationGraph &modelData,
                                  const ConsentrationGraph &cgmsData,
+                                 bool useAssymetricErrors,
                                  boost::posix_time::ptime t_start,
                                  boost::posix_time::ptime t_end ) const
 {
@@ -1270,7 +1286,12 @@ double NLSimple::getBgValueChi2( const ConsentrationGraph &modelData,
     // cout << time << ": modelValue=" << modelValue << ", cgmsValue=" <<cgmsValue 
           // << ", uncert=" << uncert << endl;
     ++nPoints;
-    chi2 += pow( (modelValue - cgmsValue) / uncert, 2 );
+    if( useAssymetricErrors ) 
+    {
+      const double d = modelValue - cgmsValue;
+      if( d > 0.0 ) chi2 += pow( d / ModelDefaults::kBGHighSigma, 2 );
+      else          chi2 += pow( d / ModelDefaults::kBGLowSigma, 2 );
+    } else          chi2 += pow( (modelValue - cgmsValue) / uncert, 2 );
   }//for( loop over cgms data points )
   
   
@@ -1578,7 +1599,7 @@ double NLSimple::fitModelToDataViaMinuit2( double endPredChi2Weight,
     {
       predGluc = performModelGlucosePrediction( tStart, tr.second );
       // ptime chi2Start = ( predTime.is_negative() ) ?  tStart :  tStart + predTime + cgmsDelay;
-      chi2 += getChi2ComparedToCgmsData( predGluc, endPredChi2Weight, 
+      chi2 += getChi2ComparedToCgmsData( predGluc, endPredChi2Weight, false,
                                                      predGluc.getStartTime(), 
                                                      predGluc.getEndTime() );
     }//if( usePredictedChi2 ) else 
@@ -1594,6 +1615,23 @@ double NLSimple::fitModelToDataViaMinuit2( double endPredChi2Weight,
   
   return chi2;
 }//fitModelToData
+
+
+
+bool NLSimple::fitEvents( TimeRangeVec timeRanges, 
+                    std::vector< std::vector<double> *> &paramaterV, 
+                    std::vector<ConsentrationGraph *> resultGV )
+{
+  
+  FitNLSimpleEvent modelFcn( this );
+  
+  
+  
+}//bool NLSimple::fitEvents(...)
+
+
+
+
 
 
 //okay what were going to do is assume every parameter has a 20% error
@@ -1704,9 +1742,6 @@ void NLSimple::draw( bool pause,
                      boost::posix_time::ptime t_end  ) 
 {
   assert( gTheApp );
-  // Int_t dummy_arg = 0;
-  // if( !gTheApp ) gTheApp = new TApplication("App", &dummy_arg, (char **)NULL);
-  
    
   TGraph *cgmsBG  = m_cgmsData.getTGraph( t_start, t_end );
   TGraph *predBG  = m_predictedBloodGlucose.getTGraph( t_start, t_end );
@@ -1932,9 +1967,12 @@ bool NLSimple::saveToFile( std::string filename )
   
   
   unsigned int beginExtension = filename.find_last_of( "." );
-  string extention = filename.substr( beginExtension );
-  if( extention != ".dubm" ) filename += ".dubm";
-  
+  if( beginExtension == string::npos ) filename += ".dubm";
+  else
+  {
+    string extention = filename.substr( beginExtension );
+    if( extention != ".dubm" ) filename += ".dubm";
+  }//
   
   std::ofstream ofs( filename.c_str() );
   
@@ -2019,6 +2057,7 @@ double ModelTestFCN::testParamaters(const std::vector<double>& x, bool updateMod
       predGluc = m_modelPtr->performModelGlucosePrediction( tStart, tr.second );
       // ptime chi2Start = ( predTime.is_negative() ) ?  tStart :  tStart + predTime + cgmsDelay;
       chi2 += m_modelPtr->getChi2ComparedToCgmsData( predGluc, m_endPredChi2Weight, 
+                                                     false,
                                                    predGluc.getStartTime(), 
                                                    predGluc.getEndTime() );
     }//if( usePredictedChi2 ) else 

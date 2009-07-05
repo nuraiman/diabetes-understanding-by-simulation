@@ -129,10 +129,10 @@ TimeDuration ProgramOptions::roundToNearestSecond( const double nMinutes )
 
 
 TGNumberEntry *ProgramOptionsGui::addNewEntryField( TGVerticalFrame *parentFrame, 
-                                            char *label,
+                                            const char *label,
                                             double defaultNumer,
                                             TGNumberFormat::EStyle format,
-                                            char *connect )
+                                            const char *connect )
 {
   TGLabel *tglabel = new TGLabel(parentFrame, label);
   tglabel->SetTextJustify(36);

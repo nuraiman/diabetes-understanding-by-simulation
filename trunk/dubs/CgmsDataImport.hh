@@ -10,7 +10,7 @@
 #include <iostream>
 #include "boost/date_time/posix_time/posix_time.hpp"
 
-#include "ArtificialPancrease.hh" //contains useful typedefs and constants
+#include "ArtificialPancrease.hh"
 #include "ConsentrationGraph.hh"
 
 

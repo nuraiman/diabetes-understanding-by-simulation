@@ -60,7 +60,7 @@ CgmsDataImport::importSpreadsheet( string filename, InfoType type,
 	  if( currentLine[0] == '#' ) continue;
 	  if( currentLine.find_first_not_of(", ") == string::npos ) continue;
     
-    //cout << "On Line: " << currentLine << endl;
+    // cout << "On Line: " << currentLine << endl;
     
     if( indMap.empty() )
     {
