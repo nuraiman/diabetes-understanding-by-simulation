@@ -999,8 +999,13 @@ void ConstructNLSimple::drawPreviews( GraphPad pad )
     }//if( graphs[i]->GetN() < 2 ) 
     
     graphs[i]->SetLineColor( i+1 );
-    if( i==0 ) graphs[i]->Draw( "Al" );
-    else graphs[i]->Draw( "l" );
+    
+    string drawOptions;
+    if( i==0 ) drawOptions += 'A';
+    if( pad == kCGMS_PAD ) drawOptions += 'l';
+    else                   drawOptions += '*';
+    
+    graphs[i]->Draw( drawOptions.c_str() );
   }//for( size_t i = 0; i < graphs.size(); ++i )
   
   updateModelGraphSize();
