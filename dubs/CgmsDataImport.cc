@@ -25,12 +25,7 @@
 using namespace std;
 using namespace boost;
 using namespace boost::posix_time;
-
-//To make the code prettier
-#define foreach         BOOST_FOREACH
-#define reverse_foreach BOOST_REVERSE_FOREACH
-
-
+using namespace CgmsDataImport;
 
 
 
@@ -599,6 +594,250 @@ CgmsDataImport::carbConsumptionToSimpleCarbAbsorbtionGraph(
 }//carbConsumptionToSimpleCarbAbsorbtionGraph(...)
 
 
+
+unsigned int CgmsDataImport::elfHash( const char *name )
+{
+  //adapted from http://forums.devshed.com/c-programming-42/hash-function-in-c-54284.html
+  //  and https://www.abbottdiabetescare.com/en_US/content/document/DOC14109_Rev-A.pdf
+  unsigned int result = 0, x;
+
+  while( *name )
+  {
+    result = ( result << 4 ) + *name++;  //name isn't necassarily unsigned char...
+    x = result & 0xF0000000;
+    
+    if( x ) result ^= x >> 24;  // '^=' is exclusive or
+
+    result &= ~x;
+  }//while( more character left )
+
+  return result; // % 997;
+}//unsigned int CgmsDataImport::elfHash( const char *name);
+
+
+PosixTime CgmsDataImport::getDateFromNavigatorDate( const string &navDate )
+{
+  using boost::lexical_cast;
+  using boost::bad_lexical_cast;
+    
+  size_t periodPos = navDate.find( "." );
+  if( (navDate.find_first_of(".") != navDate.find_last_of("."))
+      || (periodPos == string::npos) )
+  {
+    cout << "Warning, Navigator date should have one decimal point: \"" << navDate
+         << "\" does not" << endl;
+    return kGenericT0;
+  }//
+  
+  const string dateField = navDate.substr(0, periodPos);
+  const string timeField = "0" + navDate.substr(periodPos, string::npos);
+  
+  int nDays = -1;
+  double dayFrac = -1.0;
+  
+  try{ nDays = lexical_cast<int>(dateField); } 
+  catch( bad_lexical_cast &)
+  {
+    cout << "\"" << navDate << "\" is an invalid date (" << dateField 
+         << " not integer)" << endl;
+    exit(-1);
+    return kGenericT0;
+  }//try catch
+  
+  try{ dayFrac = lexical_cast<double>(timeField); } 
+  catch ( bad_lexical_cast &)
+  {
+    cout << "\"" << navDate << "\" is an invalid date (" << timeField 
+         << " not double)" << endl;
+    exit(-1);
+    return kGenericT0;
+  }//try catch
+  
+  assert( nDays > 0 );
+  assert( dayFrac >= 0.0 );
+  assert( dayFrac <= 1.0 );
+  
+  PosixTime time = kNavigatorT0 + TimeDuration( 24*nDays, 0, 0, 0 );
+  time += toTimeDuration(24.0 * 60.0 * dayFrac);
+  
+  cout << "\"" << navDate << "\"=" << time << endl;
+  
+  return time;
+}//getDateFromNavigatorDate( const string &navDate )
+
+
+  
+NavEvent::NavEvent( const std::string &line ) : m_dateTime(kGenericT0)
+{
+  using boost::lexical_cast;
+  using boost::bad_lexical_cast;
+  
+  for( NavLinePos pos = NavLinePos(0); 
+       pos < NumNavLinePos; pos = NavLinePos(pos+1) )
+  {
+    m_intData[pos] = 0;
+    m_floatData[pos] = 0.0;
+    m_data[pos] = "";
+  }//for( loop over data positons 'pos' )
+  
+  vector< string > fields;
+  algorithm::split( fields, line, is_any_of("\t") );
+  
+  
+  if( fields.size() > 1 && fields.size() != NumNavLinePos )
+  {
+    cout << "NavEvent: Warning following line not a valid Navigator line" << endl
+         << line << endl;
+  }//
+  algorithm::trim(fields[DATEEVENT]);
+  if( fields.size() != NumNavLinePos ) return;
+  if( fields[DATEEVENT] == "" ) return;
+  if( fields[DATEEVENT] == "DATEEVENT" ) return; //it's the header of the file
+  
+  for( NavLinePos pos = NavLinePos(0); 
+       pos < NumNavLinePos; pos = NavLinePos(pos+1) )
+  {
+    m_data[pos] = fields[pos];
+    algorithm::trim( m_data[pos] );
+  }//for( loop over data positons 'pos' )
+  
+  m_dateTime = getDateFromNavigatorDate( m_data[DATEEVENT] );
+  
+  for( NavLinePos intPos = TIMESLOT; intPos < D0; intPos = NavLinePos(intPos+1) )
+  {
+    if( m_data[intPos].empty() || intPos==DEVICE_MODEL || intPos==DEVICE_ID 
+        || intPos==VENDOR_EVENT_TYPE_ID || intPos==VENDOR_EVENT_ID ) continue; //skip over non integers
+  
+    
+    try{ m_intData[intPos] = lexical_cast<int>(m_data[intPos]); } 
+    catch ( bad_lexical_cast &)
+    {
+      cout << "\"" << m_data[intPos] << "\" is an invalid int" << endl;
+      exit(-1);
+    }//try catch
+  }//for( loop over potential integer 
+  
+  //the isManual flag
+  try{ m_intData[ISMANUAL] = lexical_cast<int>(m_data[ISMANUAL]); } 
+  catch ( bad_lexical_cast &)
+  {
+    cout << "\"" << m_data[ISMANUAL] << "\" is an invalid int" << endl;
+    exit(-1);
+  }//try catch
+    
+    
+  for( NavLinePos dPos = D0; dPos <= D4; dPos = NavLinePos(dPos+1) )
+  {  
+    try{ m_floatData[dPos] = lexical_cast<double>(m_data[dPos]); } 
+    catch ( bad_lexical_cast &)
+    {
+      cout << "\"" << m_data[dPos] << "\" is an invalid double" << endl;
+      exit(-1);
+    }//try catch
+  }//for( loop over potential integer 
+  //we're done
+}//NavEvent::NavEvent( const std::string &line )
+  
+
+NavEvent::~NavEvent(){}
+
+bool NavEvent::isEventType( const NavEVENTTYPE evtType ) const
+{
+  return (evtType == m_intData[EVENTTYPE]);
+}//isEventType(...)
+
+
+//for all
+bool NavEvent::empty() const
+{
+  return m_data[DATEEVENT].empty();
+}//empty()
+
+
+
+PosixTime NavEvent::getTime() const
+{
+  return m_dateTime; 
+}//getTime()
+
+      
+//for excersize
+TimeDuration NavEvent::duration() const //elfhash key0
+{
+  assert( m_intData[EVENTTYPE] == ET_Exercise );
+  unsigned int duration = elfHash( m_data[KEY0].c_str() );
+  
+  cout << m_data[KEY0] << " hashes to a duration of " << duration << endl;
+  
+  return TimeDuration( 0, duration, 0, 0 );
+}//duration()
+
+int NavEvent::intensity() const //elfhash key2
+{
+  assert( m_intData[EVENTTYPE] == ET_Exercise );
+  unsigned int intensity = elfHash( m_data[KEY2].c_str() );
+  cout << m_data[KEY2] << " hashes to a intensity of " << intensity << endl;
+  
+  return static_cast<int>(intensity);
+}//int NavEvent::intensity()
+
+
+//for insulin bolus
+double NavEvent::bolusAmount() const
+{
+  assert( m_intData[EVENTTYPE] == ET_BolusInsulin );
+  return m_floatData[D0];
+}//double NavEvent::bolusAmount() const
+
+
+bool NavEvent::isManual() const
+{
+  assert( m_intData[EVENTTYPE] == ET_BolusInsulin );
+  return m_intData[ISMANUAL];
+}//double NavEvent::bolusAmount() const
+      
+
+//for glucose
+int NavEvent::glucose() const
+{
+  assert( m_intData[EVENTTYPE] == ET_Glucose );
+  return m_intData[I1];
+}//int NavEvent::glucose()
+
+
+bool NavEvent::isInRange() const  //check if low, high, or a Control Value
+{
+  assert( m_intData[EVENTTYPE] == ET_Glucose );
+  
+  return (m_intData[I0]==0 && m_intData[I2]==0 && m_intData[I4]==0);
+}//bool NavEvent::isInRange()
+
+
+bool NavEvent::isCGMData() const  //true if from cgms, false if from fingerstick
+{
+  assert( m_intData[EVENTTYPE] == ET_Glucose );
+  assert( m_intData[I5]==0 || m_intData[I5]==1 );
+  return m_intData[I5]==1;
+}//isCGMData()
+
+
+//for Meal
+double NavEvent::carbs() const  //field D1
+{
+  assert( m_intData[EVENTTYPE] == ET_Meal );
+  return m_floatData[D1];
+}//
+//could have proteins, fat, calories etc.
+      
+//for generic
+int NavEvent::genericType() const
+{
+  assert( m_intData[EVENTTYPE] == ET_Generic );
+  
+  return m_intData[I0];
+}//NavEvent::genericType()
+  
+  
 
 
 
