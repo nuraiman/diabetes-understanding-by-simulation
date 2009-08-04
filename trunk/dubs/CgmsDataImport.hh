@@ -57,6 +57,89 @@ namespace CgmsDataImport
   const std::string kCgmsValueKeyMM   = "Sensor Glucose (mg/dL)";
 
 
+  //Navigator imports gets special attential since they have wonderful documentation
+  //https://www.abbottdiabetescare.com/en_US/content/document/DOC14109_Rev-A.pdf
+  //Also, many of the features that could be implmented are not since other
+  //  parts of the project are not using them yet
+  enum NavLinePos
+  {
+    DATEEVENT = 0, TIMESLOT, EVENTTYPE, 
+    DEVICE_MODEL, DEVICE_ID, VENDOR_EVENT_TYPE_ID, VENDOR_EVENT_ID, //we will ignore
+    KEY0, KEY1, KEY2,
+    I0, I1, I2, I3, I4, I5, I6, I7, I8, I9, 
+    D0, D1, D2, D3, D4, 
+    C0, C1, C2, C3, C4, C5, C6, C7, C8, C9,
+    ISMANUAL, COMMENT, NumNavLinePos
+  };//enum NavLinePos
+  
+  
+  enum NavTimeSlot
+  {
+    PRE_BREAKFAST = 0, POST_BREAKFAST = 1, PRE_LUNCH = 2, POST_LUNCH = 3,
+    PRE_DINNER = 4, POST_DINNER = 5, BED_TIME = 6, SLEEP = 7
+  };//enum NavTimeSlot
+  
+  enum NavEVENTTYPE
+  {
+    ET_Exercise = 0,      ET_Glucose = 1,
+    ET_BasalInsulin = 2,  ET_BolusInsulin = 3,
+    ET_LabResults = 4,    ET_Meal = 5, 
+    ET_Medical_Exams = 6, ET_Medications = 7, 
+    ET_Notes = 8,         ET_StateOfHealth = 9,
+    ET_Ketone = 10,       ET_Alarms = 15,
+    ET_Generic = 16,
+    NumNavEVENTTYPE
+  };//enum NavEVENTTYPE
+  
+  const PosixTime kNavigatorT0( boost::gregorian::date(1899, 
+                                boost::gregorian::Dec, 30), 
+                                TimeDuration( 0, 0, 0, 0));
+  PosixTime getDateFromNavigatorDate( const std::string &navDate );
+  unsigned int elfHash( const char *str );  //str must be null terminated 
+
+  class NavEvent
+  {
+    public:
+      PosixTime m_dateTime;
+      int m_intData[NumNavLinePos];      //includes the keys data and ISMANUAL
+      int m_floatData[NumNavLinePos];    
+      std::string m_data[NumNavLinePos];  //raw, split data
+      
+      NavEvent( const std::string &line );
+      ~NavEvent();
+      
+      bool isEventType( const NavEVENTTYPE evtType ) const;
+      
+      //for all
+      bool empty() const;
+      PosixTime getTime() const;
+      
+      //for excersize
+      TimeDuration duration() const;  //elfhash key0
+      int intensity() const;          //elfhash key2
+      
+      //for insulin bolus
+      double bolusAmount() const;
+      bool isManual() const;
+      
+      //for glucose
+      int glucose() const;
+      bool isInRange() const;  //check if low, high, or a Control Value
+      bool isCGMData() const;  //true if from cgms, false if from fingerstick
+      
+      //for Meal
+      double carbs() const;  //field D1
+      //could have proteins, fat, calories etc.
+      
+      //for generic
+      int genericType() const;    
+  };//class NavEvent
+  
+  
+  
+  
+  
+
   //Now Start the functions
   ConsentrationGraph importSpreadsheet( std::string filename, InfoType type, 
                                 boost::posix_time::ptime startTime = kGenericT0,
