@@ -56,6 +56,7 @@ CreateGraphGui::CreateGraphGui(  ConsentrationGraph *&graph,
   
   const char *fileType[] = { //"All Data Types",  "*.txt,*.csv",
                              "All Files",              "*",
+                             "Navigator",              "*.TAB*",
                              "ConsentrationGraph",     "*.dub",
                              "spread sheet (minimed)", "*.csv",
                              "text (dexcom)",          "*.txt",

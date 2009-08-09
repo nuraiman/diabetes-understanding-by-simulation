@@ -450,8 +450,8 @@ void NLSimple::findSteadyStateBeginings( double nHoursNoInsulin )
   m_startSteadyStateTimes.clear();
   
    
-  const ptime cgmsStartTime = m_cgmsData.getT0();
-  const ptime insulinStartTime = m_freePlasmaInsulin.getT0();
+  const ptime cgmsStartTime = m_cgmsData.getStartTime();
+  const ptime insulinStartTime = m_freePlasmaInsulin.getStartTime();
   
   const time_duration noInsulinDur = getAbsoluteTime( 60.0 * nHoursNoInsulin ) 
                                      - getAbsoluteTime(0);
@@ -643,6 +643,12 @@ void NLSimple::makeGlucosePredFromLastCgms( ConsentrationGraph &predBg,
     return;
   }//something screwy
     
+  if( m_dt > m_predictAhead )
+  {
+    cout << "The integration timestep of " << m_dt << " is larger than the"
+         << " predict ahead time of " << m_predictAhead << endl;
+    exit(1);
+  }//if( m_dt > m_predictAhead )
   
   
   ptime time;
@@ -665,6 +671,19 @@ void NLSimple::makeGlucosePredFromLastCgms( ConsentrationGraph &predBg,
     const double actualGlucoseValue = gAndX[0]+m_basalGlucoseConcentration;
     predBg.insert( time+m_dt, actualGlucoseValue );
     assert( (time+dt) == (cgmsEndTime + m_predictAhead) );
+    
+    if( predBg.getEndTime() != (cgmsEndTime + m_predictAhead) )
+    {
+      cout << "predBg.getEndTime() != (cgmsEndTime + m_predictAhead)" << endl
+           << predBg.getEndTime() << " != (" << cgmsEndTime << " + "
+           << m_predictAhead << ")" << endl
+           << predBg.getEndTime() << " != " << cgmsEndTime + m_predictAhead 
+           << endl
+           << "Just inserted " << actualGlucoseValue << " at " 
+           << time << " + " << m_dt << " = " << time+m_dt << endl;
+      exit(1);
+    }//
+    
     assert( predBg.getEndTime() == (cgmsEndTime + m_predictAhead) );
   }//if( need one more step )
   
@@ -693,7 +712,8 @@ double NLSimple::getGraphOfMaxTimePredictions( ConsentrationGraph &predBg,
   
   if( firstCgmsTime == kGenericT0 )
   {
-    firstCgmsTime = m_predictedInsulinX.getStartTime();
+    if( m_predictedInsulinX.empty() ) firstCgmsTime = m_cgmsData.getStartTime();
+    else                    firstCgmsTime = m_predictedInsulinX.getStartTime();
     
     // cout << "getGraphOfMaxTimePredictions(...): First value available for X"
          // << " is at time " << firstCgmsTime << endl;
@@ -989,7 +1009,15 @@ ConsentrationGraph NLSimple::glucPredUsingCgms( int nMinutesPredict,  //nMinutes
 
 
 void NLSimple::updateXUsingCgmsInfo( bool recomputeAll )
-{
+{ 
+  if( m_paramaters.size() != NumNLSimplePars )
+  {
+    cout << "void NLSimple::updateXUsingCgmsInfo( bool recomputeAll ): You must"
+         << " have " << NumNLSimplePars << " in m_paramaters. You have " 
+         << m_paramaters.size() << endl;
+    exit(1);
+  }//if( m_paramaters.size() != NumNLSimplePars )
+  
   if( recomputeAll ) m_predictedInsulinX.clear();
   
    const ptime endTime = m_cgmsData.getEndTime() - m_cgmsDelay;
@@ -1800,25 +1828,23 @@ void NLSimple::draw( bool pause,
     xPred->SetPoint( i, x, xScale * (y-xMin) + xOffset);
   }//for( loop over glucAbs points )
   
-  //Now adjust for the time of CGMS
-  map<double, string> labelMap;
-  TAxis *cgmsAxis = cgmsBG->GetXaxis();
+  
+  //One problem is that calling cgmsBG->SetPoint(...) erases all the labels
+  TH1 *axisHisto = (TH1 *)cgmsBG->GetHistogram()->Clone();
+  const double cgms_minutes_delay = toNMinutes(m_cgmsDelay);
   
   for( int i=0; i<cgmsBG->GetN(); ++i )
   {
     double x=0.0, y=0.0;
     cgmsBG->GetPoint( i, x, y );
-    int origBin = cgmsAxis->FindBin( x );
-    labelMap[x - toNMinutes(m_cgmsDelay)] = cgmsAxis->GetBinLabel(origBin);
-    cgmsBG->SetPoint( i, x - toNMinutes(m_cgmsDelay), y);
+    cgmsBG->SetPoint( i, x - cgms_minutes_delay, y);
   }//for( loop over glucAbs points )
   
-  map<double, string>::iterator iter;
-  for( iter = labelMap.begin(); iter != labelMap.end(); ++iter )
-  {
-    int bin = cgmsAxis->FindBin( iter->first );
-    cgmsAxis->SetBinLabel( bin, iter->second.c_str() );
-  }//
+  //Before setting the cgmsBG's histogram, we'll avoid memmorry leaks (maybe)
+  TH1 *uslessHistPtr = cgmsBG->GetHistogram();
+  cgmsBG->SetHistogram(NULL);
+  delete uslessHistPtr;
+  cgmsBG->SetHistogram(axisHisto);
   
   // minHeight -= 0.2 * abs(minHeight);
   minHeight -= 0.25 * graphRange; 
@@ -1830,11 +1856,11 @@ void NLSimple::draw( bool pause,
   cgmsBG->SetMaximum( maxHeight );
   predBG->SetMaximum( maxHeight );
   
-  cgmsBG->SetLineColor(1);  //black
-  predBG->SetLineColor(2);   //red
+  cgmsBG->SetLineColor(1);    //black
+  predBG->SetLineColor(2);    //red
   glucAbs->SetLineColor(4);   //blue
   insConc->SetLineColor(28);  //brown
-  xPred->SetLineColor(28);  //brown
+  xPred->SetLineColor(28);    //brown
   
   cgmsBG->SetLineWidth(2);
   predBG->SetLineWidth(2);
@@ -1852,7 +1878,10 @@ void NLSimple::draw( bool pause,
   {
     predBG->Draw( "Al" );
     cgmsBG->Draw( "l" );
-  }else cgmsBG->Draw( "Al" );
+  }else 
+  {
+    cgmsBG->Draw( "Al" );
+  }
   
   if( glucAbs->GetN() ) glucAbs->Draw( "l" );
   if( xPred->GetN() )   xPred->Draw( "l" );

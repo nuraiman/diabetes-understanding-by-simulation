@@ -106,7 +106,7 @@ NLSimpleGui::NLSimpleGui( NLSimple *model, bool runApp )
   
   drawModel();
   drawEquations();
-  
+  drawModel();  //first time it is drawn, it's weird; so this is a complete hack
   if( runApp ) gApplication->Run(kTRUE);
 }//NLSimpleGui()
 
@@ -1084,7 +1084,7 @@ void ConstructNLSimple::constructModel()
   double insPerHour = m_basalInsulinAmount->GetNumber();
   insPerHour /= PersonConstants::kPersonsWeight;
   assert( insPerHour > 0.0 );
-  
+
   m_model = new NLSimple( "SimpleModel", insPerHour, 0, m_bolusData->getT0() );
   m_model->addBolusData( *m_bolusData );
   m_model->addCgmsData( *m_cgmsData );
@@ -1093,7 +1093,6 @@ void ConstructNLSimple::constructModel()
   // m_model->m_freePlasmaInsulin = *m_bolusData;
   // m_model->m_cgmsData = *m_cgmsData;
   // m_model->m_glucoseAbsorbtionRate = *m_carbAbsortionGraph;
-  
 }//void ConstructNLSimple::constructModel()
 
 

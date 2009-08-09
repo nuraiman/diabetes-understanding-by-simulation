@@ -93,7 +93,7 @@ double NovologConsentrationFunc( double unitsPerKilogram, double nMinutes )
                (210, 20.5-19.0) (225, 19.0-19.0);
                
   double consentration = 0.0;
-  
+  if( unitsPerKilogram <= 0.0 ) return consentration;
   if( nMinutes < 0.0 || nMinutes > 225 ) return consentration;
   
   ConstGraphIter lb = data.lower_bound( GraphElement(nMinutes, 0.0) );
@@ -127,6 +127,8 @@ ConsentrationGraph novologConsentrationGraph(
                    double unitsPerKilogram, double timeStep )
 {
   ConsentrationGraph insConcen( t0, timeStep, InsulinGraph );
+  
+  if( unitsPerKilogram <= 0.0 ) return insConcen;
   
   double insulinConcentration = 0.0;
   for( double t=0.0; t<20.0 || insulinConcentration > 0.0; t += timeStep )

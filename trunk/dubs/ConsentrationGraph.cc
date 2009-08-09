@@ -198,6 +198,7 @@ ptime ConsentrationGraph::getAbsoluteTime( double nOffsetMinutes ) const
 
 void ConsentrationGraph::trim( const PosixTime &t_start, const PosixTime &t_end )
 {
+  if( empty() ) return;
   
   if( t_start != kGenericT0 )
   {
@@ -1385,11 +1386,17 @@ TGraph *ConsentrationGraph::getTGraph( boost::posix_time::ptime t_start,
   
   graph->GetXaxis()->CenterLabels(kFALSE);
   
+  ptime firstTime = getAbsoluteTime( (begin())->m_minutes );
   ptime lastTime = getAbsoluteTime( (--end())->m_minutes );
   
-  string graphTitle = ", From " + getDateForGraphTitle( m_t0 ) 
-                      + " Through " + getDateForGraphTitle( lastTime ) ;
+  string graphTitle = ", From ";
   
+  if( t_start != kGenericT0 ) graphTitle += getDateForGraphTitle( t_start );
+  else                        graphTitle += getDateForGraphTitle( firstTime );
+  graphTitle += " Through ";
+  if( t_end != kGenericT0 )   graphTitle += getDateForGraphTitle(t_end) ;
+  else                        graphTitle += getDateForGraphTitle(lastTime) ;
+                      
   if( m_t0.date() == lastTime.date() ) graphTitle = ", " + getDateForGraphTitle( m_t0 );
   
   
