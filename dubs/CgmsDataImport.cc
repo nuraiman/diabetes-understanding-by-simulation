@@ -45,6 +45,9 @@ CgmsDataImport::importSpreadsheet( string filename, InfoType type,
     exit(1);
   }//if( !inputFile.is_open() 
   
+  int nThisMinute = 0;
+  PosixTime prevTime = kGenericT0;
+  
   string currentLine;
   
   while( !inputFile.eof() )
@@ -57,19 +60,40 @@ CgmsDataImport::importSpreadsheet( string filename, InfoType type,
     
     // cout << "On Line: " << currentLine << endl;
     
-    if( indMap.empty() )
+    if( indMap.empty() && source!=NavigatorTab )
     {
       indMap = getHeaderMap( currentLine );
-      if( !indMap.empty() )  source = getSpreadsheetTypeFromHeader(currentLine);
+      SpreadSheetSource sssource = getSpreadsheetTypeFromHeader(currentLine);
+      if( !indMap.empty() || sssource==NavigatorTab )  source = sssource;
     }else
     {
       assert( source != NumSpreadSheetSource );
       TimeValuePair lineinfo = getInfoFromLine( currentLine, indMap, type, source );
       
+      //make sure not a something like 2 bolusses in the same minute, 
+      //which would crash program later on. 
+      bool isDuplicateTime = false;
+      if( (prevTime!=kGenericT0) && (prevTime==lineinfo.first) ) 
+      {
+        nThisMinute+=2;
+        isDuplicateTime = true;
+        lineinfo.first += TimeDuration(0, 0, nThisMinute,0);
+        // cout << "Adding " << nThisMinute << " seconds to " << lineinfo.first 
+             // << "  -value: " << lineinfo.second << endl;
+      }//if( second time in a row we have event in same minute )
+      
       if( lineinfo.second != kFailValue ) timeValues.push_back( lineinfo );
+      
+      
+      if( (lineinfo.first!=kGenericT0) && !isDuplicateTime )
+      {
+        nThisMinute = 0;
+        prevTime = lineinfo.first;
+      }//the was a new time
     }//if( indMap.empty() ) / else
   }//while( !inputFile.eof() )
     
+  
   GraphType graphType = NumGraphType;
   switch(type)
   {
@@ -85,9 +109,13 @@ CgmsDataImport::importSpreadsheet( string filename, InfoType type,
   
   double dt = 5.0;
  
-  if( indMap.empty() ) cout << "Couldn't decode file " << filename << endl;
-    
-  assert( !indMap.empty() );
+  if( indMap.empty() && source!=NavigatorTab ) 
+  {
+    cout << "Couldn't decode file " << filename << endl;
+    exit(1);  //keep from getting assert below and taking hecka time on my mac
+  }//if( couldn' tdecode this file )
+  
+  assert( !indMap.empty() || source==NavigatorTab );
   
   if( timeValues.empty() ) return  ConsentrationGraph( startTime, dt, graphType );
 
@@ -107,7 +135,7 @@ CgmsDataImport::importSpreadsheet( string filename, InfoType type,
     const ptime thisTime   = pairInfo.first;
     const double thisValue = pairInfo.second;
     
-    // cout << "On " << to_simple_string(thisTime) << "  " << thisValue << endl;
+    // cout << "On " << thisTime << "  " << thisValue << endl;
     
     if( (startTime != kGenericT0) && (thisTime <= startTime) ) timeOkay = false;
     if( (endTime   != kGenericT0) && (thisTime >= endTime) ) timeOkay = false;
@@ -198,7 +226,9 @@ CgmsDataImport::getHeaderMap( std::string line )
   SpreadSheetSource source = getSpreadsheetTypeFromHeader( line );
   
   //if( this wasn't a header line of text )
+  if( source == NavigatorTab ) return properKeyedMap;
   if( source == NumSpreadSheetSource ) return properKeyedMap;
+  
   
   algorithm::trim(line);
   
@@ -268,7 +298,9 @@ CgmsDataImport::getHeaderMap( std::string line )
         properKeyedMap[kTimeKey] = 3;
       }//if( has DisplayTime )
     break;
-   
+    
+    case NavigatorTab:
+    
     assert(0);
   }//switch( source )
     
@@ -296,6 +328,13 @@ CgmsDataImport::getSpreadsheetTypeFromHeader( std::string header )
   if( header.find(kMeterBgKeyMM) != string::npos )            return MiniMedCsv;
   if( header.find(kCalibrationKeyMM) != string::npos )        return MiniMedCsv;
   if( header.find("Sensor Glucose (mg/dL)") != string::npos ) return MiniMedCsv;
+  
+  if( header.find("DATEEVENT") != string::npos ) 
+  {
+    assert(  header.find("\t") != string::npos );
+    return NavigatorTab;
+  }//if( navigator )
+  
   
   return NumSpreadSheetSource;
 }//getSpreadsheetTypeFromHeader
@@ -334,12 +373,51 @@ CgmsDataImport::getEolCharacter( std::string fileName )
 }//getEolCharacter
 
   
+
+CgmsDataImport::TimeValuePair 
+CgmsDataImport::getNavigatorInfo( string line, InfoType type )
+{
+  TimeValuePair returnInfo( kGenericT0, kFailValue );
+  
+  NavEVENTTYPE navEventTypeWanted = NumNavEVENTTYPE;
+  
+  switch( type )
+  {
+    case CgmsReading:      navEventTypeWanted = ET_Glucose_CGMS;  break;
+    case MeterReading:     navEventTypeWanted = ET_Glucose_METER; break;
+    case MeterCalibration: assert(0); //navEventTypeWanted = ET_Glucose_CALIBRATION;
+    case GlucoseEaten:     navEventTypeWanted = ET_Meal;          break;
+    case BolusTaken:       navEventTypeWanted = ET_BolusInsulin;  break;
+    case ISig:             assert(0);
+  };//switch( type )
+  
+  algorithm::trim(line);
+  if( line.size() == 0 ) return returnInfo;
+	if( line[0] == '#' )   return returnInfo;
+	if( line.find_first_not_of("\t") == string::npos ) return returnInfo;
+    
+  NavEvent event(line);
+  if( !event.isEventType(navEventTypeWanted) ) return returnInfo;
+  
+  returnInfo.first = event.getTime();
+  returnInfo.second = event.getValue(navEventTypeWanted);
+  
+  // cout << "For navigator I got " << returnInfo.first << "  -  value=" << returnInfo.second << endl;
+  return returnInfo;
+}//getNavigatorInfo(...)
+
+
+
+
+
 CgmsDataImport::TimeValuePair 
 CgmsDataImport::getInfoFromLine( std::string line, 
                                  IndexMap headerMap, 
                                  InfoType infoWanted,
                                  SpreadSheetSource source )
 {
+  if( source == NavigatorTab ) return getNavigatorInfo( line, infoWanted );
+  
   string key = "";
 
   switch( infoWanted )
@@ -552,16 +630,13 @@ CgmsDataImport::bolusGraphToInsulinGraph( const ConsentrationGraph &bolusGraph,
   
   const ptime t0 = bolusGraph.getT0();
   const double dt = 1.0;
-  
   ConsentrationGraph insConcen( t0, dt, InsulinGraph );
-  
   foreach( const GraphElement &el, bolusGraph )
   {
-    insConcen.add( el.m_value / weight, el.m_minutes, NovologAbsorbtion );
+    if( el.m_value > 0.0 ) insConcen.add( el.m_value / weight, el.m_minutes, NovologAbsorbtion );
   }//foreach bolus
-  
+ 
   insConcen.removeNonInfoAddingPoints();
-  
   return insConcen;
 }//bolusGraphToInsulinGraph
 
@@ -619,18 +694,18 @@ PosixTime CgmsDataImport::getDateFromNavigatorDate( const string &navDate )
 {
   using boost::lexical_cast;
   using boost::bad_lexical_cast;
-    
+  
   size_t periodPos = navDate.find( "." );
-  if( (navDate.find_first_of(".") != navDate.find_last_of("."))
-      || (periodPos == string::npos) )
+  if( navDate.find_first_of(".") != navDate.find_last_of(".") )
   {
-    cout << "Warning, Navigator date should have one decimal point: \"" << navDate
-         << "\" does not" << endl;
+    cout << "Warning, Navigator date shouldn't have than one decimal point: \"" 
+         << navDate << "\" does not" << endl;
     return kGenericT0;
   }//
   
   const string dateField = navDate.substr(0, periodPos);
-  const string timeField = "0" + navDate.substr(periodPos, string::npos);
+  const string timeField = (periodPos==string::npos) ? "0" : "0" + navDate.substr(periodPos);
+  
   
   int nDays = -1;
   double dayFrac = -1.0;
@@ -654,13 +729,15 @@ PosixTime CgmsDataImport::getDateFromNavigatorDate( const string &navDate )
   }//try catch
   
   assert( nDays > 0 );
-  assert( dayFrac >= 0.0 );
-  assert( dayFrac <= 1.0 );
+  assert( dayFrac >= 0.0 && dayFrac <= 1.0 );
   
   PosixTime time = kNavigatorT0 + TimeDuration( 24*nDays, 0, 0, 0 );
-  time += toTimeDuration(24.0 * 60.0 * dayFrac);
   
-  cout << "\"" << navDate << "\"=" << time << endl;
+  int nMinutes = int(24.0 * 60.0 * dayFrac + 0.5); //0.5 makes it to round to nearest minute
+  
+  time += toTimeDuration(nMinutes);
+  
+  // cout << "\"" << navDate << "\"=" << time << endl;
   
   return time;
 }//getDateFromNavigatorDate( const string &navDate )
@@ -675,7 +752,7 @@ NavEvent::NavEvent( const std::string &line ) : m_dateTime(kGenericT0)
   for( NavLinePos pos = NavLinePos(0); 
        pos < NumNavLinePos; pos = NavLinePos(pos+1) )
   {
-    m_intData[pos] = 0;
+    m_intData[pos] = -1;
     m_floatData[pos] = 0.0;
     m_data[pos] = "";
   }//for( loop over data positons 'pos' )
@@ -683,19 +760,24 @@ NavEvent::NavEvent( const std::string &line ) : m_dateTime(kGenericT0)
   vector< string > fields;
   algorithm::split( fields, line, is_any_of("\t") );
   
+  int nFields = static_cast<int>(fields.size());
   
-  if( fields.size() > 1 && fields.size() != NumNavLinePos )
+  //If the "COMMENT" field is blank, then we get 'NumNavLinePos-1' fields
+  if( fields.size() > 1 && (abs(nFields - NumNavLinePos) > 1) )
   {
     cout << "NavEvent: Warning following line not a valid Navigator line" << endl
-         << line << endl;
+         << line << endl << "   (" << fields.size() 
+         << " fields instead of " << NumNavLinePos 
+         << " or " << NumNavLinePos << ")" << endl;
   }//
+  
   algorithm::trim(fields[DATEEVENT]);
-  if( fields.size() != NumNavLinePos ) return;
-  if( fields[DATEEVENT] == "" ) return;
+  if( abs(nFields - NumNavLinePos) > 1 ) return;
+  if( fields[DATEEVENT] == "" )          return;
   if( fields[DATEEVENT] == "DATEEVENT" ) return; //it's the header of the file
   
-  for( NavLinePos pos = NavLinePos(0); 
-       pos < NumNavLinePos; pos = NavLinePos(pos+1) )
+  
+  for( size_t pos = 0; pos < fields.size(); ++pos )
   {
     m_data[pos] = fields[pos];
     algorithm::trim( m_data[pos] );
@@ -743,6 +825,13 @@ NavEvent::~NavEvent(){}
 
 bool NavEvent::isEventType( const NavEVENTTYPE evtType ) const
 {
+  if( evtType==ET_Glucose_CGMS ) return ((m_intData[EVENTTYPE]==ET_Glucose) && isCGMData() && isInRange() );
+    
+  if( evtType==ET_Glucose_METER ) return ((m_intData[EVENTTYPE]==ET_Glucose) && !isCGMData() && isInRange() );
+  
+  // if( evtType==ET_Glucose_CALIBRATION ) return ((m_intData[EVENTTYPE]==ET_Glucose) && (m_intData[I5]==0));
+  
+  
   return (evtType == m_intData[EVENTTYPE]);
 }//isEventType(...)
 
@@ -760,6 +849,38 @@ PosixTime NavEvent::getTime() const
   return m_dateTime; 
 }//getTime()
 
+
+double NavEvent::getValue( const NavEVENTTYPE evtType ) const
+{
+  assert( isEventType(evtType) );
+  
+  switch( evtType )
+  {
+    
+    case ET_Glucose:
+    case ET_Glucose_CGMS:
+    case ET_Glucose_METER: return (double)glucose();
+    case ET_BolusInsulin:  return bolusAmount();
+    case ET_Meal:          return carbs();
+    case ET_Generic:      return (double)genericType();
+      
+    case ET_Exercise:    
+    case ET_BasalInsulin:  
+    case ET_LabResults:    
+    case ET_Medical_Exams: 
+    case ET_Medications: 
+    case ET_Notes:         
+    case ET_StateOfHealth:
+    case ET_Ketone:      
+    case ET_Alarms:
+      assert(0);    
+    //Below here is where I have added to distiguish further
+    // ET_Glucose_CALIBRATION,  //I don't know how to tell this yet
+    case NumNavEVENTTYPE: assert(0);
+  };//switch( evtType )
+  
+  return kFailValue;
+}//double NavEvent::getValue
       
 //for excersize
 TimeDuration NavEvent::duration() const //elfhash key0

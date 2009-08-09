@@ -21,6 +21,7 @@ namespace CgmsDataImport
   {
     MiniMedCsv,
     Dexcom7Csv,  //I don't claim this works, actually is space or tab seperated
+    NavigatorTab,
     NumSpreadSheetSource
   };//
   
@@ -88,9 +89,15 @@ namespace CgmsDataImport
     ET_Notes = 8,         ET_StateOfHealth = 9,
     ET_Ketone = 10,       ET_Alarms = 15,
     ET_Generic = 16,
+    //Below here is where I have added to distiguish further
+    ET_Glucose_CGMS,
+    ET_Glucose_METER,
+    // ET_Glucose_CALIBRATION,  //I don't know how to tell this yet
     NumNavEVENTTYPE
   };//enum NavEVENTTYPE
   
+  TimeValuePair getNavigatorInfo( std::string line, InfoType type );
+
   const PosixTime kNavigatorT0( boost::gregorian::date(1899, 
                                 boost::gregorian::Dec, 30), 
                                 TimeDuration( 0, 0, 0, 0));
@@ -113,6 +120,7 @@ namespace CgmsDataImport
       //for all
       bool empty() const;
       PosixTime getTime() const;
+      double getValue( const NavEVENTTYPE evtType ) const;
       
       //for excersize
       TimeDuration duration() const;  //elfhash key0
