@@ -103,10 +103,8 @@ void ProgramOptions::decodeOptions( int argc, char **argv )
   
   
   ModelDefaults::kDefaultCgmsDelay = roundToNearestSecond( ns_poVariableMap["cgmsdelay"].as<double>() );
-  ModelDefaults::kPredictAhead     = roundToNearestSecond( ns_poVariableMap["dt"].as<double>() );
-  ModelDefaults::kIntegrationDt    = roundToNearestSecond( ns_poVariableMap["predictahead"].as<double>() );  
-  
-  
+  ModelDefaults::kIntegrationDt    = roundToNearestSecond( ns_poVariableMap["dt"].as<double>() );
+  ModelDefaults::kPredictAhead     = roundToNearestSecond( ns_poVariableMap["predictahead"].as<double>() ); 
 }//void decodeOptions( int argv, char **argc )
 
 
