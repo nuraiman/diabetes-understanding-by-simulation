@@ -1307,7 +1307,7 @@ double NLSimple::getBgValueChi2( const ConsentrationGraph &modelData,
     if( cgmsValue < 0.0 ) continue;
     if( time < modelBeginTime ) continue;
     if( time > modelEndTime ) break;
-    double modelValue =  modelData.value(time); //+modelData.getYOffset()
+    double modelValue =  modelData.value(time);// //modelData.getYOffset()
     const double uncert = fracUncert*cgmsValue;
     
     // if( modelValue == 0.0 ) modelValue = m_basalGlucoseConcentration;
@@ -1322,7 +1322,16 @@ double NLSimple::getBgValueChi2( const ConsentrationGraph &modelData,
     } else          chi2 += pow( (modelValue - cgmsValue) / uncert, 2 );
   }//for( loop over cgms data points )
   
+  if( !nPoints && (t_start < t_end) )
+  {
+    cout << "getBgValueChi2(...): Warning asked to get chi2 for 0 points (" 
+         << t_start << " to " << t_end << ")" << endl;
+  }//if( !nPoints )
   
+  //make sure we don't a divide by zero problem
+  if( !nPoints ) return 0.0;
+    
+  // cout  << "Returning "  << chi2 / nPoints << endl;
   return chi2 / nPoints;
 }//getBgValueChi2
 
@@ -1780,11 +1789,19 @@ void NLSimple::draw( bool pause,
   double maxHeight = std::max( cgmsBG->GetMaximum(), predBG->GetMaximum() );
   double minHeight = std::min( cgmsBG->GetMinimum(), predBG->GetMinimum() );
   
+  bool usePredForAxis = true;
+  
   if( predBG->GetN() < 4 )
   {
+    usePredForAxis = false;
     maxHeight = cgmsBG->GetMaximum();
     minHeight = cgmsBG->GetMinimum();
   }//if( we don;thave a predictions )
+  
+  //one problem, is that the T0 for each of the graphs may not be the same,
+  //  so we have to correct for this
+  TH1 *axisHisto = usePredForAxis ? (TH1 *)predBG->GetHistogram()->Clone()
+                                  : (TH1 *)cgmsBG->GetHistogram()->Clone();
   
   const double glucMax = glucAbs->GetMaximum();
   const double glucMin = glucAbs->GetMinimum();
@@ -1830,9 +1847,7 @@ void NLSimple::draw( bool pause,
   
   
   //One problem is that calling cgmsBG->SetPoint(...) erases all the labels
-  TH1 *axisHisto = (TH1 *)cgmsBG->GetHistogram()->Clone();
-  const double cgms_minutes_delay = toNMinutes(m_cgmsDelay);
-  
+  const double cgms_minutes_delay = toNMinutes(m_cgmsDelay);  
   for( int i=0; i<cgmsBG->GetN(); ++i )
   {
     double x=0.0, y=0.0;
@@ -1840,11 +1855,14 @@ void NLSimple::draw( bool pause,
     cgmsBG->SetPoint( i, x - cgms_minutes_delay, y);
   }//for( loop over glucAbs points )
   
+
   //Before setting the cgmsBG's histogram, we'll avoid memmorry leaks (maybe)
   TH1 *uslessHistPtr = cgmsBG->GetHistogram();
   cgmsBG->SetHistogram(NULL);
   delete uslessHistPtr;
   cgmsBG->SetHistogram(axisHisto);
+  
+  
   
   // minHeight -= 0.2 * abs(minHeight);
   minHeight -= 0.25 * graphRange; 
@@ -1874,14 +1892,26 @@ void NLSimple::draw( bool pause,
   
   if( !gPad )  new TCanvas();
   
-  if( predBG->GetN() )
-  {
-    predBG->Draw( "Al" );
-    cgmsBG->Draw( "l" );
-  }else 
-  {
-    cgmsBG->Draw( "Al" );
-  }
+  // if( usePredForAxis )
+  // {
+    double x, y, x1, y1, x2, y2, x3, y3;
+    predBG->GetPoint( 0, x, y );
+    predBG->GetPoint( predBG->GetN()-1, x1, y1 );
+    cgmsBG->GetPoint( 0, x2, y2 );
+    cgmsBG->GetPoint( cgmsBG->GetN()-1, x3, y3 );
+    
+    cout << "Drawing " << cgmsBG->GetN() << " for cgms, and " << predBG->GetN() 
+         << " fro pred, " 
+         << "(" << x << ", "<< y <<")---->(" << x1 << ", " << y1 << "), cgms:(" 
+         << x2 << ", " << y2 << ")----->(" << x3 << ", " << y3 << ")" << endl;
+    // cgmsBG->Draw( "Al" );
+    // predBG->Draw( "l" );
+  // }else cgmsBG->Draw( "Al" );
+  
+  
+  cgmsBG->Draw( "Al" );
+  if( usePredForAxis ) predBG->Draw( "l" );
+  
   
   if( glucAbs->GetN() ) glucAbs->Draw( "l" );
   if( xPred->GetN() )   xPred->Draw( "l" );

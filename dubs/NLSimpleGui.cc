@@ -104,6 +104,7 @@ NLSimpleGui::NLSimpleGui( NLSimple *model, bool runApp )
   
   m_mainFrame->Resize(900,650);
   
+  updateModelSettings(0);
   drawModel();
   drawEquations();
   drawModel();  //first time it is drawn, it's weird; so this is a complete hack
@@ -332,7 +333,6 @@ void NLSimpleGui::drawModel()
   m_model->draw( pause );
   
   updateModelGraphSize();
-  can->SetEditable( kFALSE );
 }//DrawModel()
 
 
@@ -463,6 +463,7 @@ void NLSimpleGui::updateModelSettings(UInt_t setting)
   setting = setting; //keep compiler from comp[laining
   if( m_model )
   {
+    m_model->m_basalGlucoseConcentration = PersonConstants::kBasalGlucConc;
     m_model->m_cgmsDelay = ModelDefaults::kDefaultCgmsDelay;
     m_model->m_predictAhead = ModelDefaults::kPredictAhead;
     m_model->m_dt = ModelDefaults::kIntegrationDt;
@@ -765,13 +766,14 @@ void ConstructNLSimple::handleButton()
       new CreateGraphGui( m_bolusData, gClient->GetRoot(), 
                           gClient->GetDefaultRoot(), 
                           CgmsDataImport::BolusTaken );
-      if( m_bolusData ) 
-      {
-        ConsentrationGraph insulinG = CgmsDataImport::bolusGraphToInsulinGraph
-                                            ( *m_bolusData, 
-                                             PersonConstants::kPersonsWeight );
-        m_insulinData = new ConsentrationGraph(insulinG);
-      }//if( m_bolusData )
+      //Why do  the  below
+      // if( m_bolusData ) 
+      // {
+        // ConsentrationGraph insulinG = CgmsDataImport::bolusGraphToInsulinGraph
+                                            // ( *m_bolusData, 
+                                             // PersonConstants::kPersonsWeight );
+        // m_insulinData = new ConsentrationGraph(insulinG);
+      // }//if( m_bolusData )
       
       findTimeLimits();
       drawPreviews( kBOLUS_PAD );
@@ -1085,7 +1087,7 @@ void ConstructNLSimple::constructModel()
   insPerHour /= PersonConstants::kPersonsWeight;
   assert( insPerHour > 0.0 );
 
-  m_model = new NLSimple( "SimpleModel", insPerHour, 0, m_bolusData->getT0() );
+  m_model = new NLSimple( "SimpleModel", insPerHour, PersonConstants::kBasalGlucConc, m_bolusData->getStartTime() );
   m_model->addBolusData( *m_bolusData );
   m_model->addCgmsData( *m_cgmsData );
   m_model->addGlucoseAbsorption( *m_carbAbsortionGraph );

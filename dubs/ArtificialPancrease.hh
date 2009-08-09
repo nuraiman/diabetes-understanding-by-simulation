@@ -41,6 +41,11 @@ const PosixTime kGenericT0( boost::gregorian::date(1982,
                             boost::gregorian::Jul, 28), 
                             TimeDuration( 0, 0, 0, 0));
 
+const PosixTime kTGraphStartTime( boost::gregorian::date(2006, 
+                            boost::gregorian::Jan, 1), 
+                            TimeDuration( 0, 0, 0, 0));
+
+
 
 namespace PersonConstants
 {
