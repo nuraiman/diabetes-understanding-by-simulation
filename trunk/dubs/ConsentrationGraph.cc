@@ -1319,11 +1319,14 @@ TGraph *ConsentrationGraph::getTGraph( boost::posix_time::ptime t_start,
     if( t_start != kGenericT0 && t < t_start ) continue;
     if( t_end   != kGenericT0 && t > t_end   ) continue;
     
-    xAxis[nPoints] = el.m_minutes;
+    const ptime currentTime = getAbsoluteTime( el.m_minutes );
+    const double xAxisTime = toNMinutes(currentTime - kTGraphStartTime);
+    
+    xAxis[nPoints] = xAxisTime;
     yAxis[nPoints] = el.m_value + m_yOffsetForDrawing;
     ++nPoints;
     
-    ptime currentTime = getAbsoluteTime( el.m_minutes );
+    
     
     if( (currentTime - previousLabelTime) >= minutes(60) )
     {
@@ -1332,12 +1335,12 @@ TGraph *ConsentrationGraph::getTGraph( boost::posix_time::ptime t_start,
       int slop = (int)m_dt + 1;
       ptime labelsVal = roundDownToNearest15Minutes( previousLabelTime, slop );
       
-      every60MinuteLabel.push_back( make_pair(el.m_minutes, getTimeNoDate(labelsVal)) );
+      every60MinuteLabel.push_back( make_pair(xAxisTime, getTimeNoDate(labelsVal)) );
     }//15 minutes have elapsed
     
     if( currentDate != currentTime.date() )
     {
-      if( offsetToFirstMidnight < 0.0 ) offsetToFirstMidnight = el.m_minutes;
+      if( offsetToFirstMidnight < 0.0 ) offsetToFirstMidnight = xAxisTime;
         
       //get number of days that have elapsed
       gregorian::date_duration dd = currentTime.date() - firstValuesTime.date() - gregorian::days(1);
