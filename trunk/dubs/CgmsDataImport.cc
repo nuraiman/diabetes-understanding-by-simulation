@@ -70,6 +70,7 @@ CgmsDataImport::importSpreadsheet( string filename, InfoType type,
       assert( source != NumSpreadSheetSource );
       TimeValuePair lineinfo = getInfoFromLine( currentLine, indMap, type, source );
       
+      
       //make sure not a something like 2 bolusses in the same minute, 
       //which would crash program later on. 
       bool isDuplicateTime = false;
@@ -83,7 +84,6 @@ CgmsDataImport::importSpreadsheet( string filename, InfoType type,
       }//if( second time in a row we have event in same minute )
       
       if( lineinfo.second != kFailValue ) timeValues.push_back( lineinfo );
-      
       
       if( (lineinfo.first!=kGenericT0) && !isDuplicateTime )
       {
@@ -422,12 +422,12 @@ CgmsDataImport::getInfoFromLine( std::string line,
 
   switch( infoWanted )
   {
-    case CgmsReading:      key = kCgmsValueKey; break;
-    case MeterReading:     key = kMeterBgKey; break;
+    case CgmsReading:      key = kCgmsValueKey;   break;
+    case MeterReading:     key = kMeterBgKey;     break;
     case MeterCalibration: key = kCalibrationKey; break;
-    case GlucoseEaten:     key = kGlucoseKey; break;
-    case BolusTaken:       key = kBolusKey; break;
-    case ISig:             key = kIsigKey; break;
+    case GlucoseEaten:     key = kGlucoseKey;     break;
+    case BolusTaken:       key = kBolusKey;       break;
+    case ISig:             key = kIsigKey;        break;
     assert(0);
   };//switch( infoWanted )
   
@@ -741,6 +741,16 @@ PosixTime CgmsDataImport::getDateFromNavigatorDate( const string &navDate )
   
   return time;
 }//getDateFromNavigatorDate( const string &navDate )
+
+
+double CgmsDataImport::convertToNavigatorDate( PosixTime time )
+{
+  const double nMinutesInDay = 24.0 * 60.0;
+  double nMinutes = toNMinutes( time.time_of_day() );
+  long nDays = (time.date() - kNavigatorT0.date()).days();
+  
+  return nDays + (nMinutes / nMinutesInDay);
+}//double CgmsDataImport::convertToNavigatorDate( const PosixTime &time )
 
 
   

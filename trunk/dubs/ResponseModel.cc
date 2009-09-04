@@ -1798,8 +1798,7 @@ void NLSimple::draw( bool pause,
     minHeight = cgmsBG->GetMinimum();
   }//if( we don;thave a predictions )
   
-  //one problem, is that the T0 for each of the graphs may not be the same,
-  //  so we have to correct for this
+  //When We use SetPoint(...) it erases the  histogram with nice labels
   TH1 *axisHisto = usePredForAxis ? (TH1 *)predBG->GetHistogram()->Clone()
                                   : (TH1 *)cgmsBG->GetHistogram()->Clone();
   
@@ -1863,7 +1862,6 @@ void NLSimple::draw( bool pause,
   cgmsBG->SetHistogram(axisHisto);
   
   
-  
   // minHeight -= 0.2 * abs(minHeight);
   minHeight -= 0.25 * graphRange; 
   maxHeight += 0.23 * abs(maxHeight);
@@ -1894,25 +1892,27 @@ void NLSimple::draw( bool pause,
   
   // if( usePredForAxis )
   // {
-    double x, y, x1, y1, x2, y2, x3, y3;
-    predBG->GetPoint( 0, x, y );
-    predBG->GetPoint( predBG->GetN()-1, x1, y1 );
-    cgmsBG->GetPoint( 0, x2, y2 );
-    cgmsBG->GetPoint( cgmsBG->GetN()-1, x3, y3 );
+    // double x, y, x1, y1, x2, y2, x3, y3;
+    // predBG->GetPoint( 0, x, y );
+    // predBG->GetPoint( predBG->GetN()-1, x1, y1 );
+    // cgmsBG->GetPoint( 0, x2, y2 );
+    // cgmsBG->GetPoint( cgmsBG->GetN()-1, x3, y3 );
     
-    cout << "Drawing " << cgmsBG->GetN() << " for cgms, and " << predBG->GetN() 
-         << " fro pred, " 
-         << "(" << x << ", "<< y <<")---->(" << x1 << ", " << y1 << "), cgms:(" 
-         << x2 << ", " << y2 << ")----->(" << x3 << ", " << y3 << ")" << endl;
+    // cout << "Drawing " << cgmsBG->GetN() << " for cgms, and " << predBG->GetN() 
+         // << " fro pred, " 
+         // << "(" << x << ", "<< y <<")---->(" << x1 << ", " << y1 << "), cgms:(" 
+         // << x2 << ", " << y2 << ")----->(" << x3 << ", " << y3 << ")" << endl;
     // cgmsBG->Draw( "Al" );
     // predBG->Draw( "l" );
   // }else cgmsBG->Draw( "Al" );
   
+  // cout << "Drawing between " << t_start << " and " << t_end << endl;
+  // TCanvas *can = new TCanvas();
+  // cgmsBG->Draw( "Al" );
+  // gClient->WaitFor((TGWindow*)can);
   
   cgmsBG->Draw( "Al" );
-  if( usePredForAxis ) predBG->Draw( "l" );
-  
-  
+  if( usePredForAxis )  predBG->Draw( "l" );  
   if( glucAbs->GetN() ) glucAbs->Draw( "l" );
   if( xPred->GetN() )   xPred->Draw( "l" );
   if( insConc->GetN() ) insConc->Draw( "l" );
@@ -1929,20 +1929,28 @@ void NLSimple::draw( bool pause,
   TLegend *leg = new TLegend( 0.65, 0.6, 0.95, 0.90);
   leg->SetBorderSize(0);
   leg->AddEntry( cgmsBG, "time-corrected CGMS data", "l" );
-  leg->AddEntry( predBG, "Predicted Blood-Glucose", "l" );
-  leg->AddEntry( xPred, "Effective Insulin", "l" );
-  leg->AddEntry( insConc, "Predicted Free-Plasma Insulin", "l" );
-  leg->AddEntry( glucAbs, "Rate Of Glucose Absorbtion", "l" );
+  if( usePredForAxis )  leg->AddEntry( predBG, "Predicted Blood-Glucose", "l" );
+  if( xPred->GetN() )   leg->AddEntry( xPred, "Effective Insulin", "l" );
+  if( insConc->GetN() ) leg->AddEntry( insConc, "Predicted Free-Plasma Insulin", "l" );
+  if( glucAbs->GetN() ) leg->AddEntry( glucAbs, "Rate Of Glucose Absorbtion", "l" );
   leg->Draw();
+  
+  //If we don't draw a graph, we loose all references to the object
+  //  so we must delete it now, or it becomes a memmorry leak
+  if( !usePredForAxis )  { delete predBG;  predBG  = NULL; }  
+  if( !glucAbs->GetN() ) { delete glucAbs; glucAbs = NULL; }
+  if( !xPred->GetN() )   { delete xPred;   xPred   = NULL; }
+  if( !insConc->GetN() ) { delete insConc; insConc = NULL; }
   
   if( pause )
   {
     gTheApp->Run(kTRUE);
-    delete gPad;
-    delete cgmsBG;
-    delete predBG;
-    delete glucAbs;
-    delete insConc;
+    if( gPad )  { delete gPad; gPad = NULL; }
+    if( cgmsBG )  delete cgmsBG;
+    if( predBG )  delete predBG;
+    if( glucAbs ) delete glucAbs;
+    if( insConc ) delete insConc;
+    if( leg )     delete leg;
     // delete axis;
   }//if( pause )
 }//draw()

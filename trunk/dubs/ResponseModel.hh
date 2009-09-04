@@ -37,6 +37,10 @@
 *  add auto correlation function to find cgms delay
 *  add function to find all possible time-ranges to make predictions in
 *  add a debug setting that can be turned on/off/different-levels
+*  add excersize settings
+*    --probably just a Multiple to normaly used paramaters
+*  add a generic event (e.g. waking up) response -- and ability to fit to response
+*  add some-sort of time varieing paramaters into the model
 *
 *  Make NLSimple be a 2-mode class
 *    --Mode 1 is research
@@ -44,14 +48,22 @@
 *      --In this mode Inject and Consume functions will update predictions
 *      --also update cgms readings will also update predictions
 *        --so will need a automatic function to remove ending of X and pred
-*    --To do this, I should just re-write predicttion methods (i hate them now)
-*      --Also make m_predictAhead be time ahead of current time, instead ofcgms
+*    --XX To do this, I should just re-write predicttion methods (i hate them now)
+*      --XX Also make m_predictAhead be time ahead of current time, instead ofcgms
+*      --Still need to 'clean up' after these last 2 things though
 *  Make a class (or function to NLSimple) that takes a NLSimple and performs
 *     'real-time' analasys.
 *  Add a belowBgBasalSigma, and aboveBgBasalSigma to NLSimple Class
 *    --to be used in the 'Solver' that solves what correction needs to be taken
 *  The 'Solver' should decide what correction should be taken (maybe make a correction class)
 *      to describe what correction should be taken
+*
+*  Convert ConsentrationGraph class to use PosixTime instead of double for times
+*    --I think this will save CPU time, as well as bugs
+*  Add ability to add more CGMS/Meal/Insulin data to the model, via the gui
+*  Add ability to do training in a set of time ranges
+*    --inprinciple this is there - but add gui interface for it
+*    --have a default range selector (so times when cgms isn't in use won't be used)
 *******************************************************************************/
 
 class NLSimple;

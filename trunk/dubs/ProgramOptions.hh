@@ -23,6 +23,8 @@ namespace ProgramOptions
 {
   namespace po = boost::program_options;
   
+  //I want to make 'ProgramOptions' a class, and the below maps static members
+  //  and each instance of a NLSimple model will hold it's own ProgramOptions object
   extern po::variables_map                   ns_poVariableMap;
   extern po::options_description             ns_poDescription;
   extern po::positional_options_description  ns_posDescripton; //positional decrip
@@ -33,7 +35,7 @@ namespace ProgramOptions
   
   void declareOptions();
   void decodeOptions( int argc, char **argv );
-}
+}//namespace ProgramOptions
 #endif //__CINT__
 
 

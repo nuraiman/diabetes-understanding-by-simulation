@@ -68,6 +68,16 @@ GraphElement::GraphElement( double nMinutes, double value ) :
      m_minutes(nMinutes), m_value(value) 
 {}
 
+template<class Archive>
+void GraphElement::serialize( Archive &ar, const unsigned int version )
+{
+  unsigned int ver = version; //keep compiler from complaining
+  ver = ver;
+      
+  ar & m_minutes;
+  ar & m_value;
+}//serialize
+
 
 bool GraphElement::operator<( const GraphElement &lhs ) const
 {
@@ -227,8 +237,8 @@ void ConsentrationGraph::trim( const PosixTime &t_start, const PosixTime &t_end 
   
   if( t_end != kGenericT0 )
   {
-    ConstGraphIter ub = upper_bound(t_start);
-    ConstGraphIter lb = lower_bound(t_start);
+    ConstGraphIter ub = upper_bound(t_end);
+    ConstGraphIter lb = lower_bound(t_end);
     
     if( ub == begin() ) 
     {
@@ -246,10 +256,10 @@ void ConsentrationGraph::trim( const PosixTime &t_start, const PosixTime &t_end 
       insert( t_end, val );
     }else //the set<> exactly contains this time
     {
-      GraphElementSet::erase( begin(), ub );
+      GraphElementSet::erase( ub, end() );
     }//
     
-  }//if( remove begining )
+  }//if( remove end )
   
   if( (t_start == kGenericT0) && (t_end == kGenericT0) )
   {
@@ -362,27 +372,49 @@ double ConsentrationGraph::value( time_duration offset ) const
 }//double ConsentrationGraph::value( time_duration offset ) const
     
 
+unsigned int ConsentrationGraph::addNewDataPoints( const ConsentrationGraph &rhs )
+{
+   if( m_graphType != rhs.m_graphType )
+  {
+    cout << "ConsentrationGraph::getTotal(...): I can't add data points from "
+         << " a graph of type " << rhs.getGraphTypeStr()
+         << " to this graph of type " <<  getGraphTypeStr() << endl;
+    exit(1);
+  }//if( m_graphType != rhs.m_graphType )
+  
+  unsigned int nAdded = 0;
+  foreach( const GraphElement &ge, static_cast<const GraphElementSet>(rhs) )
+  { 
+    const ptime absTime = rhs.getAbsoluteTime( ge.m_minutes );
+    addNewDataPoint( absTime, ge.m_value );
+    ++nAdded;
+  }//foreach rhs point
+  
+  return nAdded;
+}//addNewDataPoints( const ConsentrationGraph &newDataPoints )
+
+
 ConstGraphIter ConsentrationGraph::addNewDataPoint( double offset, double value )
 {
   const GraphElement newElement( offset, value );
   ConstGraphIter posIter = GraphElementSet::lower_bound( newElement );
   
-  if( !empty() && posIter!= end() && posIter!= begin() )
+  if( !empty() && posIter != end() && posIter != begin() )
   {
     if( posIter->m_value != 0.0 )
     {
       ptime time = getAbsoluteTime(offset);
-      ConstGraphIter endIter = end();
-      --endIter;
-      ptime lastTime = getAbsoluteTime( endIter->m_minutes );
+      ptime lastTime = getEndTime();
     
-      cout << "ConstGraphIter ConsentrationGraph::addNewDataPoint( double, double):"
-           << " can not add time " << to_simple_string( time ) << " with value "
-           << value << " to current "
-           << " graph with t0 of " << to_simple_string( m_t0 ) 
-           << " and end time of " << to_simple_string( lastTime ) 
-           << endl;
-      assert(0);
+      cout << "ConstGraphIter ConsentrationGraph::addNewDataPoint(double, double):"
+           << " can not add time " << time << " with value " << value 
+           << " to current graph with t0 of " << m_t0
+           << " and end time of " << lastTime << endl
+           << "Already have a value of " << posIter->m_value << " for that time " 
+           << CgmsDataImport::convertToNavigatorDate(time) << endl;
+      return end();
+      // assert(0);
+      // exit(-1);
     }else
     {
       GraphElementSet::erase( posIter );
@@ -394,6 +426,8 @@ ConstGraphIter ConsentrationGraph::addNewDataPoint( double offset, double value 
     
   //If we made it here, we are in the clear
   pair<ConstGraphIter,bool> pos = GraphElementSet::insert( newElement ); 
+  
+  // cout << "Succesfully inserted " << pos.first->m_minutes << "  " << pos.first->m_value << endl;
   
   return pos.first;
 }//addNewDataPoint
@@ -734,6 +768,8 @@ double ConsentrationGraph::getMostCommonDt( ) const
 
 TimeDuration ConsentrationGraph::getMostCommonPosixDt() const
 {
+  if( empty() ) return (getAbsoluteTime(m_dt) - getAbsoluteTime(0.0));
+  
   typedef std::pair<boost::posix_time::ptime, double> TimeValuePair;
   typedef std::vector< TimeValuePair >                TimeValueVec;
   
@@ -1311,23 +1347,21 @@ TGraph *ConsentrationGraph::getTGraph( boost::posix_time::ptime t_start,
   gregorian::date currentDate = firstValuesTime.date();
   double offsetToFirstMidnight = -999;
   
+  
   nPoints = 0;
   foreach( const GraphElement &el, static_cast<GraphElementSet>(*this) )
   {
-    const ptime t = getAbsoluteTime( el.m_minutes );
-    
-    if( t_start != kGenericT0 && t < t_start ) continue;
-    if( t_end   != kGenericT0 && t > t_end   ) continue;
-    
     const ptime currentTime = getAbsoluteTime( el.m_minutes );
-    const double xAxisTime = toNMinutes(currentTime - kTGraphStartTime);
     
+    if( t_start != kGenericT0 && currentTime < t_start ) continue;
+    if( t_end   != kGenericT0 && currentTime > t_end   ) continue;
+    
+    const double xAxisTime = toNMinutes(currentTime - kTGraphStartTime);
+        
     xAxis[nPoints] = xAxisTime;
     yAxis[nPoints] = el.m_value + m_yOffsetForDrawing;
-    ++nPoints;
-    
-    
-    
+    ++nPoints;    
+ 
     if( (currentTime - previousLabelTime) >= minutes(60) )
     {
       previousLabelTime = currentTime;
@@ -1359,6 +1393,7 @@ TGraph *ConsentrationGraph::getTGraph( boost::posix_time::ptime t_start,
     delete [] yAxis;
     return graph;
   }//if( nPoints < 4 ) 
+  
   
   //Figure out how sparce to make the labels
   size_t nLabelSkip = 1;
@@ -1439,14 +1474,12 @@ TGraph *ConsentrationGraph::getTGraph( boost::posix_time::ptime t_start,
     break;
   }//switch( m_graphType )
   
-  
   graph->SetTitle( graphTitle.c_str() );
+  const double startd = toNMinutes(t_start - kTGraphStartTime);
+  const double endd = toNMinutes(t_end - kTGraphStartTime);
   
-  const double startd = getOffset(t_start);
-  const double endd = getOffset(t_end);
   if( (t_start != kGenericT0) && (t_end != kGenericT0) ) 
     graph->GetXaxis()->SetLimits( startd, endd );
-      
   
   double *maxHeight = max_element( yAxis+0, yAxis+nPoints );
   double *minHeight = min_element( yAxis+0, yAxis+nPoints );
