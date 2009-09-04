@@ -302,7 +302,7 @@ void testFFT()
   
   for( double min = 0; min <= 600; min += 5.0 )
   {
-    fftTest.insert( min, fsin.Eval(min) );
+    fftTest.insert( fftTest.getAbsoluteTime(min), fsin.Eval(min) );
   }
   
   fftTest.draw("", "", false, 1);

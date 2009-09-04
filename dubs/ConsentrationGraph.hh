@@ -81,14 +81,7 @@ class GraphElement
     //Serialize function has to be in the header since it's a template
     friend class boost::serialization::access;
     template<class Archive>
-    void serialize( Archive &ar, const unsigned int version )
-    {
-      unsigned int ver = version; //keep compiler from complaining
-      ver = ver;
-      
-      ar & m_minutes;
-      ar & m_value;
-    }//serialize
+    void serialize( Archive &ar, const unsigned int version );
     
     //Sort based off of 'm_minutes' element
     bool operator<( const GraphElement &lhs ) const;
@@ -131,6 +124,12 @@ class ConsentrationGraph : public std::set<GraphElement>
     ConsentrationGraph( const ConsentrationGraph &lhs );
     ConsentrationGraph( const std::string &savedFileName );
     ConsentrationGraph( PosixTime t0, double dt, GraphType graphType );
+    
+  private:
+  //insert any funciton that uses a double to represent time here
+  
+  public:
+    
     
     const ConsentrationGraph &operator=( const ConsentrationGraph &rhs );
     
@@ -197,7 +196,9 @@ class ConsentrationGraph : public std::set<GraphElement>
     //cals above
     ConstGraphIter insert( double offsetTime, double value );
     ConstGraphIter insert( const PosixTime &absoluteTime, double value );
-   
+    
+    unsigned int addNewDataPoints( const ConsentrationGraph &newDataPoints );
+    
     ConstGraphIter lower_bound( const PosixTime &time ) const;
     ConstGraphIter upper_bound( const PosixTime &time ) const;
     

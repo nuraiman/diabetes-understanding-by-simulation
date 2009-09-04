@@ -146,7 +146,11 @@ class ConstructNLSimple : public TGTransientFrame
     ConsentrationGraph *m_carbAbsortionGraph;  //calculated from m_carbConsumptionData
     ConsentrationGraph *m_meterData;
     
-    
+    TGTextButton *m_cgmsButton;
+    TGTextButton *m_bolusButton;
+    TGTextButton *m_carbButton;
+    TGTextButton *m_meterButton;
+ 
     
     TGCanvas *m_baseTGCanvas;              //This makes the scroll bar for graph
     TGCompositeFrame *m_baseFrame;         //This hold TCanvas

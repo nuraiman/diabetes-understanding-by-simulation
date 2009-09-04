@@ -102,6 +102,7 @@ namespace CgmsDataImport
                                 boost::gregorian::Dec, 30), 
                                 TimeDuration( 0, 0, 0, 0));
   PosixTime getDateFromNavigatorDate( const std::string &navDate );
+  double convertToNavigatorDate( PosixTime time );
   unsigned int elfHash( const char *str );  //str must be null terminated 
 
   class NavEvent

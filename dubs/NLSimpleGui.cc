@@ -339,8 +339,10 @@ void NLSimpleGui::drawModel()
 void NLSimpleGui::updateModelGraphSize()
 {
   TCanvas *can = m_modelEmbededCanvas->GetCanvas();
+  can->cd();
   can->SetEditable( kTRUE );
   can->Update(); //need this or else TCanvas won't have updated axis range
+ 
   double xmin, xmax, ymin, ymax;
   can->GetRangeAxis( xmin, ymin, xmax, ymax );
   double nMinutes = xmax - xmin;
@@ -350,9 +352,13 @@ void NLSimpleGui::updateModelGraphSize()
   if( nMinutes < m_minutesGraphPerPage ) m_minutesGraphPerPage = nMinutes;
   
   int pageWidth = m_modelBaseTGCanvas->GetWidth();
-  double nPages = nMinutes / m_minutesGraphPerPage;
+  double nPages = min(5.0, nMinutes / m_minutesGraphPerPage);
+  
+  //We can run out of memmorry oif we let the canvas get too large
+  //  so we need to protect against that posibility
+  if( nPages >= 5.0 )  m_minutesGraphPerPage = nMinutes / 5.0;
+  
   m_modelEmbededCanvas->SetWidth( nPages * pageWidth );
-
   
   //need to make ROOT update gPad now
   int w = m_modelEmbededCanvas->GetWidth();
@@ -503,7 +509,10 @@ ConstructNLSimple::ConstructNLSimple( NLSimple *&model,
     m_createButton(NULL),
     m_userSetTime(false), m_cgmsData(NULL), m_bolusData(NULL), 
     m_insulinData(NULL), m_carbConsumptionData(NULL), 
-    m_carbAbsortionGraph(NULL), m_meterData(NULL), m_baseTGCanvas(NULL), 
+    m_carbAbsortionGraph(NULL), m_meterData(NULL), 
+    m_cgmsButton(NULL), m_bolusButton(NULL), 
+    m_carbButton(NULL), m_meterButton(NULL),
+    m_baseTGCanvas(NULL), 
     m_baseFrame(NULL), m_embededCanvas(NULL), m_minutesGraphPerPage(3 * 60 * 24)
 {
   SetCleanup(kDeepCleanup);
@@ -580,21 +589,21 @@ ConstructNLSimple::ConstructNLSimple( NLSimple *&model,
   TGVerticalFrame *openGraphF = new TGVerticalFrame(graphF, 75, 430, kVerticalFrame | kFitWidth | kFitHeight);
   TGLayoutHints *buttonHint = new TGLayoutHints(kLHintsExpandX | kLHintsExpandY| kLHintsTop | kLHintsCenterX,10,10,10,10);
   
-  TGTextButton *cgmsButton = new TGTextButton(openGraphF, "Open CGMS Data", kSELECT_CGMS_DATA);
-  cgmsButton->Connect( "Clicked()", "ConstructNLSimple", this, "handleButton()" );
-  openGraphF->AddFrame(cgmsButton, buttonHint);
+  TGTextButton *m_cgmsButton = new TGTextButton(openGraphF, "Open CGMS Data", kSELECT_CGMS_DATA);
+  m_cgmsButton->Connect( "Clicked()", "ConstructNLSimple", this, "handleButton()" );
+  openGraphF->AddFrame(m_cgmsButton, buttonHint);
   
-  TGTextButton *bolusButton = new TGTextButton(openGraphF, "Open Bolus Data", kSELECT_BOLUS_DATA);
-  bolusButton->Connect( "Clicked()", "ConstructNLSimple", this, "handleButton()" );
-  openGraphF->AddFrame(bolusButton, buttonHint);
+  TGTextButton *m_bolusButton = new TGTextButton(openGraphF, "Open Bolus Data", kSELECT_BOLUS_DATA);
+  m_bolusButton->Connect( "Clicked()", "ConstructNLSimple", this, "handleButton()" );
+  openGraphF->AddFrame(m_bolusButton, buttonHint);
   
-  TGTextButton *carbButton = new TGTextButton(openGraphF, "Open Carb Data", kSELECT_CARB_DATA);
-  carbButton->Connect( "Clicked()", "ConstructNLSimple", this, "handleButton()" );
-  openGraphF->AddFrame(carbButton, buttonHint);
+  TGTextButton *m_carbButton = new TGTextButton(openGraphF, "Open Carb Data", kSELECT_CARB_DATA);
+  m_carbButton->Connect( "Clicked()", "ConstructNLSimple", this, "handleButton()" );
+  openGraphF->AddFrame(m_carbButton, buttonHint);
   
-  TGTextButton *meterButton = new TGTextButton(openGraphF, "Meter (optional)", kSELECT_METER_DATA);
-  meterButton->Connect( "Clicked()", "ConstructNLSimple", this, "handleButton()" );
-  openGraphF->AddFrame(meterButton, buttonHint);
+  TGTextButton *m_meterButton = new TGTextButton(openGraphF, "Meter (optional)", kSELECT_METER_DATA);
+  m_meterButton->Connect( "Clicked()", "ConstructNLSimple", this, "handleButton()" );
+  openGraphF->AddFrame(m_meterButton, buttonHint);
   
   TGLayoutHints *buttonFramehint  = new TGLayoutHints( kLHintsRight | kLHintsExpandY,0,0,0,0);
   graphF->AddFrame(openGraphF, buttonFramehint);
@@ -746,20 +755,24 @@ void ConstructNLSimple::handleButton()
     
       
     case kSELECT_CGMS_DATA:
+    {
       if( m_cgmsData ) delete m_cgmsData;
-      m_cgmsData = NULL;
+      m_cgmsData = NULL; 
       new CreateGraphGui( m_cgmsData, gClient->GetRoot(), 
                           gClient->GetDefaultRoot(), 
                           CgmsDataImport::CgmsReading );
+       // m_cgmsButton(NULL)
       findTimeLimits();
       drawPreviews( kCGMS_PAD );
       drawPreviews( kCARB_PAD );
       drawPreviews( kMERTER_PAD );
       drawPreviews( kBOLUS_PAD );
       enableCreateButton();
-    break;
+      break;
+    }//case kSELECT_CGMS_DATA:
     
     case kSELECT_BOLUS_DATA:
+    {
       if( m_bolusData ) delete m_bolusData;
       if( m_insulinData ) delete m_insulinData;
       m_bolusData = m_insulinData = NULL;
@@ -775,6 +788,7 @@ void ConstructNLSimple::handleButton()
         // m_insulinData = new ConsentrationGraph(insulinG);
       // }//if( m_bolusData )
       
+      // m_bolusButton(NULL), 
       findTimeLimits();
       drawPreviews( kBOLUS_PAD );
       drawPreviews( kCGMS_PAD );
@@ -782,21 +796,24 @@ void ConstructNLSimple::handleButton()
       drawPreviews( kMERTER_PAD );
       
       enableCreateButton();
-    break;
+      break;
+    }//case kSELECT_BOLUS_DATA:
     
     case kSELECT_CARB_DATA:
+    {
       if( m_carbAbsortionGraph )  delete m_carbAbsortionGraph;
       if( m_carbConsumptionData ) delete m_carbConsumptionData;
       m_carbAbsortionGraph = m_carbConsumptionData = NULL;
       new CreateGraphGui( m_carbConsumptionData, gClient->GetRoot(), 
                           gClient->GetDefaultRoot(), 
                           CgmsDataImport::GlucoseEaten );
-      if( m_carbConsumptionData )
-      {
-        ConsentrationGraph consumpG = CgmsDataImport::carbConsumptionToSimpleCarbAbsorbtionGraph(*m_carbConsumptionData);
-        m_carbAbsortionGraph = new ConsentrationGraph(consumpG);
-      }//if( m_carbConsumptionData )
+      // if( m_carbConsumptionData )
+      // {
+        // ConsentrationGraph consumpG = CgmsDataImport::carbConsumptionToSimpleCarbAbsorbtionGraph(*m_carbConsumptionData);
+        // m_carbAbsortionGraph = new ConsentrationGraph(consumpG);
+      // }//if( m_carbConsumptionData )
       
+      // m_carbButton(NULL)
       findTimeLimits();
       drawPreviews( kCARB_PAD );
       drawPreviews( kCGMS_PAD );
@@ -804,18 +821,32 @@ void ConstructNLSimple::handleButton()
       drawPreviews( kBOLUS_PAD );
       
       enableCreateButton();
-    break;
-      
+      break;
+    }//case kSELECT_CARB_DATA:
+    
     case kSELECT_METER_DATA:
-      if( m_meterData ) delete m_meterData;
-      m_meterData = NULL;
-      new CreateGraphGui( m_meterData, gClient->GetRoot(), 
+    {
+      // if( m_meterData ) delete m_meterData;
+      // m_meterData = NULL;
+      ConsentrationGraph *newData = NULL;
+      new CreateGraphGui( newData, gClient->GetRoot(), 
                           gClient->GetDefaultRoot(), 
                           CgmsDataImport::MeterReading );
       
+      if( newData && !m_meterData) 
+      {
+        m_meterData = newData;
+      }else if( newData )
+      {
+        // m_meterButton //need to change the text on the button
+        m_meterData->addNewDataPoints( *newData );
+        delete newData;
+      }//if(first time data ) / else(adding more data)
+    
       drawPreviews( kMERTER_PAD );
       enableCreateButton();
-    break;
+      break;
+    }//case kSELECT_METER_DATA:
     
     case kZOOM_PLUS:
       m_minutesGraphPerPage = 0.9 * m_minutesGraphPerPage;
@@ -972,10 +1003,10 @@ void ConstructNLSimple::drawPreviews( GraphPad pad )
     break;
       
     case kCARB_PAD:
-      if( m_carbConsumptionData && m_carbAbsortionGraph )
+      if( m_carbConsumptionData /*&& m_carbAbsortionGraph*/ )
       {
         graphs.push_back( m_carbConsumptionData->getTGraph(startTime, endTime) );
-        graphs.push_back( m_carbAbsortionGraph->getTGraph(startTime, endTime) );
+        // graphs.push_back( m_carbAbsortionGraph->getTGraph(startTime, endTime) );
       }//if both defined
     break;
     
@@ -1031,10 +1062,15 @@ void ConstructNLSimple::updateModelGraphSize()
   if( nMinutes < m_minutesGraphPerPage ) m_minutesGraphPerPage = nMinutes;
   
   int pageWidth = m_baseTGCanvas->GetWidth();
-  double nPages = nMinutes / m_minutesGraphPerPage;
+  double nPages = min(5.0, nMinutes / m_minutesGraphPerPage);
+  
+  //We can run out of memmorry oif we let the canvas get too large
+  //  so we need to protect against that posibility
+  if( nPages >= 5.0 )  m_minutesGraphPerPage = nMinutes / 5.0;
+  
   m_embededCanvas->SetWidth( nPages * pageWidth );
 
-  
+   
   //need to make ROOT update gPad now
   int w = m_embededCanvas->GetWidth();
   int h = m_baseTGCanvas->GetHeight();
@@ -1058,8 +1094,8 @@ void ConstructNLSimple::constructModel()
 {
   assert( m_cgmsData );
   // m_insulinData;
-  // m_carbConsumptionData;
-  assert( m_carbAbsortionGraph );
+  assert( m_carbConsumptionData );
+  // assert( m_carbAbsortionGraph );
   // m_meterData;
   assert( m_bolusData );
   
@@ -1079,9 +1115,13 @@ void ConstructNLSimple::constructModel()
   PosixTime endTime( endDate, endTimeDur );
   PosixTime startTime( startDate, startTimeDur );
   
+  // cout << "Creating NLSimple Model with data from " << startDate 
+       // << " to " << endTime << endl;
+  
   m_bolusData->trim( startTime, endTime );
   m_cgmsData->trim( startTime, endTime );
-  m_carbAbsortionGraph->trim( startTime, endTime );
+  // m_carbAbsortionGraph->trim( startTime, endTime );
+  m_carbConsumptionData->trim( startTime, endTime );
   
   double insPerHour = m_basalInsulinAmount->GetNumber();
   insPerHour /= PersonConstants::kPersonsWeight;
@@ -1090,7 +1130,8 @@ void ConstructNLSimple::constructModel()
   m_model = new NLSimple( "SimpleModel", insPerHour, PersonConstants::kBasalGlucConc, m_bolusData->getStartTime() );
   m_model->addBolusData( *m_bolusData );
   m_model->addCgmsData( *m_cgmsData );
-  m_model->addGlucoseAbsorption( *m_carbAbsortionGraph );
+  // m_model->addGlucoseAbsorption( *m_carbAbsortionGraph );
+  m_model->addGlucoseAbsorption( *m_carbConsumptionData );
   
   // m_model->m_freePlasmaInsulin = *m_bolusData;
   // m_model->m_cgmsData = *m_cgmsData;

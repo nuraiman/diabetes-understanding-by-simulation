@@ -66,6 +66,11 @@ CreateGraphGui::CreateGraphGui(  ConsentrationGraph *&graph,
   m_FileInfo->fFileTypes = fileType;
   m_FileInfo->fIniDir = StrDup( "../data/" );
   
+  if( m_graphType >= 0 ) 
+  {
+    handleButton( kSELECT_FILE_BUTTON ); //We only need m_FileInfo to be non-NULL for this
+    return;
+  }//if( m_graphType >= 0 )
   
   TGHorizontalFrame *filePathHF = new TGHorizontalFrame(this, 200, 50, kHorizontalFrame);
   m_filePath         = new TGTextEntry( filePathHF, m_FileInfo->fIniDir );
@@ -153,7 +158,7 @@ CreateGraphGui::CreateGraphGui(  ConsentrationGraph *&graph,
   SetWindowName("Concentration Graph Open");
   MapWindow();
   Resize( 350, 100 );
-
+  
   fClient->WaitFor(this);
 }//CreateGraphGui( constructor )
 
@@ -254,25 +259,30 @@ void CreateGraphGui::handleButton( int senderId )
      
       // printf("CreateGraphGui:: Open file: %s (dir: %s)\n", fi.fFilename, fi.fIniDir);
       string newText = m_FileInfo->fFilename;
-      m_filePath->SetText( newText.c_str() );
+      if( m_graphType >= 0 ) handleButton( kOPEN_FILE_BUTTON );
+      else m_filePath->SetText( newText.c_str() );
+      
       break;
     };//case kSELECT_FILE_BUTTON: 
    
     case kOPEN_FILE_BUTTON:
     {
-      const string fileToOpen = m_filePath->GetText();
+      const string fileToOpen = m_filePath ? m_filePath->GetText() : m_FileInfo->fFilename;
       const size_t dotPos = fileToOpen.find_last_of( "." );
       const string ending = fileToOpen.substr( dotPos, string::npos );
-      
+             
       if( fileToOpen.empty() ) return;
       
-      if( m_graphTypeListBox->GetNumberOfEntries() > 0 && ending != ".dub" ) 
+      if( (!m_graphTypeListBox || m_graphTypeListBox->GetNumberOfEntries() > 0) && ending != ".dub" ) 
       {
-        CgmsDataImport::InfoType graphType = CgmsDataImport::InfoType( m_graphTypeListBox->GetSelected() );
+        CgmsDataImport::InfoType graphType = m_graphTypeListBox ? 
+                                             CgmsDataImport::InfoType( m_graphTypeListBox->GetSelected() )
+                                             : CgmsDataImport::InfoType(m_graphType);
         // cout << "Getting graph type " << graphType << " from " << fileToOpen << endl;
         ConsentrationGraph graph = CgmsDataImport::importSpreadsheet( fileToOpen, graphType );
         m_graph = new ConsentrationGraph( graph );
         CloseWindow();
+        break;
       } else
       {
         // cout << "About to open graph " << fileToOpen << endl;
