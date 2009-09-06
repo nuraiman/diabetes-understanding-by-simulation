@@ -492,7 +492,7 @@ void NLSimpleGui::addCgmsData()
                                     gClient->GetRoot(), 
                                     gClient->GetDefaultRoot(),
                                     TString("Enter new CGMS Data"),
-                                    -1.0,
+                                    kFailValue,
                                     int(CgmsDataImport::CgmsReading) ); 
 }//void NLSimpleGui::addCgmsData()
 
@@ -1219,7 +1219,7 @@ InputSimpleData::InputSimpleData( ConsentrationGraph *graph,
                                   double defaultValue,
                                   int type
                                  ) :
-    TGTransientFrame(parent, main, 320, 200, kVerticalFrame),
+    TGTransientFrame(parent, main, 320, 100, kVerticalFrame),
     m_graph(graph),
     m_type(type),
     m_dateEntry(NULL), m_timeEntry(NULL), m_valueEntry(NULL),
@@ -1258,9 +1258,21 @@ InputSimpleData::InputSimpleData( ConsentrationGraph *graph,
   }//if( defaultValue == kFailValue ) 
   
   const int widgetId = -1;
+  TGNumberFormat::EStyle fieldType = TGNumberFormat::kNESInteger;
+  switch( m_type )
+  {
+    case CgmsDataImport::CgmsReading:       fieldType = TGNumberFormat::kNESInteger; break;
+    case CgmsDataImport::MeterReading:      fieldType = TGNumberFormat::kNESInteger; break;
+    case CgmsDataImport::MeterCalibration:  fieldType = TGNumberFormat::kNESInteger; break;
+    case CgmsDataImport::GlucoseEaten:      fieldType = TGNumberFormat::kNESInteger; break;
+    case CgmsDataImport::BolusTaken:        fieldType = TGNumberFormat::kNESRealTwo; break;
+    case CgmsDataImport::ISig:              fieldType = TGNumberFormat::kNESRealTwo; break;  
+    assert(0);
+  };//switch(type)
+  
   m_timeEntry  = new TGNumberEntry( dateTimeF, 0.0, 6, widgetId, TGNumberFormat::kNESHourMin, TGNumberFormat::kNEANonNegative);
-  m_dateEntry  = new TGNumberEntry( dateTimeF, 0.0, 9, widgetId, TGNumberFormat::kNESDayMYear, TGNumberFormat::kNEANonNegative);
-  m_valueEntry = new TGNumberEntry( dateTimeF, defaultValue, 5, widgetId, TGNumberFormat::kNESRealTwo,  TGNumberFormat::kNEANonNegative);
+  m_dateEntry  = new TGNumberEntry( dateTimeF, 0.0, 9, widgetId, TGNumberFormat::kNESDayMYear, TGNumberFormat::kNEANonNegative);  
+  m_valueEntry = new TGNumberEntry( dateTimeF, defaultValue, 5, widgetId, fieldType,  TGNumberFormat::kNEANonNegative);
   
   // const PosixTime currentTime(boost::posix_time::second_clock::local_time());
   const PosixTime currentTime = lastTime;
@@ -1273,16 +1285,16 @@ InputSimpleData::InputSimpleData( ConsentrationGraph *graph,
   m_dateEntry->SetDate( defaultYear, defaultMonth, defaultDay );
   
   TGLayoutHints *texthint = new TGLayoutHints( kLHintsLeft | kLHintsCenterY,20,0,0,0);
-  TGLabel *datelabel = new TGLabel( dateTimeF, "Date/Time");
+  // TGLabel *datelabel = new TGLabel( dateTimeF, "Date/Time");
   TGLabel *valueLabel = new TGLabel( dateTimeF, "Value");
-  dateTimeF->AddFrame( datelabel, texthint );
-  dateTimeF->AddFrame( m_dateEntry, buttonRowHint);
-  dateTimeF->AddFrame( m_timeEntry, buttonRowHint);
-  dateTimeF->AddFrame( valueLabel, texthint );
-  dateTimeF->AddFrame(m_valueEntry, buttonRowHint);
+  // dateTimeF->AddFrame( datelabel, texthint );
+  dateTimeF->AddFrame( m_dateEntry,  buttonRowHint);
+  dateTimeF->AddFrame( m_timeEntry,  buttonRowHint);
+  dateTimeF->AddFrame( valueLabel,   texthint );
+  dateTimeF->AddFrame( m_valueEntry, buttonRowHint);
   
-  TGLayoutHints *inputRowHint = new TGLayoutHints( kLHintsCenterX | kLHintsTop,5,5,2,2);
-  AddFrame( buttonRowF, inputRowHint );
+  TGLayoutHints *inputRowHint = new TGLayoutHints( kLHintsCenterX | /*kLHintsTop*/kLHintsCenterY,5,5,2,2);
+  AddFrame( dateTimeF, inputRowHint );
     
   MapSubwindows();
   TGDimension size = GetDefaultSize();
@@ -1290,8 +1302,9 @@ InputSimpleData::InputSimpleData( ConsentrationGraph *graph,
   CenterOnParent();
   SetWMSize(size.fWidth, size.fHeight);
   SetWindowName(message);
+  Resize(size);
   MapWindow();
-  Resize( 320, 200 );
+  
 
   fClient->WaitFor(this);
 }//ConstructNLSimple
@@ -1308,8 +1321,7 @@ void InputSimpleData::readSingleInputCloseWindow()
   
   double value = m_valueEntry->GetNumber();
   PosixTime timeEntered( theDate, theTime );
-  cout << "Entered time of " << timeEntered << " with a value of " << value << endl;
-  
+  // cout << "Entered time of " << timeEntered << " with a value of " << value << endl;
   m_graph->addNewDataPoint( timeEntered, value );
   
   CloseWindow();
