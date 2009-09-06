@@ -98,6 +98,10 @@ class NLSimpleGui
     void drawEquations();
     void doGeneticOptimization();
     void doMinuit2Fit();
+    void addCgmsData();  //unimpleneted as of yet
+    void addCarbData();
+    void addMeterData();
+    void refreshPredictions();
     
     void handleMenu(Int_t menuAction);
     
@@ -116,6 +120,33 @@ class NLSimpleGui
       QUIT_GUI_SESSION
     };//enum MenuActions
 };//NLSimpleGui
+
+
+class InputSimpleData : public TGTransientFrame
+{
+  public:
+    ConsentrationGraph *m_graph;
+    int m_type; //specified by InfoType
+    TGNumberEntry *m_dateEntry;
+    TGNumberEntry *m_timeEntry;
+    TGNumberEntry *m_valueEntry;
+    TGTextButton  *m_fileButton;
+    
+    InputSimpleData( ConsentrationGraph *graph, 
+                     const TGWindow *parent, 
+                     const TGWindow *main,
+                     TString message,
+                     double defaultValue,
+                     int type
+                   );
+    virtual ~InputSimpleData();
+    virtual void CloseWindow();
+    void readFromFile();
+    void readSingleInputCloseWindow();
+    
+    ClassDef(InputSimpleData,0)
+};//class InputSimpleData
+
 
 
 

@@ -399,8 +399,9 @@ ConstGraphIter ConsentrationGraph::addNewDataPoint( double offset, double value 
   const GraphElement newElement( offset, value );
   ConstGraphIter posIter = GraphElementSet::lower_bound( newElement );
   
-  if( !empty() && posIter != end() && posIter != begin() )
+  if( !empty() && posIter != end() && /*posIter != begin()*/ posIter->m_minutes == offset )
   {
+    if( posIter->m_minutes == value ) return end();
     if( posIter->m_value != 0.0 )
     {
       ptime time = getAbsoluteTime(offset);
@@ -411,7 +412,8 @@ ConstGraphIter ConsentrationGraph::addNewDataPoint( double offset, double value 
            << " to current graph with t0 of " << m_t0
            << " and end time of " << lastTime << endl
            << "Already have a value of " << posIter->m_value << " for that time " 
-           << CgmsDataImport::convertToNavigatorDate(time) << endl;
+           << getAbsoluteTime(posIter->m_minutes) << " compared to " << time << endl;
+           // << CgmsDataImport::convertToNavigatorDate(time) << endl;
       return end();
       // assert(0);
       // exit(-1);

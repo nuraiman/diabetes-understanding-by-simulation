@@ -225,17 +225,37 @@ TGVerticalFrame *NLSimpleGui::createButtonsFrame( const TGFrame *parent)
   
   TGTextButton *geneticOptButton = new TGTextButton(horizFrame,"Genetically\n Optimize");
   geneticOptButton->SetTextJustify(36);
-  geneticOptButton->SetMargins(0,0,0,0);
+  geneticOptButton->SetMargins(5,5,5,5);
   horizFrame->AddFrame(geneticOptButton, buttonHint);
   geneticOptButton->Connect( "Clicked()", "NLSimpleGui", this, "doGeneticOptimization()" );
   
-  TGTextButton *miniutFitButton = new TGTextButton(horizFrame,"Miniut2 Fit");
+  TGTextButton *miniutFitButton = new TGTextButton(horizFrame,"Baysian\n Fine Tune");
   miniutFitButton->SetTextJustify(36);
-  miniutFitButton->SetMargins(0,0,0,0);
+  miniutFitButton->SetMargins(5,5,5,5);
   horizFrame->AddFrame(miniutFitButton, buttonHint);
   miniutFitButton->Connect( "Clicked()", "NLSimpleGui", this, "doMinuit2Fit()" );
   
-  TGTextButton *drawButton = new TGTextButton(horizFrame, "Draw" );
+  
+  TGTextButton *addCgmsButton = new TGTextButton(horizFrame,"Add CGMS Data");
+  addCgmsButton->SetTextJustify(36);
+  addCgmsButton->SetMargins(1,1,1,1);
+  horizFrame->AddFrame(addCgmsButton, buttonHint);
+  addCgmsButton->Connect( "Clicked()", "NLSimpleGui", this, "addCgmsData()" );
+  
+  TGTextButton *addCarbButton = new TGTextButton(horizFrame,"Add Carb Data");
+  addCarbButton->SetTextJustify(36);
+  addCarbButton->SetMargins(1,1,1,1);
+  horizFrame->AddFrame(addCarbButton, buttonHint);
+  addCarbButton->Connect( "Clicked()", "NLSimpleGui", this, "addCarbData()" );
+  
+  TGTextButton *addeMeterButton = new TGTextButton(horizFrame,"Add Meter Data");
+  addeMeterButton->SetTextJustify(36);
+  addeMeterButton->SetMargins(1,1,1,1);
+  horizFrame->AddFrame(addeMeterButton, buttonHint);
+  addeMeterButton->Connect( "Clicked()", "NLSimpleGui", this, "addMeterData()" );
+  
+  
+  TGTextButton *drawButton = new TGTextButton(horizFrame, "Redraw" );
   drawButton->SetTextJustify(36);
   drawButton->SetMargins(0,0,0,0);
   horizFrame->AddFrame(drawButton, buttonHint);
@@ -464,6 +484,43 @@ void NLSimpleGui::doMinuit2Fit()
 
 
 
+void NLSimpleGui::addCgmsData()
+{
+  // const ConsentrationGraph &cgmsG = m_model->m_cgmsData;
+  // double lastCgmsValue = cgmsG.value(cgmsG.getEndTime());
+  new InputSimpleData( &(m_model->m_cgmsData),
+                                    gClient->GetRoot(), 
+                                    gClient->GetDefaultRoot(),
+                                    TString("Enter new CGMS Data"),
+                                    -1.0,
+                                    int(CgmsDataImport::CgmsReading) ); 
+}//void NLSimpleGui::addCgmsData()
+
+
+void NLSimpleGui::addCarbData()
+{
+  cout << "You need to complete NLSimpleGui::addCarbData()" << endl;
+  // InputSimpleData::InputSimpleData( &(m_model->m_cgmsData)
+                                    // gClient->GetRoot(), 
+                                    // gClient->GetDefaultRoot(),
+                                    // "Enter new Carb Data",
+                                    // m_model->m_cgmsData.back().m_value,
+                                    // CgmsDataImport::CgmsReading ); 
+}//void addCarbData()
+
+
+void NLSimpleGui::addMeterData()
+{
+  cout << "You need to complete NLSimpleGui::addMeterData()" << endl;
+}//void addMeterData()
+
+
+void NLSimpleGui::refreshPredictions()
+{
+  cout << "You need to complete NLSimpleGui::refreshPredictions()" << endl;
+}//void refreshPredictions()
+
+
 void NLSimpleGui::updateModelSettings(UInt_t setting)
 {
   setting = setting; //keep compiler from comp[laining
@@ -589,19 +646,19 @@ ConstructNLSimple::ConstructNLSimple( NLSimple *&model,
   TGVerticalFrame *openGraphF = new TGVerticalFrame(graphF, 75, 430, kVerticalFrame | kFitWidth | kFitHeight);
   TGLayoutHints *buttonHint = new TGLayoutHints(kLHintsExpandX | kLHintsExpandY| kLHintsTop | kLHintsCenterX,10,10,10,10);
   
-  TGTextButton *m_cgmsButton = new TGTextButton(openGraphF, "Open CGMS Data", kSELECT_CGMS_DATA);
+  m_cgmsButton = new TGTextButton(openGraphF, "Open CGMS Data", kSELECT_CGMS_DATA);
   m_cgmsButton->Connect( "Clicked()", "ConstructNLSimple", this, "handleButton()" );
   openGraphF->AddFrame(m_cgmsButton, buttonHint);
   
-  TGTextButton *m_bolusButton = new TGTextButton(openGraphF, "Open Bolus Data", kSELECT_BOLUS_DATA);
+  m_bolusButton = new TGTextButton(openGraphF, "Open Bolus Data", kSELECT_BOLUS_DATA);
   m_bolusButton->Connect( "Clicked()", "ConstructNLSimple", this, "handleButton()" );
   openGraphF->AddFrame(m_bolusButton, buttonHint);
   
-  TGTextButton *m_carbButton = new TGTextButton(openGraphF, "Open Carb Data", kSELECT_CARB_DATA);
+  m_carbButton = new TGTextButton(openGraphF, "Open Carb Data", kSELECT_CARB_DATA);
   m_carbButton->Connect( "Clicked()", "ConstructNLSimple", this, "handleButton()" );
   openGraphF->AddFrame(m_carbButton, buttonHint);
   
-  TGTextButton *m_meterButton = new TGTextButton(openGraphF, "Meter (optional)", kSELECT_METER_DATA);
+  m_meterButton = new TGTextButton(openGraphF, "Meter (optional)", kSELECT_METER_DATA);
   m_meterButton->Connect( "Clicked()", "ConstructNLSimple", this, "handleButton()" );
   openGraphF->AddFrame(m_meterButton, buttonHint);
   
@@ -756,12 +813,22 @@ void ConstructNLSimple::handleButton()
       
     case kSELECT_CGMS_DATA:
     {
-      if( m_cgmsData ) delete m_cgmsData;
-      m_cgmsData = NULL; 
-      new CreateGraphGui( m_cgmsData, gClient->GetRoot(), 
+      ConsentrationGraph *newCgmsData = NULL;
+      new CreateGraphGui( newCgmsData, gClient->GetRoot(), 
                           gClient->GetDefaultRoot(), 
                           CgmsDataImport::CgmsReading );
-       // m_cgmsButton(NULL)
+      
+      if( !m_cgmsData )
+      {
+        m_cgmsData = newCgmsData;
+        if(m_cgmsData) m_cgmsButton->SetText( "Add More\nCGMS Data" );
+      }else if(newCgmsData)
+      {
+        m_cgmsData->addNewDataPoints( *newCgmsData );
+        delete newCgmsData;
+      }//if(first data) / else
+      
+      
       findTimeLimits();
       drawPreviews( kCGMS_PAD );
       drawPreviews( kCARB_PAD );
@@ -773,22 +840,20 @@ void ConstructNLSimple::handleButton()
     
     case kSELECT_BOLUS_DATA:
     {
-      if( m_bolusData ) delete m_bolusData;
-      if( m_insulinData ) delete m_insulinData;
-      m_bolusData = m_insulinData = NULL;
-      new CreateGraphGui( m_bolusData, gClient->GetRoot(), 
+      ConsentrationGraph *newBolusData = NULL;
+      new CreateGraphGui( newBolusData, gClient->GetRoot(), 
                           gClient->GetDefaultRoot(), 
                           CgmsDataImport::BolusTaken );
-      //Why do  the  below
-      // if( m_bolusData ) 
-      // {
-        // ConsentrationGraph insulinG = CgmsDataImport::bolusGraphToInsulinGraph
-                                            // ( *m_bolusData, 
-                                             // PersonConstants::kPersonsWeight );
-        // m_insulinData = new ConsentrationGraph(insulinG);
-      // }//if( m_bolusData )
+      if( !m_bolusData )
+      {
+        m_bolusData = newBolusData;
+        if( m_bolusData ) m_bolusButton->SetText( "Add More\nBolus Data" );
+      }else if( newBolusData ) 
+      {
+        m_bolusData->addNewDataPoints( *newBolusData );
+        delete newBolusData;
+      }//if / else
       
-      // m_bolusButton(NULL), 
       findTimeLimits();
       drawPreviews( kBOLUS_PAD );
       drawPreviews( kCGMS_PAD );
@@ -801,19 +866,23 @@ void ConstructNLSimple::handleButton()
     
     case kSELECT_CARB_DATA:
     {
-      if( m_carbAbsortionGraph )  delete m_carbAbsortionGraph;
-      if( m_carbConsumptionData ) delete m_carbConsumptionData;
-      m_carbAbsortionGraph = m_carbConsumptionData = NULL;
-      new CreateGraphGui( m_carbConsumptionData, gClient->GetRoot(), 
+      // if( m_carbAbsortionGraph )  delete m_carbAbsortionGraph;
+      // if( m_carbConsumptionData ) delete m_carbConsumptionData;
+      ConsentrationGraph *newCarbData = NULL;
+      
+      new CreateGraphGui( newCarbData, gClient->GetRoot(), 
                           gClient->GetDefaultRoot(), 
                           CgmsDataImport::GlucoseEaten );
-      // if( m_carbConsumptionData )
-      // {
-        // ConsentrationGraph consumpG = CgmsDataImport::carbConsumptionToSimpleCarbAbsorbtionGraph(*m_carbConsumptionData);
-        // m_carbAbsortionGraph = new ConsentrationGraph(consumpG);
-      // }//if( m_carbConsumptionData )
+      if( !m_bolusData )
+      {
+        m_carbConsumptionData = newCarbData;
+        if( m_carbConsumptionData ) m_carbButton->SetText( "Add More\nCarb Data" );
+      }else if( newCarbData ) 
+      {
+        m_carbConsumptionData->addNewDataPoints( *newCarbData );
+        delete newCarbData;
+      }//if / else
       
-      // m_carbButton(NULL)
       findTimeLimits();
       drawPreviews( kCARB_PAD );
       drawPreviews( kCGMS_PAD );
@@ -826,21 +895,20 @@ void ConstructNLSimple::handleButton()
     
     case kSELECT_METER_DATA:
     {
-      // if( m_meterData ) delete m_meterData;
-      // m_meterData = NULL;
-      ConsentrationGraph *newData = NULL;
-      new CreateGraphGui( newData, gClient->GetRoot(), 
+      
+      ConsentrationGraph *newMeterData = NULL;
+      new CreateGraphGui( newMeterData, gClient->GetRoot(), 
                           gClient->GetDefaultRoot(), 
                           CgmsDataImport::MeterReading );
       
-      if( newData && !m_meterData) 
+      if( !m_meterData) 
       {
-        m_meterData = newData;
-      }else if( newData )
+        m_meterData = newMeterData;
+        if( m_meterData ) m_meterButton->SetText( "Add More\nMeter Data" );
+      }else if( newMeterData )
       {
-        // m_meterButton //need to change the text on the button
-        m_meterData->addNewDataPoints( *newData );
-        delete newData;
+        m_meterData->addNewDataPoints( *newMeterData );
+        delete newMeterData;
       }//if(first time data ) / else(adding more data)
     
       drawPreviews( kMERTER_PAD );
@@ -1139,6 +1207,154 @@ void ConstructNLSimple::constructModel()
 }//void ConstructNLSimple::constructModel()
 
 
+
+
+
+
+
+InputSimpleData::InputSimpleData( ConsentrationGraph *graph,
+                                  const TGWindow *parent, 
+                                  const TGWindow *main,
+                                  TString message,
+                                  double defaultValue,
+                                  int type
+                                 ) :
+    TGTransientFrame(parent, main, 320, 200, kVerticalFrame),
+    m_graph(graph),
+    m_type(type),
+    m_dateEntry(NULL), m_timeEntry(NULL), m_valueEntry(NULL),
+    m_fileButton(NULL)
+{
+  SetCleanup(kDeepCleanup);
+  Connect("CloseWindow()", "InputSimpleData", this, "CloseWindow()");
+  DontCallClose();
+  assert( m_graph );
+ 
+  TGLayoutHints *buttonHint = new TGLayoutHints( kLHintsCenterY, 5,5,2,2);
+  TGHorizontalFrame *buttonRowF = new TGHorizontalFrame(this, 320, 100, kHorizontalFrame | kFitWidth);
+  
+  TGTextButton *okButton = new TGTextButton(buttonRowF, "Okay" );
+  okButton->Connect( "Clicked()", "InputSimpleData", this, "readSingleInputCloseWindow()" );
+  buttonRowF->AddFrame(okButton, buttonHint);
+  
+  TGTextButton *cancelButton = new TGTextButton(buttonRowF, "Cancel" );
+  cancelButton->Connect( "Clicked()", "InputSimpleData", this, "CloseWindow()" );
+  buttonRowF->AddFrame(cancelButton, buttonHint);
+  
+  m_fileButton = new TGTextButton(buttonRowF, "From File" );
+  m_fileButton->Connect( "Clicked()", "InputSimpleData", this, "readFromFile()" );
+  buttonRowF->AddFrame(m_fileButton, buttonHint);
+  
+  TGLayoutHints *buttonRowHint = new TGLayoutHints( kLHintsCenterX | kLHintsBottom,5,5,2,2);
+  AddFrame( buttonRowF, buttonRowHint );
+  
+  
+  TGHorizontalFrame *dateTimeF = new TGHorizontalFrame(this, 320, 100, kHorizontalFrame | kFitWidth);
+  
+  const PosixTime lastTime = m_graph->getEndTime();
+  if( defaultValue == kFailValue ) 
+  {
+    defaultValue = m_graph->value(lastTime);
+  }//if( defaultValue == kFailValue ) 
+  
+  const int widgetId = -1;
+  m_timeEntry  = new TGNumberEntry( dateTimeF, 0.0, 6, widgetId, TGNumberFormat::kNESHourMin, TGNumberFormat::kNEANonNegative);
+  m_dateEntry  = new TGNumberEntry( dateTimeF, 0.0, 9, widgetId, TGNumberFormat::kNESDayMYear, TGNumberFormat::kNEANonNegative);
+  m_valueEntry = new TGNumberEntry( dateTimeF, defaultValue, 5, widgetId, TGNumberFormat::kNESRealTwo,  TGNumberFormat::kNEANonNegative);
+  
+  // const PosixTime currentTime(boost::posix_time::second_clock::local_time());
+  const PosixTime currentTime = lastTime;
+  const int defaultHours = currentTime.time_of_day().hours();
+  const int defaultMinutes = currentTime.time_of_day().minutes();
+  const int defaultYear = currentTime.date().year();
+  const int defaultMonth = currentTime.date().month();
+  const int defaultDay = currentTime.date().day();      
+  m_timeEntry->SetTime( defaultHours, defaultMinutes, 0 );
+  m_dateEntry->SetDate( defaultYear, defaultMonth, defaultDay );
+  
+  TGLayoutHints *texthint = new TGLayoutHints( kLHintsLeft | kLHintsCenterY,20,0,0,0);
+  TGLabel *datelabel = new TGLabel( dateTimeF, "Date/Time");
+  TGLabel *valueLabel = new TGLabel( dateTimeF, "Value");
+  dateTimeF->AddFrame( datelabel, texthint );
+  dateTimeF->AddFrame( m_dateEntry, buttonRowHint);
+  dateTimeF->AddFrame( m_timeEntry, buttonRowHint);
+  dateTimeF->AddFrame( valueLabel, texthint );
+  dateTimeF->AddFrame(m_valueEntry, buttonRowHint);
+  
+  TGLayoutHints *inputRowHint = new TGLayoutHints( kLHintsCenterX | kLHintsTop,5,5,2,2);
+  AddFrame( buttonRowF, inputRowHint );
+    
+  MapSubwindows();
+  TGDimension size = GetDefaultSize();
+  Resize(size);
+  CenterOnParent();
+  SetWMSize(size.fWidth, size.fHeight);
+  SetWindowName(message);
+  MapWindow();
+  Resize( 320, 200 );
+
+  fClient->WaitFor(this);
+}//ConstructNLSimple
+
+
+void InputSimpleData::readSingleInputCloseWindow()
+{
+  int hour, min, sec, year, month, day;
+  m_timeEntry->GetTime(hour, min, sec);
+  m_dateEntry->GetDate(year, month, day);
+  
+  const TimeDuration theTime( hour, min, sec, 0);
+  const boost::gregorian::date theDate( year, month, day );
+  
+  double value = m_valueEntry->GetNumber();
+  PosixTime timeEntered( theDate, theTime );
+  cout << "Entered time of " << timeEntered << " with a value of " << value << endl;
+  
+  m_graph->addNewDataPoint( timeEntered, value );
+  
+  CloseWindow();
+}//void InputSimpleData::readSingleInputCloseWindow()
+
+
+InputSimpleData::~InputSimpleData()
+{
+  CloseWindow();
+}//InputSimpleData::~InputSimpleData()
+
+
+void InputSimpleData::CloseWindow()
+{
+  DeleteWindow();
+}//void InputSimpleData::CloseWindow();
+
+
+void InputSimpleData::readFromFile()
+{
+  GraphType graphType = m_graph->getGraphType();
+  
+  //Following test will probably fail my first time through...
+  switch( m_type )
+  {
+    case CgmsDataImport::CgmsReading:       assert( graphType == GlucoseConsentrationGraph ); break;
+    case CgmsDataImport::MeterReading:      assert( graphType == GlucoseConsentrationGraph ); break;
+    case CgmsDataImport::MeterCalibration:  assert( graphType == GlucoseConsentrationGraph ); break;
+    case CgmsDataImport::GlucoseEaten:      assert( graphType == GlucoseConsumptionGraph );   break;
+    case CgmsDataImport::BolusTaken:        assert( graphType == BolusGraph );                break;
+    case CgmsDataImport::ISig:              assert( graphType == NumGraphType );              break;
+    
+    assert(0);
+  };//switch(type)
+  
+  
+  ConsentrationGraph *newData = NULL;
+  new CreateGraphGui( newData, gClient->GetRoot(), 
+                      gClient->GetDefaultRoot(), m_type );
+  if( !newData ) return;
+  
+  m_graph->addNewDataPoints( *newData );
+  delete newData;
+  CloseWindow();
+}//void InputSimpleData::readFromFile()
 
     
     

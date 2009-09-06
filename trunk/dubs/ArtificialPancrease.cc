@@ -90,6 +90,7 @@ int main( int argc, char** argv )
   
   if( !modelCreateTest ) return 0;
   modelCreateTest->runGui();
+  return 0;
   // ConsentrationGraph mmData( "../data/mmCgmsData_march31_April7.dub" );
   
   // TCanvas *can = new TCanvas(); 

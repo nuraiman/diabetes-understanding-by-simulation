@@ -7,6 +7,7 @@
 #pragma link C++  nestedtypedefs;
 #
 #pragma link C++ class NLSimpleGui;
+#pragma link C++ class InputSimpleData;
 #pragma link C++ class ConstructNLSimple;
 #
 #endif
