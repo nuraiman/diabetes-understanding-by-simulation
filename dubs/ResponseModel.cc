@@ -5,6 +5,7 @@
 #include <vector>
 #include <utility>
 #include <string>
+#include <sstream>
 #include <stdio.h>
 #include <math.h>  //contains M_PI
 #include <stdlib.h>
@@ -1967,18 +1968,65 @@ void NLSimple::runGui()
 }//runGui
 
 
+std::string NLSimple::convertToRootLatexString( double num, int nPrecision )
+{
+  if( fabs(num) >= 0.01 && fabs(num) < 999.9 ) 
+  {
+    ostringstream answer;
+    answer << setiosflags(ios::fixed) << setprecision(nPrecision) << num;
+    return answer.str();
+  }//if( num >= 0.01 && num < 999.9 ) 
+  
+  int nExp = 0;
+  if( fabs(num) < 0.01 )
+  {
+    while( fabs(num) < 1.0 )
+    {
+      --nExp;
+      num *= 10.0;
+    }//while(...)
+  }else
+  {
+    while( fabs(num) > 10.0 )
+    {
+      ++nExp;
+      num /= 10.0;
+    }//while(...)
+  }//if( num < 10 )
+
+  // return Format( "%5.4dx10^{%i}", num, nExp );
+  // return (format("%|+5|x10^{%d}") % num % nExp).str();
+  ostringstream answer;
+  answer << setiosflags(ios::fixed) << setprecision(nPrecision)
+         << num << "x10^{" << nExp << "}";
+  return answer.str();
+}//std::string convertToRootLatexString( const double num )
+
+
 std::vector<std::string> NLSimple::getEquationDescription() const
 {
   vector<string> descrip(2);
- 
+  
   if( m_paramaters.size() != NumNLSimplePars ) return descrip;
+  
+  
+  descrip[1] = string("#frac{dG}{dt} = -") 
+               + convertToRootLatexString( m_paramaters[BGMultiplier], 4 )
+               + " G - X(G - " + convertToRootLatexString( m_basalGlucoseConcentration, 0 )
+               + ") + " + convertToRootLatexString( m_paramaters[CarbAbsorbMultiplier], 4 )
+               + " Carb(t)";
+  
+  descrip[0] = string("#frac{dX}{dt} = -") 
+               + convertToRootLatexString( m_paramaters[XMultiplier], 4 )
+               + " X + " + convertToRootLatexString( m_paramaters[PlasmaInsulinMultiplier], 4 )
+               + " I(t)";
       
-  descrip[1] = (format("#frac{dG}{dt} = -%d G - X(G - %d) + %d Carb(t)") 
-                     % m_paramaters[BGMultiplier] % m_basalGlucoseConcentration
-                     % m_paramaters[CarbAbsorbMultiplier]).str();
-  descrip[0] = (format("#frac{dX}{dt} = -%d X + %d I(t)") 
-                     % m_paramaters[XMultiplier] 
-                     % m_paramaters[PlasmaInsulinMultiplier]).str();
+  // descrip[1] = (format("#frac{dG}{dt} = -%|+6|d G - X(G - %d) + %d Carb(t)") 
+                     // % m_paramaters[BGMultiplier] % m_basalGlucoseConcentration
+                     // % m_paramaters[CarbAbsorbMultiplier]).str();
+  // descrip[0] = (format("#frac{dX}{dt} = -%d X + %d I(t)") 
+                     // % m_paramaters[XMultiplier] 
+                     // % m_paramaters[PlasmaInsulinMultiplier]).str();
   return descrip;
 }//getEquationDescription
 

@@ -290,6 +290,7 @@ class NLSimple
     void draw( bool pause = true, PosixTime t_start = kGenericT0,
                PosixTime t_end = kGenericT0 );
     
+    static std::string convertToRootLatexString( double num, int nPrecision  );
     std::vector<std::string> getEquationDescription() const;
     
     bool saveToFile( std::string filename = "" );
