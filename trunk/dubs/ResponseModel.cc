@@ -14,11 +14,16 @@
 #include <float.h> // for DBL_MAX
 
 #include "TH1F.h"
+#include "TH2D.h"
+#include "TLine.h"
+#include "TText.h"
 #include "TLegend.h"
 #include "TGraph.h"
 #include "TGAxis.h"
 #include "TCanvas.h"
 #include "TRandom3.h"
+#include "TGraph2d.h"
+#include "TLegendEntry.h"
 #include "TApplication.h"
 
 
@@ -2436,6 +2441,212 @@ void FitNLSimpleEvent::updateModelWithCurrentGuesses( NLSimple &model ) const
   
 }//updateModelWithCurrentGuesses( NLSimple &model )
 
+
+
+
+
+
+
+
+
+
+void drawClarkeErrorGrid( TVirtualPad *pad,
+                          const ConsentrationGraph &cmgsGraph, 
+                          const ConsentrationGraph &meterGraph,
+                          const TimeDuration &cmgsDelay )
+{
+  if( !pad ) pad = new TCanvas();
+  
+  vector<TObject *> clarkesObj;
+  clarkesObj = getClarkeErrorGridObjs( cmgsGraph, meterGraph, cmgsDelay );
+  
+  //first 5 are TH2D's
+  //then TLegend
+  //then TLines
+  //then TText
+  clarkesObj[0]->Draw("SCAT");
+  clarkesObj[1]->Draw("SCAT SAME");
+  clarkesObj[2]->Draw("SCAT SAME");
+  clarkesObj[3]->Draw("SCAT SAME");
+  clarkesObj[4]->Draw("SCAT SAME");
+  
+  for( size_t i=5; i < clarkesObj.size(); ++i ) clarkesObj[i]->Draw();
+}//void drawClarkeErrorGrid( TPad * )
+
+
+std::vector<TObject *> 
+getClarkeErrorGridObjs( const ConsentrationGraph &cmgsGraph, 
+                        const ConsentrationGraph &meterGraph,
+                        const TimeDuration &cmgsDelay )
+
+{
+  //Function addapted from from http://www.mathworks.com/matlabcentral/fileexchange/20545
+
+  std::vector<TObject *> returnObjects;
+  
+  TH2D *regionAH = new TH2D( "axisHistoH", ";Finger-Prick Value(mg/dl);CGMS Value(mg/dl)", 400, 0, 400, 400, 0, 400 );
+  TH2D *regionBH = new TH2D( "axisHistoH", ";Finger-Prick Value(mg/dl);CGMS Value(mg/dl)", 400, 0, 400, 400, 0, 400 );
+  TH2D *regionCH = new TH2D( "axisHistoH", ";Finger-Prick Value(mg/dl);CGMS Value(mg/dl)", 400, 0, 400, 400, 0, 400 );
+  TH2D *regionDH = new TH2D( "axisHistoH", ";Finger-Prick Value(mg/dl);CGMS Value(mg/dl)", 400, 0, 400, 400, 0, 400 );
+  TH2D *regionEH = new TH2D( "axisHistoH", ";Finger-Prick Value(mg/dl);CGMS Value(mg/dl)", 400, 0, 400, 400, 0, 400 );
+  
+  regionAH->SetStats( kFALSE );
+  regionBH->SetStats( kFALSE );
+  regionCH->SetStats( kFALSE );
+  regionDH->SetStats( kFALSE );
+  regionEH->SetStats( kFALSE );
+  
+  regionAH->SetMarkerStyle( 20 );
+  regionBH->SetMarkerStyle( 21 );
+  regionCH->SetMarkerStyle( 22 );
+  regionDH->SetMarkerStyle( 23 );
+  regionEH->SetMarkerStyle( 29 );
+  
+  regionAH->SetMarkerColor( 1  );  //black
+  regionBH->SetMarkerColor( 30 );  //mint green
+  regionCH->SetMarkerColor( 28 );  //brown
+  regionDH->SetMarkerColor( 4  );  //blue
+  regionEH->SetMarkerColor( 2  );  //red
+  
+  
+  foreach( const GraphElement &el, meterGraph )
+  {
+    const PosixTime time = meterGraph.getAbsoluteTime( el.m_minutes );
+    const double meterValue = el.m_value;
+    const double cgmsValue = cmgsGraph.value(time);
+    
+    TH2D *regionH = NULL;
+    
+    if( (cgmsValue <= 70 && meterValue <= 70) || (cgmsValue <= 1.2*meterValue && cgmsValue >= 0.8*meterValue) )
+    {
+       regionH = regionAH;
+    }else
+    {
+      if( ((meterValue >= 180) && (cgmsValue <= 70)) || ((meterValue <= 70) && cgmsValue >= 180 ) )
+      {
+        regionH = regionEH;
+      }else
+      {
+        if( ((meterValue >= 70 && meterValue <= 290) && (cgmsValue >= meterValue + 110) ) || ((meterValue >= 130 && meterValue <= 180)&& (cgmsValue <= (7.0/5.0)*meterValue - 182)) )
+        {
+           regionH = regionCH;
+        }else
+        {
+          if( ((meterValue >= 240) && ((cgmsValue >= 70) && (cgmsValue <= 180))) || (meterValue <= 175.0/3.0 && (cgmsValue <= 180) && (cgmsValue >= 70)) || ((meterValue >= 175.0/3.0 && meterValue <= 70) && (cgmsValue >= (6.0/5.0)*meterValue)) )
+          {
+            regionH = regionDH;
+          }else
+          {
+             regionH = regionBH;
+          }//if(zone D) else(zoneB)
+        }//if(zone C) / else
+      }//if(zone E) / else
+   }//if(zone A) / else
+
+   assert(regionH);
+   regionH->Fill( meterValue, cgmsValue );
+  }//foreach( const GraphElement &el, meterGraph )
+  
+  
+  const double nA = regionAH->Integral();
+  const double nB = regionBH->Integral();
+  const double nC = regionCH->Integral();
+  const double nD = regionDH->Integral();
+  const double nE = regionEH->Integral();
+  const double nTotal = nA + nB + nC + nD + nE;
+  
+  ostringstream percentA, percentB, percentC, percentD, percentE;
+  percentA << "Region A " << setw(4) << setiosflags(ios::fixed | ios::right) 
+           << setprecision(1) << 100.0 * nA / nTotal << "%";
+  percentB << "Region B " << setw(4) << setiosflags(ios::fixed | ios::right) 
+           << setprecision(1) << 100.0 * nB / nTotal << "%";
+  percentC << "Region C " << setw(4) << setiosflags(ios::fixed | ios::right) 
+           << setprecision(1) << 100.0 * nC / nTotal << "%";
+  percentD << "Region D " << setw(4) << setiosflags(ios::fixed | ios::right) 
+           << setprecision(1) << 100.0 * nD / nTotal << "%";
+  percentE << "Region E " << setw(4) << setiosflags(ios::fixed | ios::right) 
+           << setprecision(1) << 100.0 * nE / nTotal << "%";
+  
+  TLegendEntry *entry;
+  // TLegend *leg = new TLegend( 0.65, 0.6, 0.95, 0.90);
+  TLegend *leg = new TLegend( 0.09482759,0.5402542,0.3951149,0.8389831,NULL,"brNDC");
+  leg->SetBorderSize(0);
+  entry = leg->AddEntry( regionAH, percentA.str().c_str(), "p" );
+  entry->SetTextColor( regionAH->GetMarkerColor() );
+  entry = leg->AddEntry( regionBH, percentB.str().c_str(), "p" );
+  entry->SetTextColor( regionBH->GetMarkerColor() );
+  entry = leg->AddEntry( regionCH, percentC.str().c_str(), "p" );
+  entry->SetTextColor( regionCH->GetMarkerColor() );
+  entry = leg->AddEntry( regionDH, percentD.str().c_str(), "p" );
+  entry->SetTextColor( regionDH->GetMarkerColor() );
+  entry = leg->AddEntry( regionEH, percentE.str().c_str(), "p" );
+  entry->SetTextColor( regionEH->GetMarkerColor() );
+  
+  
+  //okay, now put everything in the return vewctor
+  returnObjects.push_back( regionAH );
+  returnObjects.push_back( regionBH );
+  returnObjects.push_back( regionCH );
+  returnObjects.push_back( regionDH );
+  returnObjects.push_back( regionEH );
+  returnObjects.push_back( leg );
+  
+  returnObjects.push_back( new TLine( 0.0, 0.0, 400.0, 400.0 ) );
+  static_cast<TLine *>(returnObjects.back())->SetLineStyle(2); //dashed
+  returnObjects.push_back( new TLine( 0.0,       70.0,      175.0/3.0, 70.0 ) );
+  returnObjects.push_back( new TLine( 175.0/3.0, 70.0,      320,       400 ) );
+  returnObjects.push_back( new TLine( 70,        84,        70,        400) );
+  returnObjects.push_back( new TLine( 0,         180,       70,        180) );
+  returnObjects.push_back( new TLine( 70,        180,       290,       400) );
+  returnObjects.push_back( new TLine( 70,        0,         70,        175.0/3.0) );
+  returnObjects.push_back( new TLine( 70,        175.0/3.0, 400,       320) );
+  returnObjects.push_back( new TLine( 180,       0,         180,       70) );
+  returnObjects.push_back( new TLine( 180,       70,        400,       70) );
+  returnObjects.push_back( new TLine( 240,       70,        240,       180) );
+  returnObjects.push_back( new TLine( 240,       180,       400,       180) );
+  returnObjects.push_back( new TLine( 130,       0,         180,       70) );
+  
+  TText *text;
+  text = new TText(30,  20,  "A");
+  text->SetTextColor( regionAH->GetMarkerColor() );
+  text->SetTextSize(0.05);
+  returnObjects.push_back( text );
+  text = new TText(30,  150, "D");
+  text->SetTextColor( regionAH->GetMarkerColor() );
+  text->SetTextSize(0.05);
+  text->SetTextColor( regionDH->GetMarkerColor() );
+  returnObjects.push_back( text );
+  text = new TText(30,  380, "E");
+  text->SetTextColor( regionEH->GetMarkerColor() );
+  text->SetTextSize(0.05);
+  returnObjects.push_back( text );
+  text = new TText(150, 380, "C");
+  text->SetTextColor( regionCH->GetMarkerColor() );
+  text->SetTextSize(0.05);
+  returnObjects.push_back( text );
+  text = new TText(160, 20,  "C");
+  text->SetTextColor( regionCH->GetMarkerColor() );
+  text->SetTextSize(0.05);
+  returnObjects.push_back( text );
+  text = new TText(380, 20,  "E");
+  text->SetTextColor( regionEH->GetMarkerColor() );
+  text->SetTextSize(0.05);
+  returnObjects.push_back( text );
+  text = new TText(380, 120, "D");
+  text->SetTextColor( regionDH->GetMarkerColor() );
+  text->SetTextSize(0.05);
+  returnObjects.push_back( text );
+  text = new TText(380, 220, "B");
+  text->SetTextColor( regionBH->GetMarkerColor() );
+  text->SetTextSize(0.05);
+  returnObjects.push_back( text );
+  text = new TText(265, 350, "B");
+  text->SetTextColor( regionBH->GetMarkerColor() );
+  text->SetTextSize(0.05);
+  returnObjects.push_back( text );
+
+  return returnObjects;
+}//getClarkeErrorGridObjs(...)
 
 
 

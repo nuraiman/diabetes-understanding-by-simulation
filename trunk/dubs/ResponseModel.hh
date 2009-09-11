@@ -66,6 +66,7 @@
 *    --have a default range selector (so times when cgms isn't in use won't be used)
 *******************************************************************************/
 
+class TVirtualPad;
 class NLSimple;
 
 typedef std::pair<PosixTime,double> FoodConsumption;
@@ -398,6 +399,20 @@ class FitNLSimpleEvent: public ROOT::Minuit2::FCNBase, public TMVA::IFitterTarge
     //  should be called from within getModelForNewFit() only.
     void updateModelWithCurrentGuesses( NLSimple &model ) const; 
 };//class FitNLSimpleEvent
+
+
+
+
+void drawClarkeErrorGrid( TVirtualPad *pad,
+                          const ConsentrationGraph &cmgsGraph, 
+                          const ConsentrationGraph &meterGraph,
+                          const TimeDuration &cmgsDelay );
+
+std::vector<TObject *> getClarkeErrorGridObjs( const ConsentrationGraph &cmgsGraph, 
+                                               const ConsentrationGraph &meterGraph,
+                                               const TimeDuration &cmgsDelay );
+
+
 
 
 
