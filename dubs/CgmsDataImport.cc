@@ -658,6 +658,7 @@ CgmsDataImport::carbConsumptionToSimpleCarbAbsorbtionGraph(
   
   foreach( const GraphElement &el, consumptionGraph )
   {
+    if( el.m_value < 0.1 ) continue;
     if( el.m_value < 17.0 )
       carbConcen.add( el.m_value, el.m_minutes, FastCarbAbsorbtionRate );
     else carbConcen.add( el.m_value, el.m_minutes, MediumCarbAbsorbtionRate );

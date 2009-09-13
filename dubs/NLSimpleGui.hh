@@ -74,6 +74,11 @@ class NLSimpleGui
     TRootEmbeddedCanvas *m_equationCanvas;
     TPaveText *m_equationPt;
     
+    TRootEmbeddedCanvas *m_errorGridCanvas;
+    TRootEmbeddedCanvas *m_errorLegendCanvas;
+    TGRadioButton *m_clarkeMeterButton;
+    TGRadioButton *m_clarkePredictionButton;
+    
     // TGDockableFrame *m_menuDock;
     TGMenuBar *m_menuBar;
     TGPopupMenu *m_MenuFile;
@@ -85,9 +90,10 @@ class NLSimpleGui
     NLSimpleGui( NLSimple *model = NULL, bool runApp = false );
     ~NLSimpleGui();
     
-    void initializeMenu();// make the File menu
-    void addGraphTab();  //add graph tab to m_tabWidget
-    void addProgramOptionsTab();//add options tab to m_tabWidget
+    void initializeMenu();       // make the File menu
+    void addGraphTab();          //add graph tab to m_tabWidget
+    void addProgramOptionsTab(); //add options tab to m_tabWidget
+    void addErrorGridTab();      //add Clarke Error Grid  tab to m_tabWidget
     void createEquationsCanvas( const TGFrame *parent );
     TGVerticalFrame *createButtonsFrame( const TGFrame *parent );
     
@@ -110,6 +116,19 @@ class NLSimpleGui
     
     void updateModelSettings(UInt_t);
     void setModelSettingChanged(UInt_t);  // *SIGNAL*
+    
+    enum ClarkeWidgetId
+    {
+      kCGMS_V_METER_BUTTON,
+      kPREDICTION_V_CGMS_BUTTON
+    };//enum ClarkeWidgetId
+    
+    void handleClarkeButton( Int_t senderId );
+    void cleanupClarkAnalysis();
+    void refreshClarkAnalysis();
+    void drawMeterClarkAnalysis();
+    void drawPredictedClarkAnalysis();
+    
     
     bool modelDefined();
     
@@ -174,7 +193,6 @@ class ConstructNLSimple : public TGTransientFrame
     ConsentrationGraph *m_bolusData;
     ConsentrationGraph *m_insulinData; //created from m_bolusData
     ConsentrationGraph *m_carbConsumptionData;
-    ConsentrationGraph *m_carbAbsortionGraph;  //calculated from m_carbConsumptionData
     ConsentrationGraph *m_meterData;
     
     TGTextButton *m_cgmsButton;

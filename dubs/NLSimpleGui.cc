@@ -15,6 +15,7 @@
 #include "TList.h"
 #include "TAxis.h"
 #include "TGraph.h"
+#include "TLegend.h"
 
 
 #include "NLSimpleGui.hh"
@@ -71,6 +72,7 @@ NLSimpleGui::NLSimpleGui( NLSimple *model, bool runApp )
   m_tabWidget = new TGTab(graphButtonF,0.5*graphButtonF->GetWidth(),graphButtonF->GetHeight());
   addGraphTab();
   addProgramOptionsTab();
+  addErrorGridTab();
   m_tabWidget->SetTab(0);
   m_tabWidget->Resize(m_tabWidget->GetDefaultSize());
   
@@ -193,6 +195,233 @@ void NLSimpleGui::addProgramOptionsTab()
   m_tabWidget->AddTab("Settings", settingsEntry );
   ((ProgramOptionsGui *)settingsEntry)->Connect( "valueChanged(UInt_t)", "NLSimpleGui", this, "setModelSettingChanged(UInt_t)");
 }//addProgramOptionsTab
+
+
+
+void NLSimpleGui::addErrorGridTab()
+{
+  int width = m_tabWidget->GetWidth();
+  int height =  m_tabWidget->GetHeight();
+  int graphWidth = 0.75*width;
+  int graphHeiht = 0.85*height;
+  int buttonWidth = width - graphWidth;
+  int buttonHeight = graphHeiht;
+  // int titleHeight = height - graphHeiht;
+  // container of
+  
+  TGLayoutHints *upperLeftHint      = new TGLayoutHints( kLHintsTop | kLHintsLeft,0,0,0,0);
+  TGLayoutHints *graphFramehint     = new TGLayoutHints( kLHintsRight | kLHintsBottom | kLHintsExpandY | kLHintsExpandX,0,0,0,0);
+  // TGLayoutHints *hintBorderExpand   = new TGLayoutHints( kLHintsExpandY| kLHintsExpandX | kLHintsCenterX | kLHintsCenterY,2,2,2,2);
+  // TGLayoutHints *topExpandXHint     = new TGLayoutHints( kLHintsTop | kLHintsExpandX,0,0,0,0);
+  TGLayoutHints *bottomExpandXYHint = new TGLayoutHints( kLHintsBottom | kLHintsExpandX | kLHintsExpandY,0,0,0,0);
+  TGLayoutHints *leftExpandYHint    = new TGLayoutHints( kLHintsLeft | kLHintsTop | kLHintsExpandY, 0,0,0,0);
+  TGLayoutHints *buttonHint         = new TGLayoutHints( kLHintsExpandX | kLHintsTop | kLHintsCenterX,10,10,10,10);
+  
+  //Working here
+  TGCompositeFrame *errorGridFrame = m_tabWidget->AddTab("Error Grid");
+  errorGridFrame->SetLayoutManager(new TGVerticalLayout(errorGridFrame));
+  
+  //Create a new Vertical pane with a number of buttons to do things, then in the 
+  //  other pane is graph, then on the top of all that is "ClarkErrorGrid Analysis
+  TGHorizontalFrame *graphAndButtonF = new TGHorizontalFrame(errorGridFrame, width, height, kHorizontalFrame | kFitWidth | kFitHeight);
+  TGVerticalFrame *buttonF = new TGVerticalFrame(graphAndButtonF, buttonWidth, buttonHeight, kVerticalFrame | kFitWidth | kFitHeight);
+  TGVerticalFrame *graphF = new TGVerticalFrame(graphAndButtonF, buttonWidth, buttonHeight, kVerticalFrame | kFitWidth | kFitHeight);
+  TGLabel *label = new TGLabel( errorGridFrame, "Clarke Error Grid Analysis" );
+  errorGridFrame->AddFrame( label, upperLeftHint );
+  errorGridFrame->AddFrame( graphAndButtonF, bottomExpandXYHint );
+  graphAndButtonF->AddFrame( graphF, graphFramehint );
+  graphAndButtonF->AddFrame( buttonF, leftExpandYHint );
+  
+  m_errorLegendCanvas = new TRootEmbeddedCanvas("m_errorLegendCanvas", buttonF, buttonF->GetWidth(), buttonF->GetHeight()/4, /*kSunkenFrame| kDoubleBorder| */kFitWidth | kFitHeight);
+  TCanvas *legendCanvas = new TCanvas("legendCanvas", m_errorLegendCanvas->GetWidth(), m_errorLegendCanvas->GetHeight(), m_errorLegendCanvas->GetCanvasWindowId());
+  legendCanvas->SetFillColor( graphAndButtonF->GetForeground() );
+  // legendCanvas->SetFrameFillColor( graphAndButtonF->GetForegroundFrameBackground() );
+  m_errorLegendCanvas->AdoptCanvas(legendCanvas);
+  buttonF->AddFrame(m_errorLegendCanvas, buttonHint);
+  
+  TGButtonGroup *bg = new TGButtonGroup( buttonF, "Grid Type", kVerticalFrame );
+  m_clarkeMeterButton = new TGRadioButton( bg, "CGMS v Meter", kCGMS_V_METER_BUTTON);
+  m_clarkePredictionButton = new TGRadioButton( bg, "Pred v CGMS", kPREDICTION_V_CGMS_BUTTON);
+  m_clarkeMeterButton->SetState( kButtonDown );
+  m_clarkePredictionButton->SetState( kButtonUp );
+  buttonF->AddFrame(bg, buttonHint);  
+  bg->SetExclusive(kTRUE);
+  bg->Connect( "Clicked(Int_t)", "NLSimpleGui", this, "handleClarkeButton(Int_t)" );
+  
+  TGTextButton *refreshButton = new TGTextButton(buttonF,"Refresh");
+  refreshButton->SetTextJustify(36);
+  refreshButton->SetMargins(5,5,5,5);
+  buttonF->AddFrame(refreshButton, buttonHint);
+  refreshButton->Connect( "Clicked()", "NLSimpleGui", this, "refreshClarkAnalysis()" );
+  
+  
+  
+  
+  
+  m_errorGridCanvas = new TRootEmbeddedCanvas("m_errorGridCanvas", graphF, graphWidth, graphHeiht, kSunkenFrame| kDoubleBorder| kFitWidth | kFitHeight);
+  Int_t id = m_errorGridCanvas->GetCanvasWindowId();
+  width = m_errorGridCanvas->GetWidth();
+  height =  m_errorGridCanvas->GetHeight();
+  TCanvas *errorGridCanvas = new TCanvas("errorGridCanvas", width, height, id);
+  m_errorGridCanvas->AdoptCanvas(errorGridCanvas);
+  graphF->AddFrame(m_errorGridCanvas, bottomExpandXYHint);
+  
+  errorGridCanvas->cd();
+  errorGridCanvas->Range(-45.17185,-46.4891,410.4746,410.6538);
+  errorGridCanvas->SetFillColor(0);
+  errorGridCanvas->SetBorderMode(0);
+  errorGridCanvas->SetBorderSize(2);
+  errorGridCanvas->SetRightMargin(0.02298851);
+  errorGridCanvas->SetTopMargin(0.02330508);
+  errorGridCanvas->SetFrameBorderMode(0);
+  errorGridCanvas->SetFrameBorderMode(0);
+  
+  refreshClarkAnalysis();  
+}//void NLSimpleGui::addErrorGridTab()
+
+
+void NLSimpleGui::handleClarkeButton( Int_t senderId )
+{
+  // TGButton *btn = (TGButton *) gTQSender;
+  // int senderId = btn->WidgetId();
+  
+  switch( senderId )
+  {
+    case kCGMS_V_METER_BUTTON:
+      // if( m_clarkeMeterButton->GetState() == kButtonDown ) return;
+      // refreshClarkAnalysis();
+      drawMeterClarkAnalysis();
+    break;
+    
+    case kPREDICTION_V_CGMS_BUTTON:
+      // if( m_clarkePredictionButton->GetState() == kButtonDown ) return;
+      // refreshClarkAnalysis();
+      drawPredictedClarkAnalysis();
+    break;
+    assert(0);
+  }//switch( senderId )
+  
+}//void NLSimpleGui::handleClarkeButton( Int_t callingButton )
+
+
+
+void NLSimpleGui::cleanupClarkAnalysis()
+{
+  TCanvas *can = m_errorGridCanvas->GetCanvas();
+  can->cd();
+  can->SetEditable( kTRUE );
+  
+  TObject *obj;
+  TList *list = can->GetListOfPrimitives();
+  for( TIter nextObj(list); (obj = nextObj()); )
+  {
+    string className = obj->ClassName();
+    if( className != "TFrame" ) delete obj;
+  }//for(...)
+  can->Update();
+  
+  can = m_errorLegendCanvas->GetCanvas();
+  can->cd();
+  can->SetEditable( kTRUE );
+  list = can->GetListOfPrimitives();
+  for( TIter nextObj(list); (obj = nextObj()); )
+  {
+    string className = obj->ClassName();
+    if( className != "TFrame" ) delete obj;
+  }//for(...)
+  can->Update();
+}//void NLSimpleGui::cleanupClarkAnalysis()
+
+
+void NLSimpleGui::refreshClarkAnalysis()
+{
+  if( !m_model ) return;
+  if( m_clarkeMeterButton->GetState() == kButtonDown ) drawMeterClarkAnalysis();
+  else if( m_clarkePredictionButton->GetState() == kButtonDown ) drawPredictedClarkAnalysis();
+  else assert(0);
+}//void NLSimpleGui::refreshClarkAnalysis()
+
+
+void NLSimpleGui::drawMeterClarkAnalysis()
+{
+  if( !m_model ) return;
+  cleanupClarkAnalysis();
+    
+  TCanvas *can = m_errorGridCanvas->GetCanvas();
+  can->cd();
+  const TimeDuration &cmgsDelay = m_model->m_cgmsDelay;
+  const ConsentrationGraph &cmgsGraph = m_model->m_cgmsData;
+  const ConsentrationGraph &meterGraph = m_model->m_fingerMeterData;
+  
+  vector<TObject *> clarkesObj;
+  clarkesObj = getClarkeErrorGridObjs( cmgsGraph, meterGraph, cmgsDelay, true );
+  
+  clarkesObj[0]->Draw("SCAT");
+  clarkesObj[1]->Draw("SCAT SAME");
+  clarkesObj[2]->Draw("SCAT SAME");
+  clarkesObj[3]->Draw("SCAT SAME");
+  clarkesObj[4]->Draw("SCAT SAME");
+  TLegend *leg = dynamic_cast<TLegend *>( clarkesObj[5] );
+  assert( leg );
+  // leg->Draw();
+  
+  //Now draw all the boundry lines
+  for( size_t i=6; i < clarkesObj.size(); ++i ) clarkesObj[i]->Draw();
+  
+  can->SetEditable( kFALSE );
+  can->Update();
+  
+  can = m_errorLegendCanvas->GetCanvas();
+  can->cd();
+  leg->SetX1(-0.1);
+  leg->SetX2(1.12);
+  leg->SetY1(0.0);
+  leg->SetY2(1.0);
+  leg->Draw();
+  can->SetEditable( kFALSE );
+  can->Update();
+}//void NLSimpleGui::drawMeterClarkAnalysis()
+
+
+void NLSimpleGui::drawPredictedClarkAnalysis()
+{
+  if( !m_model ) return;
+  cleanupClarkAnalysis();
+  
+  TCanvas *can = m_errorGridCanvas->GetCanvas();
+  can->cd();
+  const TimeDuration &cmgsDelay = m_model->m_cgmsDelay;
+  const ConsentrationGraph &cmgsGraph = m_model->m_cgmsData;
+  const ConsentrationGraph &predictedGraph = m_model->m_predictedBloodGlucose;
+  
+  vector<TObject *> clarkesObj;
+  clarkesObj = getClarkeErrorGridObjs( predictedGraph, cmgsGraph, cmgsDelay, false );
+  
+  clarkesObj[0]->Draw("SCAT");
+  clarkesObj[1]->Draw("SCAT SAME");
+  clarkesObj[2]->Draw("SCAT SAME");
+  clarkesObj[3]->Draw("SCAT SAME");
+  clarkesObj[4]->Draw("SCAT SAME");
+  TLegend *leg = dynamic_cast<TLegend *>( clarkesObj[5] );
+  assert( leg );
+  // leg->Draw();
+  
+  //Now draw all the boundry lines
+  for( size_t i=6; i < clarkesObj.size(); ++i ) clarkesObj[i]->Draw();
+  
+  can->SetEditable( kFALSE );
+  can->Update();
+  
+  can = m_errorLegendCanvas->GetCanvas();
+  can->cd();
+  leg->SetX1(-0.1);
+  leg->SetX2(1.12);
+  leg->SetY1(0.0);
+  leg->SetY2(1.0);
+  leg->Draw();
+  can->SetEditable( kFALSE );
+  can->Update();
+}//void NLSimpleGui::drawPredictedClarkAnalysis()
 
 
 
@@ -566,7 +795,7 @@ ConstructNLSimple::ConstructNLSimple( NLSimple *&model,
     m_createButton(NULL),
     m_userSetTime(false), m_cgmsData(NULL), m_bolusData(NULL), 
     m_insulinData(NULL), m_carbConsumptionData(NULL), 
-    m_carbAbsortionGraph(NULL), m_meterData(NULL), 
+    m_meterData(NULL), 
     m_cgmsButton(NULL), m_bolusButton(NULL), 
     m_carbButton(NULL), m_meterButton(NULL),
     m_baseTGCanvas(NULL), 
@@ -748,14 +977,12 @@ void ConstructNLSimple::CloseWindow()
   if( m_cgmsData )            delete m_cgmsData;
   if( m_insulinData )         delete m_insulinData;
   if( m_carbConsumptionData ) delete m_carbConsumptionData;
-  if( m_carbAbsortionGraph )  delete m_carbAbsortionGraph;
   if( m_meterData )           delete m_meterData;
   if( m_bolusData )           delete m_bolusData;
   
   m_cgmsData = NULL;
   m_insulinData = NULL;
   m_carbConsumptionData = NULL;
-  m_carbAbsortionGraph = NULL;
   m_meterData = NULL;
   m_bolusData = NULL;
   
@@ -770,7 +997,7 @@ void ConstructNLSimple::enableCreateButton()
   double insalinValue = m_basalInsulinAmount->GetNumber();
   
   if( m_cgmsData && (m_insulinData || m_bolusData) 
-           && ( m_carbConsumptionData || m_carbAbsortionGraph )
+           && ( m_carbConsumptionData )
            && (insalinValue > 0.0) ) 
     m_createButton->SetEnabled( kTRUE );
 }//enableCreateButton
@@ -866,29 +1093,27 @@ void ConstructNLSimple::handleButton()
     
     case kSELECT_CARB_DATA:
     {
-      // if( m_carbAbsortionGraph )  delete m_carbAbsortionGraph;
       // if( m_carbConsumptionData ) delete m_carbConsumptionData;
       ConsentrationGraph *newCarbData = NULL;
-      
+      // cout << "Debug: in kSELECT_CARB_DATA" << endl;                                //remove            
       new CreateGraphGui( newCarbData, gClient->GetRoot(), 
                           gClient->GetDefaultRoot(), 
                           CgmsDataImport::GlucoseEaten );
-      if( !m_bolusData )
-      {
-        m_carbConsumptionData = newCarbData;
-        if( m_carbConsumptionData ) m_carbButton->SetText( "Add More\nCarb Data" );
+      if( !m_carbConsumptionData )
+      {       
+        m_carbConsumptionData = newCarbData;       
+        if( m_carbConsumptionData ) m_carbButton->SetText( "Add More\nCarb Data" );                   
       }else if( newCarbData ) 
       {
         m_carbConsumptionData->addNewDataPoints( *newCarbData );
         delete newCarbData;
       }//if / else
-      
+                   
       findTimeLimits();
       drawPreviews( kCARB_PAD );
       drawPreviews( kCGMS_PAD );
-      drawPreviews( kMERTER_PAD );
-      drawPreviews( kBOLUS_PAD );
-      
+      drawPreviews( kMERTER_PAD );                                                    
+      drawPreviews( kBOLUS_PAD );             
       enableCreateButton();
       break;
     }//case kSELECT_CARB_DATA:
@@ -960,7 +1185,7 @@ void ConstructNLSimple::findTimeLimits()
   if( m_userSetTime )
   {
     m_userSetTime = ( m_cgmsData || m_insulinData || m_bolusData 
-                      || m_carbConsumptionData || m_carbAbsortionGraph
+                      || m_carbConsumptionData
                       || m_meterData );
   }//if( m_userSetTime )
   
@@ -1071,10 +1296,9 @@ void ConstructNLSimple::drawPreviews( GraphPad pad )
     break;
       
     case kCARB_PAD:
-      if( m_carbConsumptionData /*&& m_carbAbsortionGraph*/ )
+      if( m_carbConsumptionData )
       {
         graphs.push_back( m_carbConsumptionData->getTGraph(startTime, endTime) );
-        // graphs.push_back( m_carbAbsortionGraph->getTGraph(startTime, endTime) );
       }//if both defined
     break;
     
@@ -1163,7 +1387,6 @@ void ConstructNLSimple::constructModel()
   assert( m_cgmsData );
   // m_insulinData;
   assert( m_carbConsumptionData );
-  // assert( m_carbAbsortionGraph );
   // m_meterData;
   assert( m_bolusData );
   
@@ -1188,22 +1411,25 @@ void ConstructNLSimple::constructModel()
   
   m_bolusData->trim( startTime, endTime );
   m_cgmsData->trim( startTime, endTime );
-  // m_carbAbsortionGraph->trim( startTime, endTime );
   m_carbConsumptionData->trim( startTime, endTime );
+  if(m_meterData) m_meterData->trim( startTime, endTime );
   
   double insPerHour = m_basalInsulinAmount->GetNumber();
   insPerHour /= PersonConstants::kPersonsWeight;
   assert( insPerHour > 0.0 );
 
   m_model = new NLSimple( "SimpleModel", insPerHour, PersonConstants::kBasalGlucConc, m_bolusData->getStartTime() );
+  // cout << "Debug: Have ACreated Model" << endl;
   m_model->addBolusData( *m_bolusData );
-  m_model->addCgmsData( *m_cgmsData );
-  // m_model->addGlucoseAbsorption( *m_carbAbsortionGraph );
+  // cout << "Debug: Have Added Bosul Data" << endl;
+  m_model->addCgmsData( *m_cgmsData );     
+  // cout << "Debug: Have Have Added CGMS" << endl;
   m_model->addGlucoseAbsorption( *m_carbConsumptionData );
-  
+  // cout << "Debug: Have Added Glucos" << endl;
+  if( m_meterData ) m_model->addFingerStickData( *m_meterData );
+  // cout << "Debug: Have Added Fingersteick" << endl;                               
   // m_model->m_freePlasmaInsulin = *m_bolusData;
   // m_model->m_cgmsData = *m_cgmsData;
-  // m_model->m_glucoseAbsorbtionRate = *m_carbAbsortionGraph;
 }//void ConstructNLSimple::constructModel()
 
 

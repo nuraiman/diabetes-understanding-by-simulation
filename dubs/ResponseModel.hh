@@ -128,6 +128,8 @@ class NLSimple
     ConsentrationGraph m_cgmsData;
     ConsentrationGraph m_freePlasmaInsulin;
     ConsentrationGraph m_glucoseAbsorbtionRate;
+    ConsentrationGraph m_mealData;
+    ConsentrationGraph m_fingerMeterData;
     
     ConsentrationGraph m_predictedInsulinX;       //currently stored 10x what I use, bug waiting to happen, should be changed some time
     ConsentrationGraph m_predictedBloodGlucose;
@@ -180,6 +182,9 @@ class NLSimple
     //if you pass in carbs consumed, just uses default absorption rate
     //  passing in glucose absorption rate is preffered method
     void addGlucoseAbsorption( const ConsentrationGraph &newData ); 
+    
+    void addFingerStickData( const PosixTime &time, double value );
+    void addFingerStickData( const ConsentrationGraph &newData );
     
     void resetPredictions();
     void setModelParameters( const std::vector<double> &newPar );
@@ -406,11 +411,13 @@ class FitNLSimpleEvent: public ROOT::Minuit2::FCNBase, public TMVA::IFitterTarge
 void drawClarkeErrorGrid( TVirtualPad *pad,
                           const ConsentrationGraph &cmgsGraph, 
                           const ConsentrationGraph &meterGraph,
-                          const TimeDuration &cmgsDelay );
+                          const TimeDuration &cmgsDelay,
+                          bool isCgmsVsMeter );
 
 std::vector<TObject *> getClarkeErrorGridObjs( const ConsentrationGraph &cmgsGraph, 
                                                const ConsentrationGraph &meterGraph,
-                                               const TimeDuration &cmgsDelay );
+                                               const TimeDuration &cmgsDelay,
+                                               bool isCgmsVsMeter );
 
 
 

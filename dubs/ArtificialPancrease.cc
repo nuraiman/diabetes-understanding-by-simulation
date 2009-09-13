@@ -85,16 +85,6 @@ int main( int argc, char** argv )
   setStyle();
   ProgramOptions::decodeOptions( argc, argv );
   
-  ConsentrationGraph cmgsGraph = CgmsDataImport::importSpreadsheet( "../data/march30_apr1st_diabetesLog.csv", 
-                                              CgmsDataImport::MeterReading );
-  ConsentrationGraph meterGraph = CgmsDataImport::importSpreadsheet( "../data/march30_apr1st_diabetesLog.csv", 
-                                              CgmsDataImport::MeterReading );
-  TimeDuration a;
-  new TCanvas();
-  drawClarkeErrorGrid( gPad, cmgsGraph,  meterGraph, a );
-  gTheApp->Run(kTRUE);
-  
-  
   NLSimple *modelCreateTest = NULL;
   new ConstructNLSimple( modelCreateTest, gClient->GetRoot(), gClient->GetDefaultRoot() );
   

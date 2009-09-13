@@ -110,6 +110,8 @@ m_description(description), m_cgmsDelay( ModelDefaults::kDefaultCgmsDelay ),
      m_cgmsData(t0, 5.0, GlucoseConsentrationGraph),
      m_freePlasmaInsulin(t0, 5.0, InsulinGraph),
      m_glucoseAbsorbtionRate(t0, 5.0, GlucoseAbsorbtionRateGraph),
+     m_mealData(t0, 5.0, GlucoseConsumptionGraph),
+     m_fingerMeterData(t0, 5.0, GlucoseConsentrationGraph),
      m_predictedInsulinX(t0, 5.0, InsulinGraph),
      m_predictedBloodGlucose(t0, 5.0, GlucoseConsentrationGraph),
      m_startSteadyStateTimes(0),
@@ -134,6 +136,8 @@ NLSimple::NLSimple( std::string fileName ) :
      m_cgmsData(kGenericT0, 5.0, GlucoseConsentrationGraph),
      m_freePlasmaInsulin(kGenericT0, 5.0, InsulinGraph),
      m_glucoseAbsorbtionRate(kGenericT0, 5.0, GlucoseAbsorbtionRateGraph),
+     m_mealData(kGenericT0, 5.0, GlucoseConsumptionGraph),
+     m_fingerMeterData(kGenericT0, 5.0, GlucoseConsentrationGraph),
      m_predictedInsulinX(kGenericT0, 5.0, InsulinGraph),
      m_predictedBloodGlucose(kGenericT0, 5.0, GlucoseConsentrationGraph),
      m_startSteadyStateTimes(0), 
@@ -184,7 +188,7 @@ const NLSimple &NLSimple::operator=( const NLSimple &rhs )
   m_cgmsDelay                  = rhs.m_cgmsDelay;
   m_basalInsulinConc           = rhs.m_basalInsulinConc;
   m_basalGlucoseConcentration  = rhs.m_basalGlucoseConcentration;
-    
+  
   m_effectiveDof               = rhs.m_effectiveDof;
   
   m_paramaters                 = rhs.m_paramaters;
@@ -197,6 +201,8 @@ const NLSimple &NLSimple::operator=( const NLSimple &rhs )
   m_cgmsData                   = rhs.m_cgmsData;
   m_freePlasmaInsulin          = rhs.m_freePlasmaInsulin;
   m_glucoseAbsorbtionRate      = rhs.m_glucoseAbsorbtionRate;
+  m_fingerMeterData            = rhs.m_fingerMeterData;
+  m_mealData                   = rhs.m_mealData;
   
   m_predictedInsulinX          = rhs.m_predictedInsulinX;
   m_predictedBloodGlucose      = rhs.m_predictedBloodGlucose;
@@ -399,6 +405,26 @@ void NLSimple::addConsumedGlucose( ptime time, double amount )
 
 
 
+void NLSimple::addFingerStickData( const PosixTime &time, double value )
+{
+  ConsentrationGraph newData(m_t0, 5.0, GlucoseConsentrationGraph);
+  newData.insert( time, value );
+  addFingerStickData( newData );
+}//void NLSimple::addFingerStickData( PosixTime, double value )
+
+
+void NLSimple::addFingerStickData( const ConsentrationGraph &newData )
+{
+  foreach( const GraphElement &el, newData )
+  {
+    const ptime time = newData.getAbsoluteTime( el.m_minutes );
+    m_fingerMeterData.addNewDataPoint( time, el.m_value );
+  }//foreach(....)
+}//void NLSimple::addFingerStickData( const ConsentrationGraph &newData )
+
+
+
+
 void NLSimple::addGlucoseAbsorption( const ConsentrationGraph &newData )
 {
   if( newData.getGraphType() == GlucoseAbsorbtionRateGraph )
@@ -406,6 +432,12 @@ void NLSimple::addGlucoseAbsorption( const ConsentrationGraph &newData )
     m_glucoseAbsorbtionRate = m_glucoseAbsorbtionRate.getTotal( newData );
   }else if( newData.getGraphType() == GlucoseConsumptionGraph )
   {
+    foreach( const GraphElement &el, newData )
+    {
+      const ptime time = newData.getAbsoluteTime( el.m_minutes );
+      m_mealData.addNewDataPoint( time, el.m_value );
+    }//foreach(....)
+    
     ConsentrationGraph
     absorbRate = 
     CgmsDataImport::carbConsumptionToSimpleCarbAbsorbtionGraph( newData );
@@ -2051,7 +2083,7 @@ void NLSimple::serialize( Archive &ar, const unsigned int version )
   ar & m_cgmsDelay;                         //initially set to 15 minutes
   ar & m_basalInsulinConc;                  //units per kilo per hour
   ar & m_basalGlucoseConcentration;
-
+  
   // ar & m_t0;
   ar & m_dt;
   ar & m_predictAhead;
@@ -2066,7 +2098,9 @@ void NLSimple::serialize( Archive &ar, const unsigned int version )
   ar & m_cgmsData;
   ar & m_freePlasmaInsulin;
   ar & m_glucoseAbsorbtionRate;
-    
+  ar & m_fingerMeterData;
+  ar & m_mealData;
+  
   ar & m_predictedInsulinX;
   ar & m_predictedBloodGlucose;
       
@@ -2453,12 +2487,23 @@ void FitNLSimpleEvent::updateModelWithCurrentGuesses( NLSimple &model ) const
 void drawClarkeErrorGrid( TVirtualPad *pad,
                           const ConsentrationGraph &cmgsGraph, 
                           const ConsentrationGraph &meterGraph,
-                          const TimeDuration &cmgsDelay )
+                          const TimeDuration &cmgsDelay,
+                          bool isCgmsVsMeter )
 {
   if( !pad ) pad = new TCanvas();
+  pad->cd();
+  pad->Range(-45.17185,-46.4891,410.4746,410.6538);
+  pad->SetFillColor(0);
+  pad->SetBorderMode(0);
+  pad->SetBorderSize(2);
+  pad->SetRightMargin(0.02298851);
+  pad->SetTopMargin(0.02330508);
+  pad->SetFrameBorderMode(0);
+  pad->SetFrameBorderMode(0);
+   
   
   vector<TObject *> clarkesObj;
-  clarkesObj = getClarkeErrorGridObjs( cmgsGraph, meterGraph, cmgsDelay );
+  clarkesObj = getClarkeErrorGridObjs( cmgsGraph, meterGraph, cmgsDelay, isCgmsVsMeter );
   
   //first 5 are TH2D's
   //then TLegend
@@ -2471,24 +2516,36 @@ void drawClarkeErrorGrid( TVirtualPad *pad,
   clarkesObj[4]->Draw("SCAT SAME");
   
   for( size_t i=5; i < clarkesObj.size(); ++i ) clarkesObj[i]->Draw();
+  
+  pad->Update();
 }//void drawClarkeErrorGrid( TPad * )
 
 
 std::vector<TObject *> 
 getClarkeErrorGridObjs( const ConsentrationGraph &cmgsGraph, 
                         const ConsentrationGraph &meterGraph,
-                        const TimeDuration &cmgsDelay )
+                        const TimeDuration &cmgsDelay,
+                        bool isCgmsVsMeter )
 
 {
   //Function addapted from from http://www.mathworks.com/matlabcentral/fileexchange/20545
-
   std::vector<TObject *> returnObjects;
   
-  TH2D *regionAH = new TH2D( "axisHistoH", ";Finger-Prick Value(mg/dl);CGMS Value(mg/dl)", 400, 0, 400, 400, 0, 400 );
-  TH2D *regionBH = new TH2D( "axisHistoH", ";Finger-Prick Value(mg/dl);CGMS Value(mg/dl)", 400, 0, 400, 400, 0, 400 );
-  TH2D *regionCH = new TH2D( "axisHistoH", ";Finger-Prick Value(mg/dl);CGMS Value(mg/dl)", 400, 0, 400, 400, 0, 400 );
-  TH2D *regionDH = new TH2D( "axisHistoH", ";Finger-Prick Value(mg/dl);CGMS Value(mg/dl)", 400, 0, 400, 400, 0, 400 );
-  TH2D *regionEH = new TH2D( "axisHistoH", ";Finger-Prick Value(mg/dl);CGMS Value(mg/dl)", 400, 0, 400, 400, 0, 400 );
+  string xTitle = ";Finger-Prick Value(mg/dl)";
+  string yTitle = ";CGMS Value(mg/dl)";
+  
+  if( !isCgmsVsMeter )
+  {
+    xTitle = ";CGMS Value(mg/dl)";
+    yTitle = ";Predicted Value(mg/dl)";
+  }//if( !isCgmsVsMeter )
+  
+  
+  TH2D *regionAH = new TH2D( "regionAH", (xTitle + yTitle).c_str(), 400, 0, 400, 400, 0, 400 );
+  TH2D *regionBH = new TH2D( "regionBH", (xTitle + yTitle).c_str(), 400, 0, 400, 400, 0, 400 );
+  TH2D *regionCH = new TH2D( "regionCH", (xTitle + yTitle).c_str(), 400, 0, 400, 400, 0, 400 );
+  TH2D *regionDH = new TH2D( "regionDH", (xTitle + yTitle).c_str(), 400, 0, 400, 400, 0, 400 );
+  TH2D *regionEH = new TH2D( "regionEH", (xTitle + yTitle).c_str(), 400, 0, 400, 400, 0, 400 );
   
   regionAH->SetStats( kFALSE );
   regionBH->SetStats( kFALSE );
@@ -2542,9 +2599,8 @@ getClarkeErrorGridObjs( const ConsentrationGraph &cmgsGraph,
         }//if(zone C) / else
       }//if(zone E) / else
    }//if(zone A) / else
-
-   assert(regionH);
-   regionH->Fill( meterValue, cgmsValue );
+   
+   if( cgmsValue > 10.0 ) regionH->Fill( meterValue, cgmsValue );
   }//foreach( const GraphElement &el, meterGraph )
   
   
@@ -2553,8 +2609,9 @@ getClarkeErrorGridObjs( const ConsentrationGraph &cmgsGraph,
   const double nC = regionCH->Integral();
   const double nD = regionDH->Integral();
   const double nE = regionEH->Integral();
-  const double nTotal = nA + nB + nC + nD + nE;
+  double nTotal = nA + nB + nC + nD + nE;
   
+  if( nTotal == 0.0 ) nTotal = 1000;
   ostringstream percentA, percentB, percentC, percentD, percentE;
   percentA << "Region A " << setw(4) << setiosflags(ios::fixed | ios::right) 
            << setprecision(1) << 100.0 * nA / nTotal << "%";
@@ -2568,8 +2625,7 @@ getClarkeErrorGridObjs( const ConsentrationGraph &cmgsGraph,
            << setprecision(1) << 100.0 * nE / nTotal << "%";
   
   TLegendEntry *entry;
-  // TLegend *leg = new TLegend( 0.65, 0.6, 0.95, 0.90);
-  TLegend *leg = new TLegend( 0.09482759,0.5402542,0.3951149,0.8389831,NULL,"brNDC");
+  TLegend *leg = new TLegend( 0.09482759,0.6,0.3951149,0.91,NULL,"brNDC");
   leg->SetBorderSize(0);
   entry = leg->AddEntry( regionAH, percentA.str().c_str(), "p" );
   entry->SetTextColor( regionAH->GetMarkerColor() );
