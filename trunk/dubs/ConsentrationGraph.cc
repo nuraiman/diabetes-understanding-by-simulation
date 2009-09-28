@@ -157,6 +157,7 @@ std::string ConsentrationGraph::getGraphTypeStr() const
     case GlucoseAbsorbtionRateGraph: return "GlucoseAbsorbtionRateGraph";
     case GlucoseConsumptionGraph:    return "GlucoseConsumptionGraph";
     case BloodGlucoseConcenDeriv:    return "BloodGlucoseConcenDeriv";
+    case CustomEvent:                return "CustomEvent";
     case NumGraphType:               return "NumGraphType";
   };//switch( m_graphType )
   
@@ -1471,6 +1472,13 @@ TGraph *ConsentrationGraph::getTGraph( boost::posix_time::ptime t_start,
       graph->GetYaxis()->SetTitle( "#frac{dG^{blood}}{dt} (mg/dl/min)" ); 
       // graph->GetYaxis()->SetTitleOffset(0.1);
       graphTitle = "Change in Glucose Concentration" + graphTitle;
+    break;
+    
+    case CustomEvent:
+      graph->GetYaxis()->SetTitle( "Custom Event Type" ); 
+      graphTitle = "Custom Event" + graphTitle;
+    break;
+    
     case NumGraphType:
       graph->GetYaxis()->SetTitle( "" ); 
     break;
@@ -1551,6 +1559,10 @@ TGraph* ConsentrationGraph::draw( string options,
     break;
     
     case BloodGlucoseConcenDeriv:
+    break;
+    
+    case CustomEvent:
+     options += "*";
     break;
     
     case NumGraphType:
@@ -1665,6 +1677,7 @@ AbsFuncPointer ConsentrationGraph::getFunctionPointer(
         case BolusGraph:
         case GlucoseConsumptionGraph:
         case BloodGlucoseConcenDeriv:
+        case CustomEvent:
         case NumGraphType:
         assert(0);
       };//switch( m_graphType )

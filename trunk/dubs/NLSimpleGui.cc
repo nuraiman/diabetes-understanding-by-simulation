@@ -5,11 +5,11 @@
 #include <utility>
 #include <string>
 #include <stdio.h>
-#include <math.h>  //contains M_PI
+#include <math.h>    //contains M_PI
 #include <stdlib.h>
 #include <fstream>
 #include <algorithm> //min/max_element
-#include <float.h> // for DBL_MAX
+#include <float.h>   // for DBL_MAX
 
 #include "TApplication.h"
 #include "TList.h"
@@ -234,7 +234,7 @@ void NLSimpleGui::addErrorGridTab()
   
   m_errorLegendCanvas = new TRootEmbeddedCanvas("m_errorLegendCanvas", buttonF, buttonF->GetWidth(), buttonF->GetHeight()/4, /*kSunkenFrame| kDoubleBorder| */kFitWidth | kFitHeight);
   TCanvas *legendCanvas = new TCanvas("legendCanvas", m_errorLegendCanvas->GetWidth(), m_errorLegendCanvas->GetHeight(), m_errorLegendCanvas->GetCanvasWindowId());
-  legendCanvas->SetFillColor( graphAndButtonF->GetForeground() );
+  // legendCanvas->SetFillColor( graphAndButtonF->GetForeground() );
   // legendCanvas->SetFrameFillColor( graphAndButtonF->GetForegroundFrameBackground() );
   m_errorLegendCanvas->AdoptCanvas(legendCanvas);
   buttonF->AddFrame(m_errorLegendCanvas, buttonHint);
@@ -254,15 +254,10 @@ void NLSimpleGui::addErrorGridTab()
   buttonF->AddFrame(refreshButton, buttonHint);
   refreshButton->Connect( "Clicked()", "NLSimpleGui", this, "refreshClarkAnalysis()" );
   
-  
-  
-  
+    
   
   m_errorGridCanvas = new TRootEmbeddedCanvas("m_errorGridCanvas", graphF, graphWidth, graphHeiht, kSunkenFrame| kDoubleBorder| kFitWidth | kFitHeight);
-  Int_t id = m_errorGridCanvas->GetCanvasWindowId();
-  width = m_errorGridCanvas->GetWidth();
-  height =  m_errorGridCanvas->GetHeight();
-  TCanvas *errorGridCanvas = new TCanvas("errorGridCanvas", width, height, id);
+  TCanvas *errorGridCanvas = new TCanvas("errorGridCanvas", m_errorGridCanvas->GetWidth(), m_errorGridCanvas->GetHeight(),  m_errorGridCanvas->GetCanvasWindowId() );
   m_errorGridCanvas->AdoptCanvas(errorGridCanvas);
   graphF->AddFrame(m_errorGridCanvas, bottomExpandXYHint);
   

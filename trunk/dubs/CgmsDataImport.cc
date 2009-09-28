@@ -102,6 +102,7 @@ CgmsDataImport::importSpreadsheet( string filename, InfoType type,
     case MeterCalibration:  graphType = GlucoseConsentrationGraph; break;
     case GlucoseEaten:      graphType = GlucoseConsumptionGraph;   break;
     case BolusTaken:        graphType = BolusGraph;                break;
+    case GenericEvent:      graphType = CustomEvent;               break;
     case ISig:              graphType = NumGraphType;              break;
     
     assert(0);
@@ -388,6 +389,7 @@ CgmsDataImport::getNavigatorInfo( string line, InfoType type )
     case MeterCalibration: assert(0); //navEventTypeWanted = ET_Glucose_CALIBRATION;
     case GlucoseEaten:     navEventTypeWanted = ET_Meal;          break;
     case BolusTaken:       navEventTypeWanted = ET_BolusInsulin;  break;
+    case GenericEvent:     navEventTypeWanted = ET_Generic;       break;
     case ISig:             assert(0);
   };//switch( type )
   
@@ -428,6 +430,10 @@ CgmsDataImport::getInfoFromLine( std::string line,
     case GlucoseEaten:     key = kGlucoseKey;     break;
     case BolusTaken:       key = kBolusKey;       break;
     case ISig:             key = kIsigKey;        break;
+    case GenericEvent:     
+      cout << "GenericEvent onlyimplemented for Navigator Freestyle only" << endl;
+    return TimeValuePair();
+    
     assert(0);
   };//switch( infoWanted )
   
@@ -873,7 +879,7 @@ double NavEvent::getValue( const NavEVENTTYPE evtType ) const
     case ET_Glucose_METER: return (double)glucose();
     case ET_BolusInsulin:  return bolusAmount();
     case ET_Meal:          return carbs();
-    case ET_Generic:      return (double)genericType();
+    case ET_Generic:       return (double)genericType();
       
     case ET_Exercise:    
     case ET_BasalInsulin:  

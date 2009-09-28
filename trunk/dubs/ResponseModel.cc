@@ -112,6 +112,7 @@ m_description(description), m_cgmsDelay( ModelDefaults::kDefaultCgmsDelay ),
      m_glucoseAbsorbtionRate(t0, 5.0, GlucoseAbsorbtionRateGraph),
      m_mealData(t0, 5.0, GlucoseConsumptionGraph),
      m_fingerMeterData(t0, 5.0, GlucoseConsentrationGraph),
+     m_CustomEvents(t0, 5.0, CustomEvent),
      m_predictedInsulinX(t0, 5.0, InsulinGraph),
      m_predictedBloodGlucose(t0, 5.0, GlucoseConsentrationGraph),
      m_startSteadyStateTimes(0),
@@ -138,6 +139,7 @@ NLSimple::NLSimple( std::string fileName ) :
      m_glucoseAbsorbtionRate(kGenericT0, 5.0, GlucoseAbsorbtionRateGraph),
      m_mealData(kGenericT0, 5.0, GlucoseConsumptionGraph),
      m_fingerMeterData(kGenericT0, 5.0, GlucoseConsentrationGraph),
+     m_CustomEvents(t0, 5.0, CustomEvent),
      m_predictedInsulinX(kGenericT0, 5.0, InsulinGraph),
      m_predictedBloodGlucose(kGenericT0, 5.0, GlucoseConsentrationGraph),
      m_startSteadyStateTimes(0), 
@@ -179,6 +181,8 @@ NLSimple::NLSimple( std::string fileName ) :
 //if you are updatin this, make sure you updarte the serialize function!!!
 const NLSimple &NLSimple::operator=( const NLSimple &rhs )
 {
+  if( &rhs == this ) return *this;
+  
   m_description                = rhs.m_description;
     
   m_t0                         = rhs.m_t0;
@@ -202,6 +206,7 @@ const NLSimple &NLSimple::operator=( const NLSimple &rhs )
   m_freePlasmaInsulin          = rhs.m_freePlasmaInsulin;
   m_glucoseAbsorbtionRate      = rhs.m_glucoseAbsorbtionRate;
   m_fingerMeterData            = rhs.m_fingerMeterData;
+  m_CustomEvents               = rhs.m_customEvents;
   m_mealData                   = rhs.m_mealData;
   
   m_predictedInsulinX          = rhs.m_predictedInsulinX;
@@ -422,6 +427,25 @@ void NLSimple::addFingerStickData( const ConsentrationGraph &newData )
   }//foreach(....)
 }//void NLSimple::addFingerStickData( const ConsentrationGraph &newData )
 
+
+
+void NLSimple::addCustomEvent( const PosixTime &time, int eventType )
+{
+  ConsentrationGraph newData(m_t0, 5.0, CustomEvent);
+  newData.insert( time, eventType );
+  addCustomEvents( newData );
+}//void NLSimple::addCustomEvent( const PosixTime &time, int eventType )
+
+
+
+void NLSimple::addCustomEvents( const ConsentrationGraph &newEvents )
+{
+  foreach( const GraphElement &el, newEvents )
+  {
+    const ptime time = newEvents.getAbsoluteTime( el.m_minutes );
+    m_customEvents.addNewDataPoint( time, el.m_value );
+  }//foreach(....)
+}//void NLSimple::addCustomEvents( const ConsentrationGraph &newEvents )
 
 
 
@@ -2088,7 +2112,7 @@ void NLSimple::serialize( Archive &ar, const unsigned int version )
   ar & m_dt;
   ar & m_predictAhead;
   
-  ar & m_effectiveDof; //So Minuit2 can properly interpret errors
+  ar & m_effectiveDof;         //So Minuit2 can properly interpret errors
   ar & m_paramaters;           //size == NumNLSimplePars
   ar & m_paramaterErrorPlus;
   ar & m_paramaterErrorMinus;
@@ -2099,6 +2123,7 @@ void NLSimple::serialize( Archive &ar, const unsigned int version )
   ar & m_freePlasmaInsulin;
   ar & m_glucoseAbsorbtionRate;
   ar & m_fingerMeterData;
+  ar & m_CustomEvents;
   ar & m_mealData;
   
   ar & m_predictedInsulinX;
@@ -2528,7 +2553,7 @@ getClarkeErrorGridObjs( const ConsentrationGraph &cmgsGraph,
                         bool isCgmsVsMeter )
 
 {
-  //Function addapted from from http://www.mathworks.com/matlabcentral/fileexchange/20545
+  //Function addapted from (BSD license) http://www.mathworks.com/matlabcentral/fileexchange/20545
   std::vector<TObject *> returnObjects;
   
   string xTitle = ";Finger-Prick Value(mg/dl)";
@@ -2541,11 +2566,11 @@ getClarkeErrorGridObjs( const ConsentrationGraph &cmgsGraph,
   }//if( !isCgmsVsMeter )
   
   
-  TH2D *regionAH = new TH2D( "regionAH", (xTitle + yTitle).c_str(), 400, 0, 400, 400, 0, 400 );
-  TH2D *regionBH = new TH2D( "regionBH", (xTitle + yTitle).c_str(), 400, 0, 400, 400, 0, 400 );
-  TH2D *regionCH = new TH2D( "regionCH", (xTitle + yTitle).c_str(), 400, 0, 400, 400, 0, 400 );
-  TH2D *regionDH = new TH2D( "regionDH", (xTitle + yTitle).c_str(), 400, 0, 400, 400, 0, 400 );
-  TH2D *regionEH = new TH2D( "regionEH", (xTitle + yTitle).c_str(), 400, 0, 400, 400, 0, 400 );
+  TH2F *regionAH = new TH2F( "regionAH", (xTitle + yTitle).c_str(), 400, 0, 400, 400, 0, 400 );
+  TH2F *regionBH = new TH2F( "regionBH", (xTitle + yTitle).c_str(), 400, 0, 400, 400, 0, 400 );
+  TH2F *regionCH = new TH2F( "regionCH", (xTitle + yTitle).c_str(), 400, 0, 400, 400, 0, 400 );
+  TH2F *regionDH = new TH2F( "regionDH", (xTitle + yTitle).c_str(), 400, 0, 400, 400, 0, 400 );
+  TH2F *regionEH = new TH2F( "regionEH", (xTitle + yTitle).c_str(), 400, 0, 400, 400, 0, 400 );
   
   regionAH->SetStats( kFALSE );
   regionBH->SetStats( kFALSE );
@@ -2565,6 +2590,7 @@ getClarkeErrorGridObjs( const ConsentrationGraph &cmgsGraph,
   regionDH->SetMarkerColor( 4  );  //blue
   regionEH->SetMarkerColor( 2  );  //red
   
+  size_t numEntries = 0;
   
   foreach( const GraphElement &el, meterGraph )
   {
@@ -2572,24 +2598,24 @@ getClarkeErrorGridObjs( const ConsentrationGraph &cmgsGraph,
     const double meterValue = el.m_value;
     const double cgmsValue = cmgsGraph.value(time);
     
-    TH2D *regionH = NULL;
+    TH2F *regionH = NULL;
     
-    if( (cgmsValue <= 70 && meterValue <= 70) || (cgmsValue <= 1.2*meterValue && cgmsValue >= 0.8*meterValue) )
+    if( (cgmsValue <= 70.0 && meterValue <= 70.0) || (cgmsValue <= 1.2*meterValue && cgmsValue >= 0.8*meterValue) )
     {
        regionH = regionAH;
     }else
     {
-      if( ((meterValue >= 180) && (cgmsValue <= 70)) || ((meterValue <= 70) && cgmsValue >= 180 ) )
+      if( ((meterValue >= 180.0) && (cgmsValue <= 70.0)) || ((meterValue <= 70.0) && cgmsValue >= 180.0 ) )
       {
         regionH = regionEH;
       }else
       {
-        if( ((meterValue >= 70 && meterValue <= 290) && (cgmsValue >= meterValue + 110) ) || ((meterValue >= 130 && meterValue <= 180)&& (cgmsValue <= (7.0/5.0)*meterValue - 182)) )
+        if( ((meterValue >= 70.0 && meterValue <= 290.0) && (cgmsValue >= meterValue + 110.0) ) || ((meterValue >= 130.0 && meterValue <= 180.0)&& (cgmsValue <= (7.0/5.0)*meterValue - 182.0)) )
         {
            regionH = regionCH;
         }else
         {
-          if( ((meterValue >= 240) && ((cgmsValue >= 70) && (cgmsValue <= 180))) || (meterValue <= 175.0/3.0 && (cgmsValue <= 180) && (cgmsValue >= 70)) || ((meterValue >= 175.0/3.0 && meterValue <= 70) && (cgmsValue >= (6.0/5.0)*meterValue)) )
+          if( ((meterValue >= 240.0) && ((cgmsValue >= 70.0) && (cgmsValue <= 180.0))) || (meterValue <= 175.0/3.0 && (cgmsValue <= 180.0) && (cgmsValue >= 70.0)) || ((meterValue >= 175.0/3.0 && meterValue <= 70.0) && (cgmsValue >= (6.0/5.0)*meterValue)) )
           {
             regionH = regionDH;
           }else
@@ -2600,9 +2626,23 @@ getClarkeErrorGridObjs( const ConsentrationGraph &cmgsGraph,
       }//if(zone E) / else
    }//if(zone A) / else
    
-   if( cgmsValue > 10.0 ) regionH->Fill( meterValue, cgmsValue );
+   if( cgmsValue > 10.0 ) 
+   {
+     ++numEntries;
+     regionH->Fill( meterValue, cgmsValue );
+   }//if( cgmsValue > 10.0 )
   }//foreach( const GraphElement &el, meterGraph )
   
+  if( numEntries > 1000.0 )
+  {
+    const double weight = 1000.0 / numEntries;
+    
+    regionAH->Scale( weight );
+    regionBH->Scale( weight );
+    regionCH->Scale( weight );
+    regionDH->Scale( weight );
+    regionEH->Scale( weight );
+  }//if( numEntries > 1000.0 )
   
   const double nA = regionAH->Integral();
   const double nB = regionBH->Integral();
