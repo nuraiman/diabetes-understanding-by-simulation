@@ -32,6 +32,7 @@ namespace CgmsDataImport
     MeterCalibration,
     GlucoseEaten,
     BolusTaken,       //treats all bolus;s the same (so ignores squarness, etc.)
+    GenericEvent,
     ISig
   };//enum InfoType
   

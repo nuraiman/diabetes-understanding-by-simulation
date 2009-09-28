@@ -109,6 +109,10 @@ CreateGraphGui::CreateGraphGui(  ConsentrationGraph *&graph,
       m_graphTypeListBox->AddEntry( "I-Sig",CgmsDataImport::ISig );
       m_graphTypeListBox->Select(CgmsDataImport::ISig);
       break;
+    case CgmsDataImport::GenericEvent:
+      m_graphTypeListBox->AddEntry( "Custom Event",CgmsDataImport::ISig );
+      m_graphTypeListBox->Select(CgmsDataImport::GenericEvent);
+      break;
   }//switch( m_graphType )
   
   // m_graphTypeListBox->SetEnabled( kFALSE );

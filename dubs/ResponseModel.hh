@@ -130,6 +130,7 @@ class NLSimple
     ConsentrationGraph m_glucoseAbsorbtionRate;
     ConsentrationGraph m_mealData;
     ConsentrationGraph m_fingerMeterData;
+    ConsentrationGraph m_customEvents;
     
     ConsentrationGraph m_predictedInsulinX;       //currently stored 10x what I use, bug waiting to happen, should be changed some time
     ConsentrationGraph m_predictedBloodGlucose;
@@ -185,6 +186,9 @@ class NLSimple
     
     void addFingerStickData( const PosixTime &time, double value );
     void addFingerStickData( const ConsentrationGraph &newData );
+    
+    void addCustomEvent( const PosixTime &time, int eventType );
+    void addCustomEvents( const ConsentrationGraph &newEvents );
     
     void resetPredictions();
     void setModelParameters( const std::vector<double> &newPar );

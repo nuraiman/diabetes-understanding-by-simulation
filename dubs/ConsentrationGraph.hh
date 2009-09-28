@@ -38,6 +38,7 @@ enum GraphType
   GlucoseAbsorbtionRateGraph,
   GlucoseConsumptionGraph,
   BloodGlucoseConcenDeriv,  //the derivative of blood-glucose concentration
+  CustomEvent,
   NumGraphType
 };//enum GraphType
 
