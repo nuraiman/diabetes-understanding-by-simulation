@@ -17,7 +17,6 @@
 #include "TGraph.h"
 #include "TLegend.h"
 
-
 #include "NLSimpleGui.hh"
 #include "ResponseModel.hh"
 #include "CgmsDataImport.hh"
@@ -248,13 +247,23 @@ void NLSimpleGui::addErrorGridTab()
   bg->SetExclusive(kTRUE);
   bg->Connect( "Clicked(Int_t)", "NLSimpleGui", this, "handleClarkeButton(Int_t)" );
   
+  
+  m_delaySimgaCanvas = new TRootEmbeddedCanvas("m_delaySimgaCanvas", buttonF, buttonF->GetWidth(), buttonF->GetHeight()/8, /*kSunkenFrame| kDoubleBorder| */kFitWidth | kFitHeight);
+  TCanvas *delaySimgaCanvas = new TCanvas("delaySimgaCanvas", m_delaySimgaCanvas->GetWidth(), m_delaySimgaCanvas->GetHeight(), m_delaySimgaCanvas->GetCanvasWindowId());
+  m_delaySimgaCanvas->AdoptCanvas(delaySimgaCanvas);
+  buttonF->AddFrame(m_delaySimgaCanvas, buttonHint);
+  delaySimgaCanvas->cd();
+  m_delayErrorEqn = new TPaveText(0, 0, 1.0, 1.0, "NDC");
+  m_delayErrorEqn->SetBorderSize(0);
+  m_delayErrorEqn->SetTextAlign(12);
+  m_delayErrorEqn->Draw();
+  
+  
   TGTextButton *refreshButton = new TGTextButton(buttonF,"Refresh");
   refreshButton->SetTextJustify(36);
   refreshButton->SetMargins(5,5,5,5);
   buttonF->AddFrame(refreshButton, buttonHint);
   refreshButton->Connect( "Clicked()", "NLSimpleGui", this, "refreshClarkAnalysis()" );
-  
-    
   
   m_errorGridCanvas = new TRootEmbeddedCanvas("m_errorGridCanvas", graphF, graphWidth, graphHeiht, kSunkenFrame| kDoubleBorder| kFitWidth | kFitHeight);
   TCanvas *errorGridCanvas = new TCanvas("errorGridCanvas", m_errorGridCanvas->GetWidth(), m_errorGridCanvas->GetHeight(),  m_errorGridCanvas->GetCanvasWindowId() );
@@ -334,6 +343,8 @@ void NLSimpleGui::refreshClarkAnalysis()
   if( m_clarkeMeterButton->GetState() == kButtonDown ) drawMeterClarkAnalysis();
   else if( m_clarkePredictionButton->GetState() == kButtonDown ) drawPredictedClarkAnalysis();
   else assert(0);
+  
+  updateDelayAndError();
 }//void NLSimpleGui::refreshClarkAnalysis()
 
 
@@ -743,6 +754,33 @@ void NLSimpleGui::refreshPredictions()
 {
   cout << "You need to complete NLSimpleGui::refreshPredictions()" << endl;
 }//void refreshPredictions()
+
+
+void NLSimpleGui::updateDelayAndError()
+{
+  if( !m_model ) return;
+  
+  TCanvas *can = m_delaySimgaCanvas->GetCanvas();
+  can->cd();
+  can->SetEditable( kTRUE );
+  m_delayErrorEqn->Clear(); 
+  
+  const TimeDuration delay = m_model->findCgmsDelayFromFingerStick();
+  double sigma = 1000.0 * m_model->findCgmsErrorFromFingerStick(delay);
+  sigma = static_cast<int>(sigma + 0.5) / 10.0; //round to nearest tenth of a percent
+  
+  string delayStr = "Delay=" + boost::posix_time::to_simple_string(delay).substr(3,5) + "   ";
+  ostringstream uncertDescript;
+  uncertDescript << "#sigma_{cgms}^{finger}=" << sigma << "%";
+  
+  m_delayErrorEqn->AddText( uncertDescript.str().c_str() );
+  m_delayErrorEqn->AddText( delayStr.c_str() );
+  m_delayErrorEqn->Draw();
+  
+  //need to make ROOT update gPad now
+  can->Update();
+  can->SetEditable( kFALSE );
+}//void NLSimpleGui::updateDelayAndError()
 
 
 void NLSimpleGui::updateModelSettings(UInt_t setting)
@@ -1404,10 +1442,10 @@ void ConstructNLSimple::constructModel()
   // cout << "Creating NLSimple Model with data from " << startDate 
        // << " to " << endTime << endl;
   
-  m_bolusData->trim( startTime, endTime );
+  m_bolusData->trim( startTime, endTime, false );
   m_cgmsData->trim( startTime, endTime );
-  m_carbConsumptionData->trim( startTime, endTime );
-  if(m_meterData) m_meterData->trim( startTime, endTime );
+  m_carbConsumptionData->trim( startTime, endTime, false );
+  if(m_meterData) m_meterData->trim( startTime, endTime, false );
   
   double insPerHour = m_basalInsulinAmount->GetNumber();
   insPerHour /= PersonConstants::kPersonsWeight;

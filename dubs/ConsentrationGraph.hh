@@ -186,7 +186,8 @@ class ConsentrationGraph : public std::set<GraphElement>
     
     //below removes data before t_start and after t_end
     void trim( const PosixTime &t_start = kGenericT0, 
-               const PosixTime &t_end = kGenericT0 );
+               const PosixTime &t_end = kGenericT0,
+               bool interpTrimmed = true );
     
     //To add a single point use addNewDataPoint
     //  however, use of this function is mildly unsafe if you have previously

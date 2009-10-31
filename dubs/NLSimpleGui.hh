@@ -73,9 +73,11 @@ class NLSimpleGui
     
     TRootEmbeddedCanvas *m_equationCanvas;
     TPaveText *m_equationPt;
+    TPaveText *m_delayErrorEqn;
     
     TRootEmbeddedCanvas *m_errorGridCanvas;
     TRootEmbeddedCanvas *m_errorLegendCanvas;
+    TRootEmbeddedCanvas *m_delaySimgaCanvas;
     TGRadioButton *m_clarkeMeterButton;
     TGRadioButton *m_clarkePredictionButton;
     
@@ -108,6 +110,7 @@ class NLSimpleGui
     void addCarbData();
     void addMeterData();
     void refreshPredictions();
+    void updateDelayAndError();
     
     void handleMenu(Int_t menuAction);
     

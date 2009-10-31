@@ -112,7 +112,7 @@ m_description(description), m_cgmsDelay( ModelDefaults::kDefaultCgmsDelay ),
      m_glucoseAbsorbtionRate(t0, 5.0, GlucoseAbsorbtionRateGraph),
      m_mealData(t0, 5.0, GlucoseConsumptionGraph),
      m_fingerMeterData(t0, 5.0, GlucoseConsentrationGraph),
-     m_CustomEvents(t0, 5.0, CustomEvent),
+     m_customEvents(t0, 5.0, CustomEvent),
      m_predictedInsulinX(t0, 5.0, InsulinGraph),
      m_predictedBloodGlucose(t0, 5.0, GlucoseConsentrationGraph),
      m_startSteadyStateTimes(0),
@@ -139,7 +139,7 @@ NLSimple::NLSimple( std::string fileName ) :
      m_glucoseAbsorbtionRate(kGenericT0, 5.0, GlucoseAbsorbtionRateGraph),
      m_mealData(kGenericT0, 5.0, GlucoseConsumptionGraph),
      m_fingerMeterData(kGenericT0, 5.0, GlucoseConsentrationGraph),
-     m_CustomEvents(t0, 5.0, CustomEvent),
+     m_customEvents(kGenericT0, 5.0, CustomEvent),
      m_predictedInsulinX(kGenericT0, 5.0, InsulinGraph),
      m_predictedBloodGlucose(kGenericT0, 5.0, GlucoseConsentrationGraph),
      m_startSteadyStateTimes(0), 
@@ -206,7 +206,7 @@ const NLSimple &NLSimple::operator=( const NLSimple &rhs )
   m_freePlasmaInsulin          = rhs.m_freePlasmaInsulin;
   m_glucoseAbsorbtionRate      = rhs.m_glucoseAbsorbtionRate;
   m_fingerMeterData            = rhs.m_fingerMeterData;
-  m_CustomEvents               = rhs.m_customEvents;
+  m_customEvents               = rhs.m_customEvents;
   m_mealData                   = rhs.m_mealData;
   
   m_predictedInsulinX          = rhs.m_predictedInsulinX;
@@ -474,6 +474,174 @@ void NLSimple::addGlucoseAbsorption( const ConsentrationGraph &newData )
     exit(1);
   }//if( check which type of data was passed in ) /else
 }//addConsumedGlucose
+
+
+
+
+double CgmsFingerCorrFCN::operator()(const std::vector<double>& x) const
+{
+  return testParamaters(x);
+}//operator()
+
+Double_t CgmsFingerCorrFCN::EstimatorFunction( std::vector<Double_t>& parameters )
+{
+  return testParamaters(parameters);
+}//EstimatorFunction(...)
+
+double CgmsFingerCorrFCN::testParamaters(const std::vector<double>& x ) const
+{
+  assert( x.size() == 1 );
+  if( m_fingerstickData.empty() || m_cgmsData.empty() ) return 99999.9;
+    
+  const double fracUncert = 0.10; //this is for value of cgms
+  //should we have an uncertainty based on the rate of change of the cgms?
+  
+  double chi2 = 0.0;
+  const TimeDuration delay = toTimeDuration( x[0] );
+
+  foreach( const GraphElement &el, m_fingerstickData )
+  {
+    const PosixTime time     = m_fingerstickData.getAbsoluteTime(el.m_minutes);
+    const double fingerValue = el.m_value;
+    const double cgmsValue   = m_cgmsData.value(time + delay);
+    
+    const ConstGraphIter nextTimeIter = m_cgmsData.lower_bound(time + delay);
+    ConstGraphIter previousTimeIter   = nextTimeIter;
+    --previousTimeIter;
+    
+    if( nextTimeIter == m_cgmsData.end() || nextTimeIter == m_cgmsData.begin() ) continue;
+    
+    const PosixTime nextTime = m_cgmsData.getAbsoluteTime(nextTimeIter->m_minutes);
+    const PosixTime prevTime = m_cgmsData.getAbsoluteTime(previousTimeIter->m_minutes);
+    
+    TimeDuration prevDur = time + delay - prevTime ;
+    TimeDuration nextDur = nextTime - time - delay;
+    if( nextDur.is_negative() ) nextDur = -nextDur;
+    if( prevDur.is_negative() ) prevDur = -prevDur;
+    
+    const TimeDuration maxTimeToCgms = max( nextDur, prevDur );
+    
+    if( maxTimeToCgms < TimeDuration(0, 16, 0, 0) )
+    {
+      const double uncert2 = pow( fracUncert * fingerValue, 2 );
+      assert( uncert2 != 0.0 );
+      chi2 += pow( fingerValue - cgmsValue, 2) / uncert2;
+    }//if( maxTimeToCgms > TimeDuration(0, 16, 0, 0) )
+    
+  }//foreach( fingerstick data point )
+   cout << endl << endl << endl;
+   
+   return chi2;
+}//testParamaters(...)
+
+
+double CgmsFingerCorrFCN::Up() const {return 1.0;}
+void CgmsFingerCorrFCN::SetErrorDef(double dof){ dof = dof; }
+
+
+
+    
+CgmsFingerCorrFCN::CgmsFingerCorrFCN( const ConsentrationGraph &cgmsData, 
+                                      const ConsentrationGraph &fingerstickData ) : 
+                    m_cgmsData(cgmsData), m_fingerstickData(fingerstickData)
+{
+}//CgmsFingerCorrFCN::CgmsFingerCorrFCN(...)
+    
+CgmsFingerCorrFCN::~CgmsFingerCorrFCN(){}
+  
+
+//We want to use something like an auto correlation function to determine
+//  delay between CGMS and fingerstick data
+TimeDuration NLSimple::findCgmsDelayFromFingerStick() const
+{
+  // return toTimeDuration(15.0);
+  using namespace ROOT::Minuit2;
+  CgmsFingerCorrFCN chi2Fcn( m_cgmsData,  m_fingerMeterData );
+  
+  MnUserParameters upar;
+  upar.Add( "CGMS_delay"   , 15.0, 1.0 );
+  upar.SetLimits( "CGMS_delay", 0.0, 30.0 );
+  MnMigrad migrad( chi2Fcn, upar );
+  FunctionMinimum min = migrad();
+  
+  if( !min.IsValid() ) 
+  {
+    cout << "First attempt to find CGMS delay failed, will retry with strategy = 2." << endl;
+    MnMigrad migrad(chi2Fcn, upar, 2);
+    min = migrad();
+  }//if( !min.IsValid() )
+  
+  cout << "found CGMS delay of: " << min << endl;
+  
+  const double delayD = min.UserState().Value(0);
+  
+  cout << "Found a cgms delay of " << delayD << endl;
+  
+  return toTimeDuration(delayD);
+}//TimeDuration NLSimple::findCgmsDelayFromFingerStick() const
+
+
+
+double NLSimple::findCgmsErrorFromFingerStick( const TimeDuration cgms_delay ) const
+{
+  //We'll make an atempt to find an assymeteric error, but only return the symetrized error
+  double fracDeviation2(0.0);
+  int numValidPointsUp(0), numValidPointsDown(0);
+  double fractionalErrUp(0.0), fractionalErrDown(0.0); 
+  
+  
+  foreach( const GraphElement &el, m_fingerMeterData )
+  {
+    const PosixTime time     = m_fingerMeterData.getAbsoluteTime(el.m_minutes);
+    const double fingerValue = el.m_value;
+    const double cgmsValue   = m_cgmsData.value(time + cgms_delay);
+    
+    const ConstGraphIter nextTimeIter = m_cgmsData.lower_bound(time + cgms_delay);
+    ConstGraphIter previousTimeIter   = nextTimeIter;
+    --previousTimeIter;
+    
+    if( nextTimeIter == m_cgmsData.end() || nextTimeIter == m_cgmsData.begin() ) continue;
+    const PosixTime nextTime = m_cgmsData.getAbsoluteTime(nextTimeIter->m_minutes);
+    const PosixTime prevTime = m_cgmsData.getAbsoluteTime(previousTimeIter->m_minutes);
+    
+    //check to make sure there is cgms readings near the fingerstick readings 
+    TimeDuration prevDur = time + cgms_delay - prevTime ;
+    TimeDuration nextDur = nextTime - time - cgms_delay;
+    if( nextDur.is_negative() ) nextDur = -nextDur;
+    if( prevDur.is_negative() ) prevDur = -prevDur;
+    const TimeDuration maxTimeToCgms = max( nextDur, prevDur );
+    
+    if( maxTimeToCgms < TimeDuration(0, 16, 0, 0) )
+    {
+      // cout << "(" << fingerValue << ", " << cgmsValue << ")" << endl;
+      fracDeviation2 += pow(fingerValue - cgmsValue, 2) / cgmsValue / cgmsValue;
+      if( (fingerValue - cgmsValue) > 0.0 )
+      {
+        ++numValidPointsUp;
+        numValidPointsUp += abs(fingerValue - cgmsValue) / cgmsValue;
+      }else
+      {
+        ++numValidPointsDown;
+        fractionalErrDown += abs(fingerValue - cgmsValue) / cgmsValue;
+      }//
+    }//if( maxTimeToCgms > TimeDuration(0, 16, 0, 0) )
+    // else cout << "maxTimeToCgms=" << maxTimeToCgms << endl;
+  }//foreach( fingerstick data point )
+  
+  if( !fractionalErrDown && !numValidPointsUp ) return kFailValue;
+  
+  const double upError   = numValidPointsUp  / numValidPointsUp;
+  const double downError = fractionalErrDown / numValidPointsDown;
+  const double symetricError = (numValidPointsUp+fractionalErrDown) / (numValidPointsUp+numValidPointsDown);
+  fracDeviation2 /= ((numValidPointsUp+numValidPointsDown) * (numValidPointsUp+numValidPointsDown));
+  
+  cout << "The CGMS-fingerstick error is: +" << upError << ", -" << downError 
+       << ", symmetrized error +-" << symetricError << ", standard deviation +-" 
+       << sqrt(fracDeviation2) << endl; 
+  
+  return sqrt(fracDeviation2); //symetricError;
+}//TimeDuration NLSimple::findCgmsErrorFromFingerStick( const TimeDuration cgms_delay ) const
+
 
 
 void NLSimple::resetPredictions()
@@ -2123,7 +2291,7 @@ void NLSimple::serialize( Archive &ar, const unsigned int version )
   ar & m_freePlasmaInsulin;
   ar & m_glucoseAbsorbtionRate;
   ar & m_fingerMeterData;
-  ar & m_CustomEvents;
+  ar & m_customEvents;
   ar & m_mealData;
   
   ar & m_predictedInsulinX;
