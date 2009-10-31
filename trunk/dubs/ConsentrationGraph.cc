@@ -207,7 +207,8 @@ ptime ConsentrationGraph::getAbsoluteTime( double nOffsetMinutes ) const
 
 
 
-void ConsentrationGraph::trim( const PosixTime &t_start, const PosixTime &t_end )
+void ConsentrationGraph::trim( const PosixTime &t_start, const PosixTime &t_end,
+                               bool interpTrimmed )
 {
   if( empty() ) return;
   
@@ -229,7 +230,7 @@ void ConsentrationGraph::trim( const PosixTime &t_start, const PosixTime &t_end 
     {
       double val = value(t_start);
       GraphElementSet::erase( begin(), lb );
-      insert( t_start, val );
+      if( interpTrimmed ) insert( t_start, val );
     }else //the set<> exactly contains this time
     {
       GraphElementSet::erase( begin(), lb );
@@ -254,7 +255,7 @@ void ConsentrationGraph::trim( const PosixTime &t_start, const PosixTime &t_end 
     {
       double val = value(t_end);
       GraphElementSet::erase( ub, end() );
-      insert( t_end, val );
+      if( interpTrimmed ) insert( t_end, val );
     }else //the set<> exactly contains this time
     {
       GraphElementSet::erase( ub, end() );

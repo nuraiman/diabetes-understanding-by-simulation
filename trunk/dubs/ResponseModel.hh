@@ -153,7 +153,7 @@ class NLSimple
     
     ~NLSimple() {};
     
-    double getOffset( const boost::posix_time::ptime &absoluteTime ) const;
+    double getOffset( const PosixTime &absoluteTime ) const;
     PosixTime getAbsoluteTime( double nOffsetMinutes ) const;
     
 
@@ -194,6 +194,9 @@ class NLSimple
     void setModelParameters( const std::vector<double> &newPar );
     void setModelParameterErrors( std::vector<double> &newParErrorLow, 
                                   std::vector<double> &newParErrorHigh );
+    
+    TimeDuration findCgmsDelayFromFingerStick() const;
+    double findCgmsErrorFromFingerStick( const TimeDuration cgms_delay ) const;
     
     PosixTime findSteadyStateStartTime( PosixTime t_start, PosixTime t_end );
     void findSteadyStateBeginings( double nHoursNoInsulinForFirstSteadyState = 3.0 );
@@ -331,6 +334,8 @@ class ModelTestFCN : public ROOT::Minuit2::FCNBase, public TMVA::IFitterTarget
     ModelTestFCN( NLSimple *modelPtr, 
                   double endPredChi2Weight,
                   std::vector<TimeRange> timeRanges );
+    
+    virtual ~ModelTestFCN(){}
   
   private:
     NLSimple *m_modelPtr;
@@ -341,6 +346,33 @@ class ModelTestFCN : public ROOT::Minuit2::FCNBase, public TMVA::IFitterTarget
     PosixTime m_tEnd;
 };//class ModelTestFCN
 
+
+
+//An interace for NLSimple to Minuit2 and the Genetic Optimizer
+class CgmsFingerCorrFCN : public ROOT::Minuit2::FCNBase, public TMVA::IFitterTarget
+{
+  public:
+    //function forMinuit2
+    virtual double operator()(const std::vector<double>& x) const;
+    virtual double Up() const;
+    virtual void SetErrorDef(double dof);
+    
+    //Function for TMVA fitters
+    virtual Double_t EstimatorFunction( std::vector<Double_t>& parameters );
+    
+    //the function that does the actual work
+    double testParamaters(const std::vector<double>& x ) const;
+    
+    CgmsFingerCorrFCN( const ConsentrationGraph &cgmsData, 
+                       const ConsentrationGraph &fingerstickData
+                     );
+    
+    virtual ~CgmsFingerCorrFCN();
+  
+  private:
+    const ConsentrationGraph &m_cgmsData;
+    const ConsentrationGraph &m_fingerstickData;
+};//class CgmsFingerCorrFCN
 
 
 // namespace ROOT{ namespace Minuit2{ class MnMigrad;};};
