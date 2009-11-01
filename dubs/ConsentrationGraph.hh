@@ -39,6 +39,7 @@ enum GraphType
   GlucoseConsumptionGraph,
   BloodGlucoseConcenDeriv,  //the derivative of blood-glucose concentration
   CustomEvent,
+  AlarmGraph,
   NumGraphType
 };//enum GraphType
 
@@ -73,11 +74,11 @@ class GraphElement
 {
   public:
   
-    double m_minutes;
+    PosixTime m_time;
     double m_value;
     
     GraphElement();
-    GraphElement( double nMinutes, double value );
+    GraphElement( const PosixTime &time, double value );
     
     //Serialize function has to be in the header since it's a template
     friend class boost::serialization::access;
@@ -89,6 +90,10 @@ class GraphElement
 };//class GraphElement
 
 BOOST_CLASS_VERSION(GraphElement, 0)
+
+
+TimeDuration toTimeDuration( double nMinutes );
+double toNMinutes( const TimeDuration &timeDuration );
 
 
 typedef  double Filter_Coef[6][10]; //for the butterworth filter
@@ -112,7 +117,7 @@ class ConsentrationGraph : public std::set<GraphElement>
     //The default time step, in minutes
     //  The elements in the base GraphElementSet MAY have a smaller
     //  time delta, this is just the default
-    double m_dt;
+    TimeDuration m_dt;
     
     //only applied to drawn objects, or model predictions not based at 0
     double m_yOffsetForDrawing;
@@ -125,6 +130,7 @@ class ConsentrationGraph : public std::set<GraphElement>
     ConsentrationGraph( const ConsentrationGraph &lhs );
     ConsentrationGraph( const std::string &savedFileName );
     ConsentrationGraph( PosixTime t0, double dt, GraphType graphType );
+    ConsentrationGraph( PosixTime t0, TimeDuration dt, GraphType graphType );
     
   private:
   //insert any funciton that uses a double to represent time here
@@ -134,20 +140,14 @@ class ConsentrationGraph : public std::set<GraphElement>
     
     const ConsentrationGraph &operator=( const ConsentrationGraph &rhs );
     
-    //Internal Methods
-    double getOffset( const PosixTime &absoluteTime ) const;  //offset from m_t0 in minutes 
+    //Internal Methods 
     static double getDt( const PosixTime &t0, const PosixTime &t1 );  //time diff in minutes 
-    PosixTime getAbsoluteTime( double nOffsetMinutes ) const;
     bool containsTime( PosixTime absoluteTime ) const; //caution doesn't work like you think
-    bool containsTime( double nMinutesOffset ) const;  //  returns true if the base set<> 
-                                                       //  contains the exact time
     
     //If the base GraphElementSet doesn't have the exact time you want,
     //  value(...) will just use linear interpolation to find the value
-    double value( double nOffsetminutes ) const;
-    double value( PosixTime absTime ) const;
-    double value( TimeDuration offset ) const;
-    double valueUsingOffset( double nOffsetminutes ) const;  //just a synonym for value(double)
+    double value( const PosixTime &time ) const;
+    double valueUsingOffset( double nMinutesAfterTo ) const; //purely for compatability of some older code
     
     //To obtain the derivative or smoothed version of this graph 
     //  note that these two functions are quite computationally inefficient
@@ -161,22 +161,19 @@ class ConsentrationGraph : public std::set<GraphElement>
     //Add functions returns number of GraphElents added to GraphElementSet
     //  calls using posix_time::ptime, must reference a time after m_t0
     //For use with user defined function that gives blood consentration
-    unsigned int add( double amountPerVol, boost::posix_time::ptime beginTime, AbsFuncPointer absFunc );
-    unsigned int add( double amountPerVol, double beginTimeOffset, 
-                      AbsFuncPointer );
+    unsigned int add( double amountPerVol, const PosixTime &beginTime, AbsFuncPointer absFunc );
     
     //For use with a predifined dunction
     //  If NumAbsortionFunctions specified, defaults 
     //  to NovologAbsorbtion, or MediumCarbAbsorbtion,
-    unsigned int add( double amountPerVol, boost::posix_time::ptime beginTime, 
+    unsigned int add( double amountPerVol, const PosixTime &beginTime, 
                       AbsorbtionFunction absFunc = NumAbsorbtionFunctions);
-    unsigned int add( double amountPerVol, double beginTimeOffset, 
-                      AbsorbtionFunction absFunc = NumAbsorbtionFunctions);
+    
     
     //get rid of the zero points that don't add anything
     unsigned int removeNonInfoAddingPoints();
     
-    double getDt() const;
+    TimeDuration getDt() const;
     GraphType getGraphType() const;
     std::string getGraphTypeStr() const;
     PosixTime getT0() const;
@@ -192,11 +189,8 @@ class ConsentrationGraph : public std::set<GraphElement>
     //To add a single point use addNewDataPoint
     //  however, use of this function is mildly unsafe if you have previously
     //  used an add(...) function
-    ConstGraphIter addNewDataPoint( double offset, double value );
-    ConstGraphIter addNewDataPoint( PosixTime time, double value );
-    
-    //cals above
-    ConstGraphIter insert( double offsetTime, double value );
+    ConstGraphIter addNewDataPoint( const PosixTime &time, double value );
+    //just calls addNewDataPoint
     ConstGraphIter insert( const PosixTime &absoluteTime, double value );
     
     unsigned int addNewDataPoints( const ConsentrationGraph &newDataPoints );
@@ -204,8 +198,7 @@ class ConsentrationGraph : public std::set<GraphElement>
     ConstGraphIter lower_bound( const PosixTime &time ) const;
     ConstGraphIter upper_bound( const PosixTime &time ) const;
     
-    double getMostCommonDt() const;
-    TimeDuration getMostCommonPosixDt() const;
+    TimeDuration getMostCommonDt() const;
     
     //You probably should not call the folowing 2 functions, 
     //  instead call 'getSmoothedGraph(...)'

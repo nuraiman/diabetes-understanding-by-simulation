@@ -238,15 +238,6 @@ void NLSimpleGui::addErrorGridTab()
   m_errorLegendCanvas->AdoptCanvas(legendCanvas);
   buttonF->AddFrame(m_errorLegendCanvas, buttonHint);
   
-  TGButtonGroup *bg = new TGButtonGroup( buttonF, "Grid Type", kVerticalFrame );
-  m_clarkeMeterButton = new TGRadioButton( bg, "CGMS v Meter", kCGMS_V_METER_BUTTON);
-  m_clarkePredictionButton = new TGRadioButton( bg, "Pred v CGMS", kPREDICTION_V_CGMS_BUTTON);
-  m_clarkeMeterButton->SetState( kButtonDown );
-  m_clarkePredictionButton->SetState( kButtonUp );
-  buttonF->AddFrame(bg, buttonHint);  
-  bg->SetExclusive(kTRUE);
-  bg->Connect( "Clicked(Int_t)", "NLSimpleGui", this, "handleClarkeButton(Int_t)" );
-  
   
   m_delaySimgaCanvas = new TRootEmbeddedCanvas("m_delaySimgaCanvas", buttonF, buttonF->GetWidth(), buttonF->GetHeight()/8, /*kSunkenFrame| kDoubleBorder| */kFitWidth | kFitHeight);
   TCanvas *delaySimgaCanvas = new TCanvas("delaySimgaCanvas", m_delaySimgaCanvas->GetWidth(), m_delaySimgaCanvas->GetHeight(), m_delaySimgaCanvas->GetCanvasWindowId());
@@ -257,6 +248,17 @@ void NLSimpleGui::addErrorGridTab()
   m_delayErrorEqn->SetBorderSize(0);
   m_delayErrorEqn->SetTextAlign(12);
   m_delayErrorEqn->Draw();
+  
+  
+  
+  TGButtonGroup *bg = new TGButtonGroup( buttonF, "Grid Type", kVerticalFrame );
+  m_clarkeMeterButton = new TGRadioButton( bg, "CGMS v Meter", kCGMS_V_METER_BUTTON);
+  m_clarkePredictionButton = new TGRadioButton( bg, "Pred v CGMS", kPREDICTION_V_CGMS_BUTTON);
+  m_clarkeMeterButton->SetState( kButtonDown );
+  m_clarkePredictionButton->SetState( kButtonUp );
+  buttonF->AddFrame(bg, buttonHint);  
+  bg->SetExclusive(kTRUE);
+  bg->Connect( "Clicked(Int_t)", "NLSimpleGui", this, "handleClarkeButton(Int_t)" );
   
   
   TGTextButton *refreshButton = new TGTextButton(buttonF,"Refresh");
