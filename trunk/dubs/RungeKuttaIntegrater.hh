@@ -11,9 +11,6 @@
 //A note for the future: Try implementing a 'symplectic integrator' to
 //  conserve quantities in the long run
 
-TimeDuration toTimeDuration( double nMinutes );
-double toNMinutes( const TimeDuration &timeDuration );
-
 /* 4-step (fourth order) Runge-Kutta numerical integrator for ordinary differential equations.
  *
  * Arguments:

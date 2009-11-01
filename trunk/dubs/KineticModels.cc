@@ -29,7 +29,7 @@ double FastCarbAbsorbtionFunc( double nCarbs, double nMinutes )
                                         t_assent, t_dessent, v_max, 
                                         k_gut_absoption, timeStep );
  
-  return glucAbs.value( nMinutes );
+  return glucAbs.value( t0 + toTimeDuration(nMinutes) );
 }//FastCarbAbsorbtionFunc(...)
 
 
@@ -48,7 +48,7 @@ double MediumCarbAbsorbtionFunc( double nCarbs, double nMinutes )
                                      t_assent, t_dessent, v_max, 
                                      k_gut_absoption, timeStep );
  
-  return glucAbs.value( nMinutes );
+  return glucAbs.value( t0 + toTimeDuration(nMinutes) );
 }//MediumCarbAbsorbtionFunc(...)
 
 
@@ -66,7 +66,7 @@ double SlowCarbAbsorbtionFunc( double nCarbs, double nMinutes )
                                         t_assent, t_dessent, v_max, 
                                         k_gut_absoption, timeStep );
  
-  return glucAbs.value( nMinutes );
+  return glucAbs.value( t0 + toTimeDuration(nMinutes) );
 }//SlowCarbAbsorbtionFunc(...)
 
 
@@ -85,19 +85,31 @@ double NovologConsentrationFunc( double unitsPerKilogram, double nMinutes )
   
   //All the '-19.0' below is to makeup for what looks like the baseline insulin
   //  consentration in the chart.
-  static const GraphElementSet data = list_of(GraphElement(0, 19.0-19.0))
-               (15, 45.0-19.0) (30, 70.0-19.0) (40, 75.0-19.0) (45, 72.5-19.0)
-               (60, 67.0-19.0) (75, 59.0-19.0) (90, 55.0-19.0) (105, 49.0-19.0)
-               (120, 43.0-19.0) (135, 38.0-19.0) (150, 34.0-19.0) 
-               (165, 30.0-19.0) (180, 26.0-19.0) (195, 22.5-19.0) 
-               (210, 20.5-19.0) (225, 19.0-19.0);
+  static const GraphElementSet data = list_of(GraphElement(kGenericT0 + toTimeDuration(0), 19.0-19.0))
+               (kGenericT0 + toTimeDuration(15), 45.0-19.0) 
+               (kGenericT0 + toTimeDuration(30), 70.0-19.0) 
+               (kGenericT0 + toTimeDuration(40), 75.0-19.0) 
+               (kGenericT0 + toTimeDuration(45), 72.5-19.0)
+               (kGenericT0 + toTimeDuration(60), 67.0-19.0) 
+               (kGenericT0 + toTimeDuration(75), 59.0-19.0) 
+               (kGenericT0 + toTimeDuration(90), 55.0-19.0) 
+               (kGenericT0 + toTimeDuration(105), 49.0-19.0)
+               (kGenericT0 + toTimeDuration(120), 43.0-19.0) 
+               (kGenericT0 + toTimeDuration(135), 38.0-19.0) 
+               (kGenericT0 + toTimeDuration(150), 34.0-19.0) 
+               (kGenericT0 + toTimeDuration(165), 30.0-19.0) 
+               (kGenericT0 + toTimeDuration(180), 26.0-19.0) 
+               (kGenericT0 + toTimeDuration(195), 22.5-19.0) 
+               (kGenericT0 + toTimeDuration(210), 20.5-19.0) 
+               (kGenericT0 + toTimeDuration(225), 19.0-19.0);
                
   double consentration = 0.0;
   if( unitsPerKilogram <= 0.0 ) return consentration;
   if( nMinutes < 0.0 || nMinutes > 225 ) return consentration;
   
-  ConstGraphIter lb = data.lower_bound( GraphElement(nMinutes, 0.0) );
-  ConstGraphIter ub = data.upper_bound( GraphElement(nMinutes, 0.0) );
+  const PosixTime timeNMinutes = kGenericT0 + toTimeDuration(nMinutes);
+  ConstGraphIter lb = data.lower_bound( GraphElement(timeNMinutes, 0.0) );
+  ConstGraphIter ub = data.upper_bound( GraphElement(timeNMinutes, 0.0) );
   
   if( lb == ub ) //no exact match
   {
@@ -105,9 +117,9 @@ double NovologConsentrationFunc( double unitsPerKilogram, double nMinutes )
     assert( ub != data.end() );
     
     --lb;
-    const double deltaTime = ub->m_minutes - lb->m_minutes;
+    const double deltaTime = toNMinutes(ub->m_time - lb->m_time);
     const double dV = ub->m_value - lb->m_value;
-    const double fracTime = (nMinutes - lb->m_minutes) / deltaTime;
+    const double fracTime = toNMinutes(timeNMinutes - lb->m_time) / deltaTime;
     
     consentration = lb->m_value + fracTime * dV;
   }else
@@ -126,14 +138,15 @@ ConsentrationGraph novologConsentrationGraph(
                    boost::posix_time::ptime t0,
                    double unitsPerKilogram, double timeStep )
 {
+  TimeDuration posixTimeStep = toTimeDuration(timeStep);
   ConsentrationGraph insConcen( t0, timeStep, InsulinGraph );
   
   if( unitsPerKilogram <= 0.0 ) return insConcen;
   
   double insulinConcentration = 0.0;
-  for( double t=0.0; t<20.0 || insulinConcentration > 0.0; t += timeStep )
+  for( PosixTime t = t0; (t-t0)< boost::posix_time::minutes(20) || insulinConcentration > 0.0; t += posixTimeStep )
   {
-    insulinConcentration = NovologConsentrationFunc( unitsPerKilogram, t );
+    insulinConcentration = NovologConsentrationFunc( unitsPerKilogram, toNMinutes(t-t0) );
     insConcen.insert( t, insulinConcentration );
   }//for( loop over time where insulin is active )
   
@@ -237,8 +250,9 @@ ConsentrationGraph yatesGlucoseAbsorptionRate(
   
   for( t = 0.0; (G_gut[0] > 0.0) || (G_stomach > 0.0); t += timeStep )
   {
+    PosixTime time = t0 + toTimeDuration(t);
     double G_in = k_gut_absoption * G_gut[0];
-    gutAbs.insert( t, G_in );
+    gutAbs.insert( time, G_in );
    
     G_gut = rungeKutta4( t, G_gut, timeStep, gutAbsRate );
     G_stomach = rungeKutta4( t, G_stomach, timeStep, negStomachToGutRate );
@@ -260,7 +274,12 @@ ConsentrationGraph yatesGlucoseAbsorptionRate(
          // << ", G_stomach=" << G_stomach <<  ", G_in=" << G_in << endl;
   }//for( while digesting food still )
   
-  if( (--(gutAbs.end()))->m_value != 0.0 ) gutAbs.insert( t, 0.0 );
+  if( (--(gutAbs.end()))->m_value != 0.0 ) 
+  {
+    PosixTime time = t0 + toTimeDuration(t);
+    gutAbs.insert( time, 0.0 );
+  }//if( (--(gutAbs.end()))->m_value != 0.0 )
+  
   // cout << "After " << t << " minutes, stomach has " << G_stomach << " carbs left, " 
        // << ", gut has " << G_gut << ", left; t_max was " << t_max << endl;
   

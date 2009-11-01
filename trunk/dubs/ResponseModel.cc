@@ -60,6 +60,7 @@
 #include "ResponseModel.hh"
 #include "KineticModels.hh"
 #include "CgmsDataImport.hh"
+#include "ArtificialPancrease.hh"
 #include "RungeKuttaIntegrater.hh"
 
 
@@ -323,9 +324,10 @@ double NLSimple::getBasalInsulinConcentration( double unitsPerKiloPerhour )
   ConsentrationGraph basalConcen( kGenericT0, 5.0, InsulinGraph );
   
   const double uPer5Min = unitsPerKiloPerhour / 12.0;
-  const double nMinuteDoBasal = 15.0 * 60.0; //15 hours
+  // const double nMinuteDoBasal = 15.0 * 60.0; //15 hours
+  const PosixTime endTime = kGenericT0 + minutes( 15 * 60 );
   
-  for( double time = 0.0; time <= nMinuteDoBasal; time += 5.0 )
+  for( PosixTime time = kGenericT0; time <= endTime; time += minutes(5) )
   {
     basalConcen.add( uPer5Min, time, NovologAbsorbtion );
   }//for( loop over time making a basal rate )
@@ -333,9 +335,9 @@ double NLSimple::getBasalInsulinConcentration( double unitsPerKiloPerhour )
   unsigned int nPoints = 0;
   double basalConc = 0.0;
   
-  const double startSteadyState = nMinuteDoBasal-(5*60);
+  const PosixTime startSteadyState = endTime - minutes(5*60);
     
-  for( double time = startSteadyState; time <= nMinuteDoBasal; time += 5.0 )
+  for( PosixTime time = startSteadyState; time <= endTime; time += minutes(5.0) )
   {
     ++nPoints;
     basalConc += basalConcen.value( time );
@@ -422,8 +424,7 @@ void NLSimple::addFingerStickData( const ConsentrationGraph &newData )
 {
   foreach( const GraphElement &el, newData )
   {
-    const ptime time = newData.getAbsoluteTime( el.m_minutes );
-    m_fingerMeterData.addNewDataPoint( time, el.m_value );
+    m_fingerMeterData.addNewDataPoint( el.m_time, el.m_value );
   }//foreach(....)
 }//void NLSimple::addFingerStickData( const ConsentrationGraph &newData )
 
@@ -442,8 +443,7 @@ void NLSimple::addCustomEvents( const ConsentrationGraph &newEvents )
 {
   foreach( const GraphElement &el, newEvents )
   {
-    const ptime time = newEvents.getAbsoluteTime( el.m_minutes );
-    m_customEvents.addNewDataPoint( time, el.m_value );
+    m_customEvents.addNewDataPoint( el.m_time, el.m_value );
   }//foreach(....)
 }//void NLSimple::addCustomEvents( const ConsentrationGraph &newEvents )
 
@@ -458,8 +458,7 @@ void NLSimple::addGlucoseAbsorption( const ConsentrationGraph &newData )
   {
     foreach( const GraphElement &el, newData )
     {
-      const ptime time = newData.getAbsoluteTime( el.m_minutes );
-      m_mealData.addNewDataPoint( time, el.m_value );
+      m_mealData.addNewDataPoint( el.m_time, el.m_value );
     }//foreach(....)
     
     ConsentrationGraph
@@ -501,7 +500,7 @@ double CgmsFingerCorrFCN::testParamaters(const std::vector<double>& x ) const
 
   foreach( const GraphElement &el, m_fingerstickData )
   {
-    const PosixTime time     = m_fingerstickData.getAbsoluteTime(el.m_minutes);
+    const PosixTime &time     = el.m_time;
     const double fingerValue = el.m_value;
     const double cgmsValue   = m_cgmsData.value(time + delay);
     
@@ -511,8 +510,8 @@ double CgmsFingerCorrFCN::testParamaters(const std::vector<double>& x ) const
     
     if( nextTimeIter == m_cgmsData.end() || nextTimeIter == m_cgmsData.begin() ) continue;
     
-    const PosixTime nextTime = m_cgmsData.getAbsoluteTime(nextTimeIter->m_minutes);
-    const PosixTime prevTime = m_cgmsData.getAbsoluteTime(previousTimeIter->m_minutes);
+    const PosixTime nextTime = nextTimeIter->m_time;
+    const PosixTime prevTime = previousTimeIter->m_time;
     
     TimeDuration prevDur = time + delay - prevTime ;
     TimeDuration nextDur = nextTime - time - delay;
@@ -527,9 +526,7 @@ double CgmsFingerCorrFCN::testParamaters(const std::vector<double>& x ) const
       assert( uncert2 != 0.0 );
       chi2 += pow( fingerValue - cgmsValue, 2) / uncert2;
     }//if( maxTimeToCgms > TimeDuration(0, 16, 0, 0) )
-    
   }//foreach( fingerstick data point )
-   cout << endl << endl << endl;
    
    return chi2;
 }//testParamaters(...)
@@ -562,6 +559,8 @@ TimeDuration NLSimple::findCgmsDelayFromFingerStick() const
   upar.Add( "CGMS_delay"   , 15.0, 1.0 );
   upar.SetLimits( "CGMS_delay", 0.0, 30.0 );
   MnMigrad migrad( chi2Fcn, upar );
+  // migrad.SetPrecision(0.001);
+  
   FunctionMinimum min = migrad();
   
   if( !min.IsValid() ) 
@@ -570,8 +569,6 @@ TimeDuration NLSimple::findCgmsDelayFromFingerStick() const
     MnMigrad migrad(chi2Fcn, upar, 2);
     min = migrad();
   }//if( !min.IsValid() )
-  
-  cout << "found CGMS delay of: " << min << endl;
   
   const double delayD = min.UserState().Value(0);
   
@@ -592,7 +589,7 @@ double NLSimple::findCgmsErrorFromFingerStick( const TimeDuration cgms_delay ) c
   
   foreach( const GraphElement &el, m_fingerMeterData )
   {
-    const PosixTime time     = m_fingerMeterData.getAbsoluteTime(el.m_minutes);
+    const PosixTime &time    = el.m_time;
     const double fingerValue = el.m_value;
     const double cgmsValue   = m_cgmsData.value(time + cgms_delay);
     
@@ -601,8 +598,8 @@ double NLSimple::findCgmsErrorFromFingerStick( const TimeDuration cgms_delay ) c
     --previousTimeIter;
     
     if( nextTimeIter == m_cgmsData.end() || nextTimeIter == m_cgmsData.begin() ) continue;
-    const PosixTime nextTime = m_cgmsData.getAbsoluteTime(nextTimeIter->m_minutes);
-    const PosixTime prevTime = m_cgmsData.getAbsoluteTime(previousTimeIter->m_minutes);
+    const PosixTime &nextTime = nextTimeIter->m_time;
+    const PosixTime &prevTime = previousTimeIter->m_time;
     
     //check to make sure there is cgms readings near the fingerstick readings 
     TimeDuration prevDur = time + cgms_delay - prevTime ;
@@ -706,7 +703,7 @@ void NLSimple::findSteadyStateBeginings( double nHoursNoInsulin )
   
   if( justUseInsulinInfo )
   {
-    double lastInj = -9999.9;
+    PosixTime lastInj = kGenericT0;
     bool inSteadyState = false;
     
     if( cgmsStartTime < (insulinStartTime - noInsulinDur) ) 
@@ -717,18 +714,18 @@ void NLSimple::findSteadyStateBeginings( double nHoursNoInsulin )
   
     foreach( const GraphElement &el, m_freePlasmaInsulin )
     {
-      const ptime time = m_freePlasmaInsulin.getAbsoluteTime( el.m_minutes );
+      const ptime &time = el.m_time;
       
       if( time < startTime || time > endTime ) continue;
       
       if( el.m_value > 0.0 )
       {
-        if( inSteadyState ) lastInj = el.m_minutes;
+        if( inSteadyState ) lastInj = time;
         
         inSteadyState = false;
       }else
       {
-        if( !inSteadyState && ((el.m_minutes - lastInj) > 60.0*nHoursNoInsulin) )
+        if( !inSteadyState && ((time - lastInj) > noInsulinDur) )
         {
           m_startSteadyStateTimes.push_back( time );
           cout << "Found Ins. dep. only start of steady state time at " << time << endl;
@@ -917,9 +914,6 @@ void NLSimple::makeGlucosePredFromLastCgms( ConsentrationGraph &predBg,
     assert( predBg.getEndTime() == (cgmsEndTime + m_predictAhead) );
   }//if( need one more step )
   
-  // cout << "predBg last value coorisponds  to (" 
-       // << predBg.getAbsoluteTime( (--predBg.end())->m_minutes ) << ", "
-       // << (--predBg.end())->m_value << ")" << endl;
   return;
 }//makeGlucosePredFromLastCgms(...)
 
@@ -977,9 +971,8 @@ double NLSimple::getGraphOfMaxTimePredictions( ConsentrationGraph &predBg,
   
   for( ConstGraphIter cgmsIter = startIter; cgmsIter != endIter; ++cgmsIter )
   {
-    const ptime cgmsTime = m_cgmsData.getAbsoluteTime( cgmsIter->m_minutes );
-    // cout << "On time cgmsTime=" << cgmsTime 
-         // << "cgmsIter->m_minutes=" << cgmsIter->m_minutes << endl;
+    const ptime cgmsTime = cgmsIter->m_time;
+    // cout << "On time cgmsTime=" << cgmsTime << endl;
     
     ConsentrationGraph currPred( m_t0, toNMinutes(m_dt), GlucoseConsentrationGraph );
     
@@ -1089,10 +1082,9 @@ ConsentrationGraph NLSimple::glucPredUsingCgms( int nMinutesPredict,  //nMinutes
   }//
   
   assert( !m_predictedInsulinX.empty() );
-  const double lastXMinutes = (--m_predictedInsulinX.end())->m_minutes;
-  const ptime lastXTime = m_predictedInsulinX.getAbsoluteTime( lastXMinutes );
+  const ptime lastXTime = (--m_predictedInsulinX.end())->m_time;
   
-  const ptime xStartTime = m_predictedInsulinX.getAbsoluteTime( m_predictedInsulinX.begin()->m_minutes);
+  const ptime xStartTime = m_predictedInsulinX.begin()->m_time;
   if(  xStartTime > startTime ) cout << startTime << " <= " << xStartTime << endl;
   assert( xStartTime <= startTime );
   
@@ -1109,7 +1101,7 @@ ConsentrationGraph NLSimple::glucPredUsingCgms( int nMinutesPredict,  //nMinutes
   const ConstGraphIter ub = m_cgmsData.upper_bound(endTime + m_cgmsDelay);
   
   bool cgmsCoverSim = (( ub != m_cgmsData.end() ) 
-                           && ( m_cgmsData.getAbsoluteTime( ub->m_minutes ) > (endTime + m_cgmsDelay)) );
+                           && ( ub->m_time > (endTime + m_cgmsDelay)) );
   
   
   ptime time = startTime + m_cgmsDelay;  
@@ -1118,7 +1110,7 @@ ConsentrationGraph NLSimple::glucPredUsingCgms( int nMinutesPredict,  //nMinutes
     if(cgmsIter != ub || cgmsCoverSim ) 
     {
       previousCgmsTime = time;
-      time = m_cgmsData.getAbsoluteTime( cgmsIter->m_minutes ) - m_cgmsDelay;
+      time = cgmsIter->m_time - m_cgmsDelay;
       if( cgmsIter == ub ) time = endTime;
     }//if(cgmsIter != ub)
     
@@ -1145,7 +1137,7 @@ ConsentrationGraph NLSimple::glucPredUsingCgms( int nMinutesPredict,  //nMinutes
       //  only if we have to
       if( cgmsDt.is_negative() ) 
       {
-        cgmsDt = m_cgmsData.getMostCommonPosixDt();
+        cgmsDt = m_cgmsData.getMostCommonDt();
         
         cout << "glucPredUsingCgms(...): starting to simulate cgms data from  "
              << time << " to " << endTime << ", will use dt=" << cgmsDt << endl;
@@ -1258,10 +1250,9 @@ void NLSimple::updateXUsingCgmsInfo( bool recomputeAll )
   }//
   
   const ptime steadyTime = findSteadyStateStartTime( kGenericT0, kGenericT0 );
-  const double lastXMinutes = !m_predictedInsulinX.empty() ? 
-                              (--m_predictedInsulinX.end())->m_minutes : 
-                              kFailValue;
-  const ptime lastXTime = m_predictedInsulinX.getAbsoluteTime( lastXMinutes );
+  const ptime lastXTime = !m_predictedInsulinX.empty() ? 
+                           (--m_predictedInsulinX.end())->m_time : 
+                           kGenericT0;
   const ptime startTime = m_predictedInsulinX.empty() ? steadyTime : lastXTime;
  
   
@@ -1532,7 +1523,7 @@ double NLSimple::getBgValueChi2( const ConsentrationGraph &modelData,
   
   for( ConstGraphIter iter = start; iter != end; ++iter )
   {
-    const ptime time = cgmsData.getAbsoluteTime( iter->m_minutes ) - m_cgmsDelay;
+    const ptime time = iter->m_time - m_cgmsDelay;
     const double cgmsValue  = iter->m_value;
     if( cgmsValue < 0.0 ) continue;
     if( time < modelBeginTime ) continue;
@@ -1627,7 +1618,7 @@ double NLSimple::getDerivativeChi2( const ConsentrationGraph &modelDerivData,
   
   for( ConstGraphIter iter = start; iter != end; ++iter )
   {
-    const ptime time = cgmsDerivData.getAbsoluteTime( iter->m_minutes ) - m_cgmsDelay;
+    const ptime time = iter->m_time - m_cgmsDelay;
     const double cgmsValue  = iter->m_value;
     double modelValue = modelDerivData.value(time);
     // const double uncert = fracUncert*cgmsValue;
@@ -1949,7 +1940,7 @@ DVec NLSimple::chi2DofStudy( double endPredChi2Weight,
   // cout << "About to copy prediction to cgms graph" << endl;
   // foreach( const GraphElement &ge, predSet )
   // {
-    // ptime time = selfCopy.m_cgmsData.getAbsoluteTime( ge.m_minutes );
+    // ptime time = ge.m_time;
     // time += m_cgmsDelay;  
     // //instead of thiscould have called cgmsGraph.setT0_dontChangeOffsetValues(...)
     // 
@@ -2009,7 +2000,6 @@ void NLSimple::draw( bool pause,
                      boost::posix_time::ptime t_end  ) 
 {
   assert( gTheApp );
-   
   TGraph *cgmsBG  = m_cgmsData.getTGraph( t_start, t_end );
   TGraph *predBG  = m_predictedBloodGlucose.getTGraph( t_start, t_end );
   TGraph *glucAbs = m_glucoseAbsorbtionRate.getTGraph( t_start, t_end );
@@ -2183,6 +2173,7 @@ void NLSimple::draw( bool pause,
     if( leg )     delete leg;
     // delete axis;
   }//if( pause )
+  
 }//draw()
 
 void NLSimple::runGui()
@@ -2276,7 +2267,6 @@ void NLSimple::serialize( Archive &ar, const unsigned int version )
   ar & m_basalInsulinConc;                  //units per kilo per hour
   ar & m_basalGlucoseConcentration;
   
-  // ar & m_t0;
   ar & m_dt;
   ar & m_predictAhead;
   
@@ -2471,8 +2461,11 @@ unsigned int FitNLSimpleEvent::addEventToFitFor( ConsentrationGraph *fitResult,
       assert( pars->size() == 1 || pars->size() == 5 );
     break;
   
+    //CustomEvent
+    
     case GlucoseConsentrationGraph:
     case BloodGlucoseConcenDeriv:
+    case AlarmGraph:
     case NumGraphType:
       cout << "FitNLSimpleEvent::addEventToFitFor(...) only accepts inputs of"
            << " type InsulinGraph, BolusGraph, GlucoseAbsorbtionRateGraph,"
@@ -2553,7 +2546,8 @@ double FitNLSimpleEvent::operator()(const std::vector<double>& x) const
     }else
     {
       ConsentrationGraph *thisGraph = m_fitForEvents[currParSet];
-      const PosixTime thisTime = thisGraph->getAbsoluteTime( x[par] );
+      
+      const PosixTime thisTime = thisGraph->getT0() + toTimeDuration(x[par]);
       (*(m_startTimes[currParSet])) = thisTime;
       minTime = std::min( minTime, thisTime );
       maxTime = std::max( maxTime, thisTime  + hours(3) );
@@ -2660,7 +2654,7 @@ void FitNLSimpleEvent::updateModelWithCurrentGuesses( NLSimple &model ) const
       
       
       case GlucoseConsentrationGraph: case BloodGlucoseConcenDeriv: 
-      case NumGraphType:
+      case NumGraphType: case AlarmGraph:
         assert(0);
       break;
     };//switch( graph->getGraphType() )
@@ -2762,7 +2756,7 @@ getClarkeErrorGridObjs( const ConsentrationGraph &cmgsGraph,
   
   foreach( const GraphElement &el, meterGraph )
   {
-    const PosixTime time = meterGraph.getAbsoluteTime( el.m_minutes );
+    const PosixTime &time = el.m_time;
     const double meterValue = el.m_value;
     const double cgmsValue = cmgsGraph.value(time);
     

@@ -59,25 +59,7 @@ using namespace boost::posix_time;
  * 
  */
 
- 
-double toNMinutes( const boost::posix_time::time_duration &timeDuration )
-{
-  return timeDuration.total_nanoseconds() / 60.0 / 1.0E9; 
-}//toNMinutes
 
-
-
-boost::posix_time::time_duration toTimeDuration( double nMinutes )
-{
-  long mins = (long) nMinutes;
-  nMinutes -= mins;
-  nMinutes *= 60.0;
-  long microsecs = (long) 1.0E6 * nMinutes;
-  
-  time_duration td = minutes(mins) + microseconds(microsecs);
-  
-  return td;
-}//toTimeDuration
 
 
 
@@ -268,7 +250,8 @@ int integrateRungeKutta4( double t0, double t1, double dt,
     
     for( size_t i = 0; i < y0.size(); ++i )
     {
-      answers[i].insert( t, y0[i] );
+      PosixTime time = answers[i].getT0() + toTimeDuration(t);
+      answers[i].insert( time, y0[i] );
     }
   }//for( loop over integration time )
   

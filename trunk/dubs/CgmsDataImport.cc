@@ -397,9 +397,12 @@ CgmsDataImport::getNavigatorInfo( string line, InfoType type )
   if( line.size() == 0 ) return returnInfo;
 	if( line[0] == '#' )   return returnInfo;
 	if( line.find_first_not_of("\t") == string::npos ) return returnInfo;
-    
+ 
+  
   NavEvent event(line);
   if( !event.isEventType(navEventTypeWanted) ) return returnInfo;
+  
+  // if( navEventTypeWanted == ET_Glucose_METER ) cout << line << endl;
   
   returnInfo.first = event.getTime();
   returnInfo.second = event.getValue(navEventTypeWanted);
@@ -634,12 +637,12 @@ CgmsDataImport::bolusGraphToInsulinGraph( const ConsentrationGraph &bolusGraph,
 {
   assert( bolusGraph.getGraphType() == BolusGraph );
   
-  const ptime t0 = bolusGraph.getT0();
+  const PosixTime t0 = bolusGraph.getT0();
   const double dt = 1.0;
   ConsentrationGraph insConcen( t0, dt, InsulinGraph );
   foreach( const GraphElement &el, bolusGraph )
   {
-    if( el.m_value > 0.0 ) insConcen.add( el.m_value / weight, el.m_minutes, NovologAbsorbtion );
+    if( el.m_value > 0.0 ) insConcen.add( el.m_value / weight, el.m_time, NovologAbsorbtion );
   }//foreach bolus
  
   insConcen.removeNonInfoAddingPoints();
@@ -666,8 +669,8 @@ CgmsDataImport::carbConsumptionToSimpleCarbAbsorbtionGraph(
   {
     if( el.m_value < 0.1 ) continue;
     if( el.m_value < 17.0 )
-      carbConcen.add( el.m_value, el.m_minutes, FastCarbAbsorbtionRate );
-    else carbConcen.add( el.m_value, el.m_minutes, MediumCarbAbsorbtionRate );
+      carbConcen.add( el.m_value, el.m_time, FastCarbAbsorbtionRate );
+    else carbConcen.add( el.m_value, el.m_time, MediumCarbAbsorbtionRate );
   }//foreach bolus
   
   carbConcen.removeNonInfoAddingPoints();
