@@ -78,9 +78,11 @@ void ProgramOptions::declareOptions()
         ("genetic_convergence_chi2",
           po::value<double>(&ModelDefaults::kGenConvergCriteria)->default_value(1.0),
           "Size of fitness improvment needed in the last genetic_conv_steps so that"
-          " minimization will continue");
-  
-  ns_posDescripton.add( "weight", 0 );  //why is this here?
+          " minimization will continue")
+        ( "file,f",
+          po::value<string>(&DefaultInputs::ns_defaultModelFileName)->default_value(""),
+          "NLSimple File to automatically load");
+     ns_posDescripton.add( "weight", 0 );  //why is this here?
 }//void declareOptions()
 
 

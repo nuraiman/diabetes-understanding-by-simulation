@@ -69,8 +69,20 @@
 class TVirtualPad;
 class NLSimple;
 
+class TSpline3;
+class EventDef;
+
+enum EventDefType
+{
+  IndependantEffect,
+  MultiplyInsulin,
+  MultiplyCarbConsumed,
+  NumEventDefTypes
+};//enum EventDefType
+    
 typedef std::pair<PosixTime,double> FoodConsumption;
 typedef std::pair<PosixTime,double> InsulinInjection;
+
 
 
 //lets find the amount of insulin to be taken between startTime 
@@ -101,6 +113,7 @@ class NLSimple
       NumNLSimplePars
     };//enum NLSimplePars
     
+    
   
     //begin variable that matter to *this
     std::string m_description;                  //Useful for later checking
@@ -116,14 +129,17 @@ class NLSimple
                                    //routines use absolute prediction, not cgms
                                    //based prediction
     
-    double              m_effectiveDof; //So Minuit2 can properly interpret errors
-    std::vector<double> m_paramaters;           //size == NumNLSimplePars
-    std::vector<double> m_paramaterErrorPlus;
-    std::vector<double> m_paramaterErrorMinus;
+    double                  m_effectiveDof; //So Minuit2 can properly interpret errors
+    DVec                    m_paramaters;           //size == NumNLSimplePars
+    DVec                    m_paramaterErrorPlus;
+    DVec                    m_paramaterErrorMinus;
     
-    //If you add CGMS data from Isig, then below converts from CGMS reading
-    //  to a corrected reading
-    double m_currCgmsCorrFactor[2];
+    
+    typedef std::map<int, EventDef> EventDefMap;
+    typedef EventDefMap::iterator EventDefIter;
+    typedef std::pair<const int, EventDef> EventDefPair;
+    EventDefMap m_customEventDefs;
+    
     
     ConsentrationGraph m_cgmsData;
     ConsentrationGraph m_freePlasmaInsulin;
@@ -162,18 +178,16 @@ class NLSimple
     double dGdT( const PosixTime &time, double G, double X ) const;
     double dXdT( const PosixTime &time, double G, double X ) const;
     double dXdT_usingCgmsData( const PosixTime &time, double X ) const;
+    double customEventEffect( const PosixTime &time, 
+                              const double &carbAbsRate, const double &X ) const;
     
-    std::vector<double> dGdT_and_dXdT( const PosixTime &time, 
-                                       const std::vector<double> &G_and_X ) const;
+    DVec dGdT_and_dXdT( const PosixTime &time, const DVec &G_and_X ) const;
     RK_PTimeDFunc getRKDerivFunc() const;
     
     static double getBasalInsulinConcentration( double unitesPerKiloPerhour );
     void addCgmsData( const ConsentrationGraph &newData, 
                         bool findNewSteadyState = false );
     void addCgmsData( PosixTime, double value );
-    void addCgmsDataFromIsig( const ConsentrationGraph &isigData,
-                              const ConsentrationGraph &calibrationData,
-                              bool findNewSteadyState = false );
     void addBolusData( const ConsentrationGraph &newData, 
                        bool finNewSteadyStates = false );
     
@@ -186,6 +200,16 @@ class NLSimple
     
     void addFingerStickData( const PosixTime &time, double value );
     void addFingerStickData( const ConsentrationGraph &newData );
+    
+    bool defineCustomEvent( int recordType, std::string name, 
+                            TimeDuration eventDuration, 
+                            EventDefType eventType, 
+                            DVec initialPars );
+    bool defineCustomEvent( int recordType, std::string name,
+                            TimeDuration eventDuration, 
+                            EventDefType eventType,
+                            unsigned int nDataPoints );
+    bool undefineCustomEvent( int recordType );
     
     void addCustomEvent( const PosixTime &time, int eventType );
     void addCustomEvents( const ConsentrationGraph &newEvents );
@@ -309,11 +333,10 @@ class NLSimple
     bool saveToFile( std::string filename = "" );
     
     friend class boost::serialization::access;
+  private:
     template<class Archive>
     void serialize( Archive &ar, const unsigned int version );
 };//class NLSimple
-
-BOOST_CLASS_VERSION(NLSimple, 0)
 
 
 //An interace for NLSimple to Minuit2 and the Genetic Optimizer
@@ -349,6 +372,7 @@ class ModelTestFCN : public ROOT::Minuit2::FCNBase, public TMVA::IFitterTarget
 
 
 //An interace for NLSimple to Minuit2 and the Genetic Optimizer
+// To find the CGMS delay behind fingersticks
 class CgmsFingerCorrFCN : public ROOT::Minuit2::FCNBase, public TMVA::IFitterTarget
 {
   public:
@@ -442,6 +466,54 @@ class FitNLSimpleEvent: public ROOT::Minuit2::FCNBase, public TMVA::IFitterTarge
 };//class FitNLSimpleEvent
 
 
+//fit a smooth curve to a finite number of points
+class EventDef
+{
+  friend class NLSimple;
+  friend class boost::serialization::access;
+  
+  private:
+    std::string m_name;
+    mutable TSpline3 *m_spline;
+    
+    double *m_times;
+    double *m_values;
+    unsigned int m_nPoints;
+    TimeDuration m_duration;
+    EventDefType m_eventDefType;
+    
+    void buildSpline() const;
+    
+  public:
+    EventDef();
+    EventDef( const EventDef &rhs );
+    const EventDef &operator=( const EventDef &rhs );
+    EventDef( std::string name, TimeDuration eventLength, 
+              EventDefType defType, unsigned int nPoints);
+    ~EventDef();
+    
+    unsigned int getNPoints() const;
+    double getPar( unsigned int parNum ) const;
+    void setPar( unsigned int point, double value );
+    void setPar( const std::vector<double> &par );
+    
+    double eval( const TimeDuration &dur ) const;
+    
+    void setName( const std::string name );
+    const std::string &getName() const;
+    const TimeDuration &getDuration() const;
+    const EventDefType &getEventDefType() const;
+    
+    void draw() const;
+    
+  private:
+    template<class Archive>
+    void save(Archive & ar, const unsigned int version) const;
+    template<class Archive>
+    void load(Archive & ar, const unsigned int version);
+    BOOST_SERIALIZATION_SPLIT_MEMBER()
+};//EventDef
+
 
 
 void drawClarkeErrorGrid( TVirtualPad *pad,
@@ -457,6 +529,8 @@ std::vector<TObject *> getClarkeErrorGridObjs( const ConsentrationGraph &cmgsGra
 
 
 
+BOOST_CLASS_VERSION(NLSimple, 0)
+BOOST_CLASS_VERSION(EventDef, 0)
 
 
 #endif //RESPONSE_MODEL_HH

@@ -9,6 +9,7 @@
 #pragma link C++ class NLSimpleGui;
 #pragma link C++ class InputSimpleData;
 #pragma link C++ class ConstructNLSimple;
+#pragma link C++ class ConstructCustomEvent;
 #
 #endif
 

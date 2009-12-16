@@ -74,8 +74,8 @@ int ModelDefaults::kGenNStepMutate = -999;
 int ModelDefaults::kGenNStepImprove = -999;
 double ModelDefaults::kGenSigmaMult = kFailValue;
 double ModelDefaults::kGenConvergCriteria = kFailValue;
-  
-  
+std::string DefaultInputs::ns_defaultModelFileName = ""; 
+
 int main( int argc, char** argv )
 {
   using namespace boost;
@@ -86,7 +86,8 @@ int main( int argc, char** argv )
   ProgramOptions::decodeOptions( argc, argv );
   
   NLSimple *modelCreateTest = NULL;
-  new ConstructNLSimple( modelCreateTest, gClient->GetRoot(), gClient->GetDefaultRoot() );
+  if( DefaultInputs::ns_defaultModelFileName.size() ) modelCreateTest = new NLSimple( DefaultInputs::ns_defaultModelFileName );
+  else new ConstructNLSimple( modelCreateTest, gClient->GetRoot(), gClient->GetDefaultRoot() );
   
   if( !modelCreateTest ) return 0;
   modelCreateTest->runGui();

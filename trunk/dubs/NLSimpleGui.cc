@@ -25,10 +25,12 @@
 #include "RungeKuttaIntegrater.hh"
 #include "ConsentrationGraphGui.hh"
 
+#include "boost/lexical_cast.hpp"
+#include "boost/date_time/posix_time/posix_time.hpp"
+
 using namespace std;
 
 ClassImp(ConstructNLSimple)
-
 
 NLSimpleGui::NLSimpleGui( NLSimple *model, bool runApp )
 {
@@ -72,6 +74,7 @@ NLSimpleGui::NLSimpleGui( NLSimple *model, bool runApp )
   addGraphTab();
   addProgramOptionsTab();
   addErrorGridTab();
+  addCustomEventTab();
   m_tabWidget->SetTab(0);
   m_tabWidget->Resize(m_tabWidget->GetDefaultSize());
   
@@ -91,8 +94,6 @@ NLSimpleGui::NLSimpleGui( NLSimple *model, bool runApp )
   m_mainFrame->AddFrame(m_menuBar, fileMenuHint);
   m_mainFrame->AddFrame(eqnF, equationCanvasHint);
   m_mainFrame->AddFrame(graphButtonF, graphButtonHint);
-  
-  
   
   
   m_mainFrame->SetWindowName( "NLSimple" );
@@ -205,13 +206,9 @@ void NLSimpleGui::addErrorGridTab()
   int graphHeiht = 0.85*height;
   int buttonWidth = width - graphWidth;
   int buttonHeight = graphHeiht;
-  // int titleHeight = height - graphHeiht;
-  // container of
   
   TGLayoutHints *upperLeftHint      = new TGLayoutHints( kLHintsTop | kLHintsLeft,0,0,0,0);
   TGLayoutHints *graphFramehint     = new TGLayoutHints( kLHintsRight | kLHintsBottom | kLHintsExpandY | kLHintsExpandX,0,0,0,0);
-  // TGLayoutHints *hintBorderExpand   = new TGLayoutHints( kLHintsExpandY| kLHintsExpandX | kLHintsCenterX | kLHintsCenterY,2,2,2,2);
-  // TGLayoutHints *topExpandXHint     = new TGLayoutHints( kLHintsTop | kLHintsExpandX,0,0,0,0);
   TGLayoutHints *bottomExpandXYHint = new TGLayoutHints( kLHintsBottom | kLHintsExpandX | kLHintsExpandY,0,0,0,0);
   TGLayoutHints *leftExpandYHint    = new TGLayoutHints( kLHintsLeft | kLHintsTop | kLHintsExpandY, 0,0,0,0);
   TGLayoutHints *buttonHint         = new TGLayoutHints( kLHintsExpandX | kLHintsTop | kLHintsCenterX,10,10,10,10);
@@ -284,6 +281,180 @@ void NLSimpleGui::addErrorGridTab()
   
   refreshClarkAnalysis();  
 }//void NLSimpleGui::addErrorGridTab()
+
+
+ 
+void NLSimpleGui::updateCustomEventTab()
+{
+  NLSimple::EventDefMap &evDefMap = m_model->m_customEventDefs;
+  const int origSelected = m_customEventListBox->GetSelected(); //neg if none
+  
+  m_customEventListBox->RemoveAll();
+  
+  
+  for( NLSimple::EventDefIter iter = evDefMap.begin(); iter != evDefMap.end(); ++iter )
+  { 
+    m_customEventListBox->AddEntry( iter->second.getName().c_str(), iter->first );
+  }//foreach( cutsom event defined )
+  
+  if( m_customEventListBox->GetEntry( origSelected ) )
+  {
+    m_customEventListBox->Select(origSelected, kTRUE);
+  }else
+  {
+    NLSimple::EventDefMap &evDefMap = m_model->m_customEventDefs;
+    if( !evDefMap.empty() ) m_customEventListBox->Select(evDefMap.begin()->first, kTRUE);
+  }//ifd( what to select )
+  
+  m_customEventListBox->Layout();
+  m_customEventListBox->Resize(m_customEventListBox->GetDefaultSize());
+  m_customEventListBox->MapWindow();
+  
+  drawSelectedCustomEvent();
+}//void NLSimpleGui::updateCustomEventTab()
+
+
+void NLSimpleGui::drawSelectedCustomEvent()
+{
+  //Clear the canvas, no matter which is selewcted
+  TCanvas *can = m_customEventCanvas->GetCanvas();
+  can->cd();
+  can->SetEditable( kTRUE );
+  
+  //remove existing objects from canvas
+  TObject *obj;
+  TList *list = can->GetListOfPrimitives();
+  for( TIter nextObj(list); (obj = nextObj()); )
+  {
+    string className = obj->ClassName();
+    if( className != "TFrame" ) delete obj;
+  }//for(...)
+  can->Update();
+  
+  const int selected = m_customEventListBox->GetSelected();
+  
+  if( selected < 0 ) return;
+  
+  NLSimple::EventDefMap &evDefMap = m_model->m_customEventDefs;
+  NLSimple::EventDefIter ev = evDefMap.find(selected);
+  
+  if( ev == evDefMap.end() ) return;
+  
+  //Now draw it
+  can->cd();
+  ev->second.draw();
+  can->SetEditable( kFALSE );
+  can->Update();
+}//void NLSimpleGui::drawSelectedCustomEvent()
+
+
+
+void NLSimpleGui::handleCustomEventButton( Int_t senderId )
+{
+  TGButton *btn = (TGButton *) gTQSender;
+  senderId = btn->WidgetId();
+  
+  // cout << "In handleCustomEventButton(..): " << senderId << " or " << id 
+       // << " compared to " << kCE_AddDefinition << endl;
+  switch( senderId )
+  {
+    case kCE_ListBox: return;
+    case kCE_AddDefinition:
+      new ConstructCustomEvent( m_model, 
+                                gClient->GetRoot(), 
+                                gClient->GetDefaultRoot() );
+      updateCustomEventTab();
+      return;
+      
+    case kCE_DeleteDefinition:
+      const int selected = m_customEventListBox->GetSelected();
+      if( selected < 0 ) return;
+      
+      int dialogReturnCode = 0;  //EMsgBoxButton
+      new TGMsgBox(gClient->GetRoot(), gClient->GetDefaultRoot(), "Confirmation",
+                   "Are you sure you would like to remove selected event?",
+                   kMBIconQuestion, kMBOk | kMBCancel, &dialogReturnCode );
+      if( dialogReturnCode == kMBOk ) m_model->undefineCustomEvent( selected );
+      else assert( dialogReturnCode == kMBCancel );
+      updateCustomEventTab();
+      return;
+  };//switch( senderId )
+  
+  
+}//void NLSimpleGui::updateCustomEventTab()
+
+
+void NLSimpleGui::addCustomEventTab()
+{
+  
+  //we are going to have the overall horizantal frame              -customEventFrame
+  // vertical frame holding 'label ' and 'listAndButtonFrame'      -labelListFrame
+  //    vertical frame holding the list box and button frame       -listAndButtonFrame
+  //       button horizontal frame holding add and delete buttons  -buttonF
+  // a frame holding the graph of the custon event parameters      -graphF
+  
+  int width = m_tabWidget->GetWidth();
+  int height =  m_tabWidget->GetHeight();
+  int buttonWidth = 40;
+  int buttonHeight = 20; 
+  TGLayoutHints *bottomExpandXYHint = new TGLayoutHints( kLHintsBottom | kLHintsExpandX | kLHintsExpandY,0,0,0,0);
+  TGLayoutHints *leftExpandYHint    = new TGLayoutHints( kLHintsLeft | kLHintsTop | kLHintsExpandY, 0,0,0,0);
+  TGLayoutHints *buttonHint         = new TGLayoutHints( kLHintsExpandX | kLHintsTop | kLHintsCenterX,10,10,10,10);
+  TGLayoutHints *upperLeftHint      = new TGLayoutHints( kLHintsLeft | kLHintsTop ,2,2,2,2);
+  
+  TGCompositeFrame *customEventFrame = m_tabWidget->AddTab("Custom Event");
+  customEventFrame->SetLayoutManager(new TGHorizontalLayout(customEventFrame));
+  TGVerticalFrame *labelListFrame = new TGVerticalFrame(customEventFrame, width/4, height/4, kVerticalFrame | kFitWidth | kFitHeight);
+  TGVerticalFrame *listAndButtonFrame = new TGVerticalFrame(labelListFrame, width/4, height/4, kVerticalFrame | kFitWidth | kFitHeight);
+  TGHorizontalFrame *buttonF = new TGHorizontalFrame(listAndButtonFrame, buttonWidth, buttonHeight, kHorizontalFrame | kFitWidth | kFitHeight);
+  
+  TGVerticalFrame *graphF = new TGVerticalFrame(customEventFrame, buttonWidth, buttonHeight, kVerticalFrame | kFitWidth | kFitHeight);
+  TGLabel *label = new TGLabel( labelListFrame, "Custom Event" );
+  labelListFrame->AddFrame( label, upperLeftHint );
+  labelListFrame->AddFrame( listAndButtonFrame, upperLeftHint );
+  customEventFrame->AddFrame( labelListFrame, upperLeftHint );
+  
+  
+  m_customEventListBox = new TGListBox(listAndButtonFrame, kCE_ListBox);
+  m_customEventListBox->Resize(width/4, height/4);
+  m_customEventListBox->Connect( "SelectionChanged()", "NLSimpleGui", this, "drawSelectedCustomEvent()" );
+  m_customEventListBox->Connect( "Selected(Int_t)", "NLSimpleGui", this, "drawSelectedCustomEvent()" );
+  
+  listAndButtonFrame->AddFrame(m_customEventListBox,
+                             new TGLayoutHints(kLHintsTop | kLHintsLeft, 2, 2, 2, 2));
+  
+  listAndButtonFrame->AddFrame( buttonF, leftExpandYHint );
+  customEventFrame->AddFrame( graphF, bottomExpandXYHint );
+ 
+  TGTextButton *addButton = new TGTextButton(buttonF, "Add", kCE_AddDefinition);
+  addButton->SetTextJustify(36);
+  addButton->SetMargins(5,5,5,5);
+  addButton->Connect( "Clicked()", "NLSimpleGui", this, "handleCustomEventButton(Int_t)" );
+  buttonF->AddFrame( addButton, buttonHint );
+  
+  TGTextButton *removeButton = new TGTextButton(buttonF, "Remove", kCE_DeleteDefinition);
+  removeButton->SetTextJustify(36);
+  removeButton->SetMargins(5,5,5,5);
+  removeButton->Connect( "Clicked()", "NLSimpleGui", this, "handleCustomEventButton(Int_t)" );
+  buttonF->AddFrame( removeButton, buttonHint );
+  
+  //Need to fix how it's displayeds
+  m_customEventCanvas = new TRootEmbeddedCanvas("m_customEventCanvas", graphF, 
+                                                width/2, height/2, 
+                                                kSunkenFrame| kDoubleBorder| kFitWidth | kFitHeight);
+  TCanvas *customEventCanvas = new TCanvas("customEventCanvas", 
+                                           m_customEventCanvas->GetWidth(), 
+                                           m_customEventCanvas->GetHeight(),  
+                                           m_customEventCanvas->GetCanvasWindowId() );
+  m_customEventCanvas->AdoptCanvas(customEventCanvas);
+  graphF->AddFrame(m_customEventCanvas, bottomExpandXYHint);
+  //
+  
+  updateCustomEventTab();
+  //in upper left have a drop down with defined custom event integers
+  // to the right of this have a button to allow defining new 
+}//void addCustomEventTab()
+
 
 
 void NLSimpleGui::handleClarkeButton( Int_t senderId )
@@ -490,6 +661,12 @@ TGVerticalFrame *NLSimpleGui::createButtonsFrame( const TGFrame *parent)
   addeMeterButton->SetMargins(1,1,1,1);
   horizFrame->AddFrame(addeMeterButton, buttonHint);
   addeMeterButton->Connect( "Clicked()", "NLSimpleGui", this, "addMeterData()" );
+  
+  TGTextButton *addCustomButton = new TGTextButton(horizFrame,"Add Custom Events");
+  addCustomButton->SetTextJustify(36);
+  addCustomButton->SetMargins(1,1,1,1);
+  horizFrame->AddFrame(addCustomButton, buttonHint);
+  addCustomButton->Connect( "Clicked()", "NLSimpleGui", this, "addCustomEventData()" );
   
   
   TGTextButton *drawButton = new TGTextButton(horizFrame, "Redraw" );
@@ -723,33 +900,67 @@ void NLSimpleGui::doMinuit2Fit()
 
 void NLSimpleGui::addCgmsData()
 {
-  // const ConsentrationGraph &cgmsG = m_model->m_cgmsData;
-  // double lastCgmsValue = cgmsG.value(cgmsG.getEndTime());
-  new InputSimpleData( &(m_model->m_cgmsData),
-                                    gClient->GetRoot(), 
-                                    gClient->GetDefaultRoot(),
-                                    TString("Enter new CGMS Data"),
-                                    kFailValue,
-                                    int(CgmsDataImport::CgmsReading) ); 
+  const ConsentrationGraph &currG = m_model->m_cgmsData;
+  ConsentrationGraph newData( currG.getT0(), currG.getDt(), currG.getGraphType() );
+  
+  new InputSimpleData( &newData,
+                       gClient->GetRoot(), 
+                       gClient->GetDefaultRoot(),
+                       TString("Enter new CGMS Data"),
+                       (currG.empty() ? 0 : currG.end()->m_value),
+                       (currG.empty() ? currG.getT0() : (currG.end()->m_time + currG.getDt())),
+                       int(CgmsDataImport::CgmsReading) ); 
+  m_model->addCgmsData(newData);
 }//void NLSimpleGui::addCgmsData()
 
 
 void NLSimpleGui::addCarbData()
 {
-  cout << "You need to complete NLSimpleGui::addCarbData()" << endl;
-  // InputSimpleData::InputSimpleData( &(m_model->m_cgmsData)
-                                    // gClient->GetRoot(), 
-                                    // gClient->GetDefaultRoot(),
-                                    // "Enter new Carb Data",
-                                    // m_model->m_cgmsData.back().m_value,
-                                    // CgmsDataImport::CgmsReading ); 
+  const ConsentrationGraph &currG = m_model->m_mealData;
+  ConsentrationGraph newData( currG.getT0(), currG.getDt(), currG.getGraphType() );
+  
+  new InputSimpleData( &newData,
+                       gClient->GetRoot(), 
+                       gClient->GetDefaultRoot(),
+                       TString("Enter new Carb Data"),
+                       currG.empty() ? 0 : currG.end()->m_value,
+                       currG.empty() ? currG.getT0() : currG.end()->m_time,
+                       int(CgmsDataImport::GlucoseEaten) );
+  m_model->addGlucoseAbsorption( newData );
 }//void addCarbData()
 
 
 void NLSimpleGui::addMeterData()
 {
-  cout << "You need to complete NLSimpleGui::addMeterData()" << endl;
+  const ConsentrationGraph &currG = m_model->m_fingerMeterData;
+  ConsentrationGraph newData( currG.getT0(), currG.getDt(), currG.getGraphType() );
+  
+  new InputSimpleData( &newData,
+                       gClient->GetRoot(), 
+                       gClient->GetDefaultRoot(),
+                       TString("Enter new Carb Data"),
+                       currG.empty() ? 0 : currG.end()->m_value,
+                       currG.empty() ? currG.getT0() : currG.end()->m_time,
+                       int(CgmsDataImport::GlucoseEaten) );
+  m_model->addFingerStickData( newData );
 }//void addMeterData()
+
+
+void NLSimpleGui::addCustomEventData()
+{
+  const ConsentrationGraph &currG = m_model->m_customEvents;
+  ConsentrationGraph newData( currG.getT0(), currG.getDt(), currG.getGraphType() );
+  
+  new InputSimpleData( &newData,
+                       gClient->GetRoot(), 
+                       gClient->GetDefaultRoot(),
+                       TString("Enter new Carb Data"),
+                       currG.empty() ? 0 : currG.end()->m_value,
+                       currG.empty() ? currG.getT0() : currG.end()->m_time,
+                       int(CgmsDataImport::GenericEvent) );
+  m_model->addCustomEvents( newData );
+}//void NLSimpleGui::addCustomEventData()
+
 
 
 void NLSimpleGui::refreshPredictions()
@@ -1468,16 +1679,12 @@ void ConstructNLSimple::constructModel()
 }//void ConstructNLSimple::constructModel()
 
 
-
-
-
-
-
 InputSimpleData::InputSimpleData( ConsentrationGraph *graph,
                                   const TGWindow *parent, 
                                   const TGWindow *main,
                                   TString message,
                                   double defaultValue,
+                                  const PosixTime timeToUse,
                                   int type
                                  ) :
     TGTransientFrame(parent, main, 320, 100, kVerticalFrame),
@@ -1512,12 +1719,6 @@ InputSimpleData::InputSimpleData( ConsentrationGraph *graph,
   
   TGHorizontalFrame *dateTimeF = new TGHorizontalFrame(this, 320, 100, kHorizontalFrame | kFitWidth);
   
-  const PosixTime lastTime = m_graph->getEndTime();
-  if( defaultValue == kFailValue ) 
-  {
-    defaultValue = m_graph->value(lastTime);
-  }//if( defaultValue == kFailValue ) 
-  
   const int widgetId = -1;
   TGNumberFormat::EStyle fieldType = TGNumberFormat::kNESInteger;
   switch( m_type )
@@ -1527,6 +1728,7 @@ InputSimpleData::InputSimpleData( ConsentrationGraph *graph,
     case CgmsDataImport::MeterCalibration:  fieldType = TGNumberFormat::kNESInteger; break;
     case CgmsDataImport::GlucoseEaten:      fieldType = TGNumberFormat::kNESInteger; break;
     case CgmsDataImport::BolusTaken:        fieldType = TGNumberFormat::kNESRealTwo; break;
+    case CgmsDataImport::GenericEvent:      fieldType = TGNumberFormat::kNESInteger; break;
     case CgmsDataImport::ISig:              fieldType = TGNumberFormat::kNESRealTwo; break;  
     assert(0);
   };//switch(type)
@@ -1535,13 +1737,13 @@ InputSimpleData::InputSimpleData( ConsentrationGraph *graph,
   m_dateEntry  = new TGNumberEntry( dateTimeF, 0.0, 9, widgetId, TGNumberFormat::kNESDayMYear, TGNumberFormat::kNEANonNegative);  
   m_valueEntry = new TGNumberEntry( dateTimeF, defaultValue, 5, widgetId, fieldType,  TGNumberFormat::kNEANonNegative);
   
+  
   // const PosixTime currentTime(boost::posix_time::second_clock::local_time());
-  const PosixTime currentTime = lastTime;
-  const int defaultHours = currentTime.time_of_day().hours();
-  const int defaultMinutes = currentTime.time_of_day().minutes();
-  const int defaultYear = currentTime.date().year();
-  const int defaultMonth = currentTime.date().month();
-  const int defaultDay = currentTime.date().day();      
+  const int defaultHours   = timeToUse.time_of_day().hours();
+  const int defaultMinutes = timeToUse.time_of_day().minutes();
+  const int defaultYear    = timeToUse.date().year();
+  const int defaultMonth   = timeToUse.date().month();
+  const int defaultDay     = timeToUse.date().day();      
   m_timeEntry->SetTime( defaultHours, defaultMinutes, 0 );
   m_dateEntry->SetDate( defaultYear, defaultMonth, defaultDay );
   
@@ -1629,5 +1831,233 @@ void InputSimpleData::readFromFile()
   CloseWindow();
 }//void InputSimpleData::readFromFile()
 
+
+
+
+
+
+ConstructCustomEvent::ConstructCustomEvent( NLSimple *&model, const TGWindow *parent, const TGWindow *main) :
+  TGTransientFrame( parent, main, 378,150, kVerticalFrame ), m_model(model)
+{
+  SetCleanup(kDeepCleanup);
+  Connect("CloseWindow()", "CreateGraphGui", this, "CloseWindow()");
+  DontCallClose();
+  assert(m_model);
+  
+   TGCompositeFrame *m_masterFrame = new TGCompositeFrame(this,400,200,kVerticalFrame);
+   TGHorizontalFrame *m_idNameFrame = new TGHorizontalFrame(m_masterFrame,396,26,kHorizontalFrame);
+   TGHorizontalFrame *comboBoxHFrame = new TGHorizontalFrame(m_idNameFrame,152,22,kHorizontalFrame);
+
+   // combo box
+   m_idEntry = new TGComboBox(comboBoxHFrame,kComboBoxId,kHorizontalFrame | kSunkenFrame | kDoubleBorder | kOwnBackground);
+   
+   using namespace boost;
+   vector<int> defTypes;
+   for( int i = 1; i < 11; ++i ) defTypes.push_back( i );
+   
+   NLSimple::EventDefIter iter = m_model->m_customEventDefs.begin();
+   for( ; iter != m_model->m_customEventDefs.end(); ++iter )
+   {
+     vector<int>::iterator pos = find( defTypes.begin(), defTypes.end(), iter->first );
+     if( pos != defTypes.end() ) defTypes.erase( pos );
+   }//for(...)
+   
+   for( size_t i = 0; i < defTypes.size(); ++i ) 
+     m_idEntry->AddEntry( lexical_cast<string>(defTypes[i]).c_str() , defTypes[i]);
+   
+   if( defTypes.size() ) m_idEntry->Select( defTypes[0] );
+   
+   m_idEntry->Resize(35,22);
+   comboBoxHFrame->AddFrame(m_idEntry, new TGLayoutHints(kLHintsRight | kLHintsTop | kLHintsCenterY | kLHintsExpandX));
+   TGLabel *m_idLabel = new TGLabel(comboBoxHFrame,"ID Num");
+   comboBoxHFrame->AddFrame(m_idLabel, new TGLayoutHints(kLHintsLeft | kLHintsTop | kLHintsCenterY,2,2,2,2));
+   m_idNameFrame->AddFrame(comboBoxHFrame, new TGLayoutHints(kLHintsLeft | kLHintsTop,2,2,2,2));
+
+   // horizontal frame
+   TGHorizontalFrame *m_mainFrame = new TGHorizontalFrame(m_idNameFrame,227,24,kHorizontalFrame ); 
+   m_nameEntry = new TGTextEntry(m_mainFrame, new TGTextBuffer(15),kNameEntryId);
+   m_nameEntry->SetMaxLength(4096);
+   m_nameEntry->SetText("");
+   m_nameEntry->Resize(170,m_nameEntry->GetDefaultHeight());
+   m_mainFrame->AddFrame(m_nameEntry, new TGLayoutHints(kLHintsRight | kLHintsTop | kLHintsCenterY | kLHintsExpandX));
+   
+   TGLabel *m_nameLabel = new TGLabel(m_mainFrame,"Name");
+   m_mainFrame->AddFrame(m_nameLabel, new TGLayoutHints(kLHintsLeft | kLHintsTop | kLHintsCenterY));
+   m_idNameFrame->AddFrame(m_mainFrame, new TGLayoutHints(kLHintsRight | kLHintsTop | kLHintsExpandX | kLHintsCenterY,11,2,0,0));
+   m_masterFrame->AddFrame(m_idNameFrame, new TGLayoutHints(kLHintsLeft | kLHintsTop | kLHintsExpandX,2,2,2,0));
+
+   TGHorizontalFrame *m_durationNPointsFrame = new TGHorizontalFrame(m_masterFrame,396,32,kHorizontalFrame );
+   TGHorizontalFrame *m_nPointsFrame = new TGHorizontalFrame(m_durationNPointsFrame,134,26,kHorizontalFrame);
+   TGLabel *m_nPointsLabel = new TGLabel(m_nPointsFrame,"Num Points");
+   m_nPointsFrame->AddFrame(m_nPointsLabel, new TGLayoutHints(kLHintsLeft | kLHintsTop | kLHintsCenterY,2,2,2,2));
+   m_nPointsEntry = new TGNumberEntry(m_nPointsFrame, (Double_t) 4, 4, kNPointsEntryId, TGNumberFormat::kNESInteger, TGNumberFormat::kNEANonNegative);
+   m_nPointsFrame->AddFrame(m_nPointsEntry, new TGLayoutHints(kLHintsRight | kLHintsTop | kLHintsCenterY,2,2,2,2));
+   m_durationNPointsFrame->AddFrame(m_nPointsFrame, new TGLayoutHints(kLHintsLeft | kLHintsCenterX | kLHintsTop | kLHintsCenterY | kLHintsExpandY,2,2,2,2));
+
+   // horizontal frame
+   TGHorizontalFrame *m_durationFrame = new TGHorizontalFrame(m_durationNPointsFrame,148,26,kHorizontalFrame);
+   TGLabel *m_durationLabel = new TGLabel(m_durationFrame,"Duration");
+   m_durationFrame->AddFrame(m_durationLabel, new TGLayoutHints(kLHintsLeft | kLHintsTop | kLHintsCenterY,2,2,2,2));
+   m_durationEntry = new TGNumberEntry(m_durationFrame, (Double_t) 0,8,kDurationId,TGNumberFormat::kNESHourMin, TGNumberFormat::kNEANonNegative);
+   m_durationEntry->SetTime( 2, 0, 0 );
+   m_durationEntry->SetLimits(TGNumberFormat::kNELLimitMinMax, 15, 24*60); 
+   m_durationFrame->AddFrame(m_durationEntry, new TGLayoutHints(kLHintsLeft | kLHintsTop | kLHintsCenterY,2,2,2,2));
+
+   m_durationNPointsFrame->AddFrame(m_durationFrame, new TGLayoutHints(kLHintsLeft | kLHintsCenterX | kLHintsTop | kLHintsCenterY | kLHintsExpandY,2,2,2,2));
+   m_masterFrame->AddFrame(m_durationNPointsFrame, new TGLayoutHints(kLHintsLeft | kLHintsTop | kLHintsExpandX,2,2,2,2));
+
+   
+   m_eventTypeGroup = new TGButtonGroup( m_masterFrame, "Event Type", kHorizontalFrame );
+   // m_eventTypeGroup->SetLayoutHints( new TGLayoutHints(kLHintsLeft | kLHintsCenterY,2,2,2,2) );
+   //widget ID's given be the enum EventDefType
+   TGRadioButton *button1 = new TGRadioButton(m_eventTypeGroup,"Constant Effect",   kIndependantEffectId    );
+   TGRadioButton *button2 = new TGRadioButton(m_eventTypeGroup,"Insulin Dependant", kMultiplyInsulinId      );
+   TGRadioButton *button3 = new TGRadioButton(m_eventTypeGroup,"Carb Depentdant",   kMultiplyCarbConsumedId );
+   button1->Connect("Clicked()", "ConstructCustomEvent", this, "handleButton(Int_t)" );
+   button2->Connect("Clicked()", "ConstructCustomEvent", this, "handleButton(Int_t)" );
+   button3->Connect("Clicked()", "ConstructCustomEvent", this, "handleButton(Int_t)" );
+   m_eventTypeGroup->SetExclusive(kTRUE);
+   m_eventTypeGroup->SetButton( kIndependantEffectId );
+   // m_eventTypeGroup->SetLayoutManager(new TGHorizontalLayout(m_eventTypeGroup));
+   // m_eventTypeGroup->Resize(100,50);
+   m_masterFrame->AddFrame(m_eventTypeGroup, new TGLayoutHints(kLHintsCenterX | kLHintsTop,8,2,2,2));
+
+
+  
+  
+   // horizontal frame
+   TGHorizontalFrame *m_okCancelFrame = new TGHorizontalFrame(m_masterFrame,200,26,kHorizontalFrame);
+   TGTextButton *m_okButton = new TGTextButton(m_okCancelFrame,"Okay", kOkayButtonId );
+   m_okButton->Resize(100,22);
+   m_okCancelFrame->AddFrame(m_okButton, new TGLayoutHints(kLHintsLeft | kLHintsCenterX | kLHintsTop | kLHintsCenterY,2,2,2,2));
+   TGTextButton *m_cancelButton = new TGTextButton(m_okCancelFrame,"Cancel", kCancelButtonId );
+   m_cancelButton->Resize(100,22);
+   m_okCancelFrame->AddFrame(m_cancelButton, new TGLayoutHints(kLHintsLeft | kLHintsCenterX | kLHintsTop | kLHintsCenterY,2,2,2,2));
+
+   m_masterFrame->AddFrame(m_okCancelFrame, new TGLayoutHints(kLHintsLeft | kLHintsCenterX | kLHintsTop,2,2,2,2));
+   m_masterFrame->Resize(m_masterFrame->GetDefaultSize());
+   
+   m_cancelButton->Connect("Clicked()", "ConstructCustomEvent", this, "handleButton(Int_t)" );
+   m_okButton->Connect("Clicked()", "ConstructCustomEvent", this, "handleButton(Int_t)" );
+   
+   
+   AddFrame(m_masterFrame, new TGLayoutHints(kLHintsExpandX | kLHintsExpandY));
+   SetMWMHints(kMWMDecorAll, kMWMFuncAll, kMWMInputModeless);
+   MapSubwindows();
+   Resize(GetDefaultSize());
+   MapWindow();
+   Resize(378,150);
+   Move(150, 150);
+   
+   fClient->WaitFor(this);
+}//ConstructCustomEvent( NLSimple *&model, const TGWindow *parent, const TGWindow *main)
+
+
+
+ConstructCustomEvent::~ConstructCustomEvent()
+{
+  CloseWindow();
+};//ConstructCustomEvent~ConstructCustomEvent()
+
+void ConstructCustomEvent::CloseWindow()
+{
+  DeleteWindow();
+};//void ConstructCustomEvent::CloseWindow()
+    
+void ConstructCustomEvent::handleButton( Int_t buttonId )
+{
+  TGButton *btn = (TGButton *) gTQSender;
+  buttonId = btn->WidgetId();
+  
+  switch( buttonId )
+  {
+    case kOkayButtonId:
+      const bool added = addEventDefToModel();
+      if( added ) CloseWindow();
+      return;
+    return;
+    
+    case kCancelButtonId:
+      CloseWindow();
+      return;
+    return;
+    
+    case kComboBoxId:
+    case kIdEntryId:
+    case kNameEntryId:
+    case kNPointsEntryId:
+    case kDurationId:
+    case kIndependantEffectId:
+    case kMultiplyInsulinId:
+    case kMultiplyCarbConsumedId:
+      return;
+    break;
+  };//switch( buttonId )
+  
+  cout << "ConstructCustomEvent::handleButton(Int_T)::buttonId=" 
+       << buttonId << " not defined, sorry :(" << endl;
+  assert(0);
+};//void ConstructCustomEvent::handleButton( Int_t buttonId )
     
     
+
+bool ConstructCustomEvent::addEventDefToModel()
+{
+  int hour, min, sec;
+  m_durationEntry->GetTime(hour, min, sec);
+  const TimeDuration duration( hour, min, sec, 0);
+  const int recordId = m_idEntry->GetSelected();
+  const int nPoint = (int)m_nPointsEntry->GetNumber();
+  const string name = m_nameEntry->GetText();
+  
+  EventDefType evType = NumEventDefTypes;
+  //added in asserts below to =make sure things work as I think they should
+  if( m_eventTypeGroup->GetButton(kIndependantEffectId)->IsDown() )
+  {
+    evType = IndependantEffect;
+  }//if kIndependantEffectId is selected
+  
+  if( m_eventTypeGroup->GetButton(kMultiplyInsulinId)->IsDown() )      
+  {
+    assert( evType == NumEventDefTypes );
+    evType = MultiplyInsulin;
+  }//if kMultiplyInsulinId is selected
+  
+  if( m_eventTypeGroup->GetButton(kMultiplyCarbConsumedId)->IsDown() ) 
+  { 
+    assert( evType == NumEventDefTypes );
+    evType = MultiplyCarbConsumed;
+  }//if kMultiplyCarbConsumedId is selected
+  assert( evType != NumEventDefTypes );
+  
+  //if name isn't filled in, popup a message box and return false 
+  if( !name.length() )
+  {
+    	new TGMsgBox( gClient->GetRoot(), gClient->GetDefaultRoot(), 
+                    "Error", "You must fill In A Name");
+    return false;
+  }//if( you haven't filled in a name yet );
+  
+  //if name is already taken, popup a message box and return false
+  NLSimple::EventDefIter iter = m_model->m_customEventDefs.begin();
+  for( ; iter != m_model->m_customEventDefs.end(); ++iter )
+  {
+    if( iter->second.getName() == name )
+    {
+      char *msg = Form( "%s, name already in use", name.c_str() );
+      new TGMsgBox( gClient->GetRoot(), gClient->GetDefaultRoot(), "Error", msg);
+      delete msg;
+      return false;
+    }//if( name already taken )
+  }//for( loop over defined EventDefs )
+  
+  // cout << "addEventDefToModel(): Creating a event type indicated by'" << recordId 
+       // << "' with name " << name << " and duration " << duration << " with type '"
+       // << evType << "', and " << nPoint << " points" << endl;
+  
+  return m_model->defineCustomEvent( recordId, name, duration, evType, nPoint);
+}//void addEventDefToModel()
+
+
+
+

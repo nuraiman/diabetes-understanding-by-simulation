@@ -46,6 +46,10 @@ const PosixTime kTGraphStartTime( boost::gregorian::date(2008,
                                   boost::gregorian::Jan, 1), 
                                   TimeDuration( 0, 0, 0, 0) );
 
+namespace DefaultInputs
+{
+  extern std::string ns_defaultModelFileName;
+};//
 
 //Below are variables whos values may be set via the command line - or gui panel.
 //  Values shown are the default values if not specified
