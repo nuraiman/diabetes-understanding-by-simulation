@@ -18,6 +18,7 @@
 #include "TLine.h"
 #include "TText.h"
 #include "TLegend.h"
+#include "TSpline.h"
 #include "TGraph.h"
 #include "TGAxis.h"
 #include "TCanvas.h"
@@ -55,6 +56,8 @@
 #include <boost/serialization/version.hpp>
 #include <boost/serialization/array.hpp>
 #include <boost/serialization/vector.hpp>
+#include <boost/serialization/string.hpp>
+#include <boost/serialization/map.hpp>
 #include "boost/format.hpp"
 
 #include "ResponseModel.hh"
@@ -92,8 +95,6 @@ NLSimple::NLSimple( const NLSimple &rhs ) :
      m_predictedBloodGlucose( rhs.m_predictedBloodGlucose ),
      m_startSteadyStateTimes( rhs.m_startSteadyStateTimes ), m_gui(NULL)
 {
-  m_currCgmsCorrFactor[0]      = rhs.m_currCgmsCorrFactor[0];
-  m_currCgmsCorrFactor[1]      = rhs.m_currCgmsCorrFactor[1];
 }//NLSimple( const NLSimple &rhs )
 */
 
@@ -119,7 +120,6 @@ m_description(description), m_cgmsDelay( ModelDefaults::kDefaultCgmsDelay ),
      m_startSteadyStateTimes(0),
      m_gui(NULL)
 {
-  m_currCgmsCorrFactor[0] = m_currCgmsCorrFactor[1] = kFailValue;
 }//NLSimple construnctor
 
 
@@ -199,9 +199,7 @@ const NLSimple &NLSimple::operator=( const NLSimple &rhs )
   m_paramaters                 = rhs.m_paramaters;
   m_paramaterErrorPlus         = rhs.m_paramaterErrorPlus;
   m_paramaterErrorMinus        = rhs.m_paramaterErrorMinus;
-  
-  m_currCgmsCorrFactor[0]      = rhs.m_currCgmsCorrFactor[0];
-  m_currCgmsCorrFactor[1]      = rhs.m_currCgmsCorrFactor[1];
+  m_customEventDefs            = rhs.m_customEventDefs;
   
   m_cgmsData                   = rhs.m_cgmsData;
   m_freePlasmaInsulin          = rhs.m_freePlasmaInsulin;
@@ -214,7 +212,7 @@ const NLSimple &NLSimple::operator=( const NLSimple &rhs )
   m_predictedBloodGlucose      = rhs.m_predictedBloodGlucose;
  
   m_startSteadyStateTimes      = rhs.m_startSteadyStateTimes;
-    
+   
   m_gui = NULL; 
   
   return *this;
@@ -234,6 +232,36 @@ ptime NLSimple::getAbsoluteTime( double nOffsetMinutes ) const
 }//ptime getAbsoluteTime( double nOffsetMinutes ) const;
 
 
+double NLSimple::customEventEffect( const PosixTime &time, 
+                                    const double &carbAbsRate, const double &X ) const
+{
+  double dGdT = 0.0;
+  
+  foreach( const EventDefPair &et, m_customEventDefs )
+  {
+    double mult = 1.0;
+    switch(et.second.m_eventDefType)
+    {
+      case IndependantEffect:    mult = 1.0;         break;
+      case MultiplyInsulin:      mult = X;           break;
+      case MultiplyCarbConsumed: mult = carbAbsRate; break;
+      case NumEventDefTypes: assert(0);
+    };//switch(eventType)
+    
+    ConstGraphIter lb = m_customEvents.lower_bound(time - et.second.m_duration);
+    ConstGraphIter ub = m_customEvents.upper_bound(time);
+    
+    for( ConstGraphIter iter = lb; iter != ub; ++iter )
+    {
+      if( static_cast<int>(iter->m_value) == et.first )
+      {
+        dGdT += mult * et.second.eval( time - iter->m_time );
+      }//if( corect custom event type )
+    }//for( loop over possible custom events )
+  }//foreach( defined custom event type )
+  
+  return dGdT;
+}//double NLSimple::customEventEffect( const PosixTime &time,
 
 
 
@@ -248,7 +276,8 @@ double NLSimple::dGdT( const ptime &time, double G, double X ) const
                 - X*(G + m_basalGlucoseConcentration) 
                 + m_paramaters[CarbAbsorbMultiplier] * dCarAbsorbDt;
                 // + G_parameter[1]*I_basal;
-    
+                + customEventEffect( time, dCarAbsorbDt, X );
+                
   return dGdT;
 }//dGdT
 
@@ -261,7 +290,7 @@ double NLSimple::dXdT( const ptime &time, double G, double X ) const
   assert( m_paramaters.size() == NumNLSimplePars );
     
   //The 10 is for convertin U/L, to U/dL
-  const double insulin= (m_freePlasmaInsulin.value( time ) / 10.0);
+  const double insulin = (m_freePlasmaInsulin.value( time ) / 10.0);
   
   double dXdT = -X * m_paramaters[XMultiplier]
                 + insulin * m_paramaters[PlasmaInsulinMultiplier];
@@ -281,7 +310,7 @@ double NLSimple::dXdT_usingCgmsData( const ptime &time, double X ) const
   double dXdT = -X * m_paramaters[XMultiplier]
                 + insulin * m_paramaters[PlasmaInsulinMultiplier];
                //+ X_parameters[2] *(G - X_parameters[3]);
-  
+               ;
   return dXdT; 
 }//double dXdT_usingCgmsData( double time, double X ) const
 
@@ -308,6 +337,54 @@ RK_PTimeDFunc NLSimple::getRKDerivFunc() const
 {
   return bind( &NLSimple::dGdT_and_dXdT, boost::cref(*this), _1, _2 );
 }//getRKDerivFunc()
+
+bool NLSimple::undefineCustomEvent( int recordType )
+{
+  EventDefIter iter = m_customEventDefs.find(recordType);
+  
+  if( iter == m_customEventDefs.end() ) return false; 
+    
+  m_customEventDefs.erase(iter);
+  return true;
+}//bool NLSimple::undefineCustomEvent( int recordType )
+
+
+bool NLSimple::defineCustomEvent( int recordType, std::string name, 
+                                  TimeDuration eventDuration, 
+                                  EventDefType et,
+                                  unsigned int nDataPoints )
+{
+  //make sure we don't already have a record
+  if( m_customEventDefs.find(recordType) != m_customEventDefs.end() )
+  {
+    EventDef &ev = m_customEventDefs[recordType];
+    
+    if( (ev.getNPoints() == nDataPoints) && (ev.getEventDefType() == et) )
+    {
+      ev.setName( name );
+      return false;
+    }//if( just changing name )
+  }//if( already have a recond of this type )
+  // m_customEventDefs.insert( make_pair(recordType, EventDef() ) );
+  
+  m_customEventDefs[recordType] = EventDef( name, eventDuration, et, nDataPoints);
+  
+  return true;
+}//void NLSimple::defineCustomEvent( int recordType, std::string name, int nDataPoints )
+
+
+
+bool NLSimple::defineCustomEvent( int recordType, std::string name,
+                                  TimeDuration eventDuration, 
+                                  EventDefType et, 
+                                  std::vector<double> initialPars )
+{
+  bool added = defineCustomEvent( recordType, name, eventDuration, et, initialPars.size() );
+  
+  m_customEventDefs[recordType].setPar(initialPars);
+  
+  return added;
+}//void NLSimple::defineCustomEvent( int recordType, std::string name, std::vector<double> initialPars )
 
 
 
@@ -392,13 +469,6 @@ void NLSimple::addCgmsData( boost::posix_time::ptime time, double value )
 }//void NLSimple::addCgmsData( boost::posix_time::ptime, double value )
 
 
-
-void NLSimple::addCgmsDataFromIsig( const ConsentrationGraph &isigData,
-                                    const ConsentrationGraph &calibrationData,
-                                    bool findNewSteadyState )
-{
-  assert(0);
-}
 
 
 
@@ -615,7 +685,7 @@ double NLSimple::findCgmsErrorFromFingerStick( const TimeDuration cgms_delay ) c
       if( (fingerValue - cgmsValue) > 0.0 )
       {
         ++numValidPointsUp;
-        numValidPointsUp += abs(fingerValue - cgmsValue) / cgmsValue;
+        fractionalErrUp += abs(fingerValue - cgmsValue) / cgmsValue;
       }else
       {
         ++numValidPointsDown;
@@ -650,10 +720,30 @@ void NLSimple::resetPredictions()
 
 void NLSimple::setModelParameters( const std::vector<double> &newPar )
 {
-  assert( newPar.size() == NumNLSimplePars || newPar.empty() );
+  //number of para
+  size_t nParExp = NumNLSimplePars;
+  foreach( const EventDefPair &et, m_customEventDefs )
+  {
+    nParExp += et.second.getNPoints();
+  }//foreach( custom event def )
+  
+  assert( newPar.size() == nParExp || newPar.empty() );
   
   resetPredictions();
-  m_paramaters = newPar;
+  
+  size_t parNum = 0;
+  for( ; parNum < NumNLSimplePars; ++parNum ) m_paramaters[parNum] = newPar[parNum];
+  
+  foreach( EventDefPair &et, m_customEventDefs )
+  {
+    const size_t nPoints = et.second.getNPoints();
+    
+    for( size_t pointN = 0; pointN < nPoints; ++pointN, ++parNum )
+    {
+      et.second.setPar( pointN, newPar[parNum] );
+    }//for
+  }//foreach( custom event def )
+  
 }//setModelParameters
 
 
@@ -1608,7 +1698,7 @@ double NLSimple::getDerivativeChi2( const ConsentrationGraph &modelDerivData,
   // cout << "About to find slope based chi2 between " << t_start << " and "
        // << t_end << endl;
        
-  const double fracUncert = ModelDefaults::kCgmsIndivReadingUncert;
+  // const double fracUncert = ModelDefaults::kCgmsIndivReadingUncert;
   
   int nPoints = 0;
   double chi2 = 0.0;
@@ -1659,11 +1749,38 @@ double NLSimple::geneticallyOptimizeModel( double endPredChi2Weight,
   ModelTestFCN fittnesFunc( this, endPredChi2Weight, timeRanges );
   fittnesFunc.SetErrorDef(10.0);
   
-  vector<TMVA::Interval*> ranges;
-  ranges.push_back( new Interval( -0.01, 0.1 )  );
-  ranges.push_back( new Interval( 0.1, 10.0 )  );
-  ranges.push_back( new Interval( 0.0, 0.1 )  );
-  ranges.push_back( new Interval( 0.0, 0.0015 )  );
+  size_t nParExp = (size_t)NumNLSimplePars;
+  foreach( const EventDefPair &et, m_customEventDefs )
+  {
+    nParExp += et.second.getNPoints();
+  }//foreach( custom event def )
+  
+  vector<TMVA::Interval*> ranges(nParExp);
+  
+  //Havw a switch statment to get a warning if we change NLSimplePars
+  for( NLSimplePars par = NLSimplePars(0); par < NumNLSimplePars; par = NLSimplePars(par+1) )
+  {
+    switch(par)
+    {
+      case BGMultiplier:            ranges[par] = new Interval( -0.01, 0.1 );  break;
+      case CarbAbsorbMultiplier:    ranges[par] = new Interval( 0.1, 10.0 );   break;
+      case XMultiplier:             ranges[par] = new Interval( 0.0, 0.1 );    break;
+      case PlasmaInsulinMultiplier: ranges[par] = new Interval( 0.0, 0.0015 ); break;
+    };//
+  }//for( loop over NLSimplePars )
+    
+  size_t parNum = (size_t)NumNLSimplePars;
+  
+  foreach( const EventDefPair &et, m_customEventDefs )
+  {
+    const size_t nPoints = et.second.getNPoints();
+    for( size_t pointN = 0; pointN < nPoints; ++pointN, ++parNum )
+    {
+      cout << "Adding paramater " << pointN << " for Custom Event named " << et.second.getName()
+           << " for genetic minization" << endl;
+      ranges[parNum] = new Interval( -5.0, 5.0 );
+    }//for
+  }//foreach( custom event def )
   
   
   GeneticAlgorithm ga( fittnesFunc, fPopSize, ranges );
@@ -1719,6 +1836,14 @@ double NLSimple::geneticallyOptimizeModel( double endPredChi2Weight,
   cout << endl;
   
   setModelParameters(gvec);
+  if( m_gui ) 
+  {
+    m_gui->drawEquations();
+    m_gui->drawModel();
+    m_gui->refreshClarkAnalysis();
+    m_gui->updateCustomEventTab();
+  }//if( m_gui ) 
+  
   double chi2 = fittnesFunc.testParamaters( gvec, true );
   
   
@@ -1799,18 +1924,52 @@ double NLSimple::fitModelToDataViaMinuit2( double endPredChi2Weight,
   modelFCN.SetErrorDef(10.0);
   
   MnUserParameters upar;
-  upar.Add( "BGMult"   , startingVal[BGMultiplier], 0.1 );
-  upar.SetLimits( "BGMult", -0.01, 0.1);
+ 
+  //Have a switch statment to get a warning if we change NLSimplePars
+  for( NLSimplePars par = NLSimplePars(0); par < NumNLSimplePars; par = NLSimplePars(par+1) )
+  {
+    switch(par)
+    {
+      case BGMultiplier:            
+        upar.Add( "BGMult"   , startingVal[BGMultiplier], 0.1 );
+        upar.SetLimits( "BGMult", -0.01, 0.1);
+      break; 
+      
+      case CarbAbsorbMultiplier:
+        upar.Add( "CarbMult" , startingVal[CarbAbsorbMultiplier], 0.1 );
+        upar.SetLimits( "CarbMult", 0.1, 10);
+      break;
   
-  upar.Add( "CarbMult" , startingVal[CarbAbsorbMultiplier], 0.1 );
-  upar.SetLimits( "CarbMult", 0.1, 10);
+      case XMultiplier:
+        upar.Add( "XMult"    , startingVal[XMultiplier], 0.1 );
+        upar.SetLimits( "XMult", 0.0, 0.1);
+      break;
+      
+      case PlasmaInsulinMultiplier: 
+        upar.Add( "InsulMult", startingVal[PlasmaInsulinMultiplier], 0.1 );
+        upar.SetLimits( "InsulMult", 0.0, 0.001);
+      break;
+      assert(0);
+    };//swtich(par)
+  }//for( loop over NLSimplePars )
+    
+  size_t parNum = (size_t)NumNLSimplePars;
   
-  upar.Add( "XMult"    , startingVal[XMultiplier], 0.1 );
-  upar.SetLimits( "XMult", 0.0, 0.1);
+  foreach( const EventDefPair &et, m_customEventDefs )
+  {
+    const size_t nPoints = et.second.getNPoints();
+    for( size_t pointN = 0; pointN < nPoints; ++pointN, ++parNum )
+    {
+      ostringstream name;
+      name << et.second.getName() << "_" << pointN;
+      
+      cout << "Adding paramater named " << name.str() << " to minuit optimization" << endl;
+      
+      upar.Add( name.str(), et.second.getPar(pointN), 0.1 );
+      upar.SetLimits( name.str(), -5.0, 5.0 );
+    }//for
+  }//foreach( custom event def )
   
-  upar.Add( "InsulMult", startingVal[PlasmaInsulinMultiplier], 0.1 );
-  upar.SetLimits( "InsulMult", 0.0, 0.001);
-
   
   MnMigrad migrad(modelFCN, upar);
   
@@ -2110,32 +2269,14 @@ void NLSimple::draw( bool pause,
   
   if( !gPad )  new TCanvas();
   
-  // if( usePredForAxis )
-  // {
-    // double x, y, x1, y1, x2, y2, x3, y3;
-    // predBG->GetPoint( 0, x, y );
-    // predBG->GetPoint( predBG->GetN()-1, x1, y1 );
-    // cgmsBG->GetPoint( 0, x2, y2 );
-    // cgmsBG->GetPoint( cgmsBG->GetN()-1, x3, y3 );
-    
-    // cout << "Drawing " << cgmsBG->GetN() << " for cgms, and " << predBG->GetN() 
-         // << " fro pred, " 
-         // << "(" << x << ", "<< y <<")---->(" << x1 << ", " << y1 << "), cgms:(" 
-         // << x2 << ", " << y2 << ")----->(" << x3 << ", " << y3 << ")" << endl;
-    // cgmsBG->Draw( "Al" );
-    // predBG->Draw( "l" );
-  // }else cgmsBG->Draw( "Al" );
-  
-  // cout << "Drawing between " << t_start << " and " << t_end << endl;
-  // TCanvas *can = new TCanvas();
-  // cgmsBG->Draw( "Al" );
-  // gClient->WaitFor((TGWindow*)can);
-  
   cgmsBG->Draw( "Al" );
   if( usePredForAxis )  predBG->Draw( "l" );  
   if( glucAbs->GetN() ) glucAbs->Draw( "l" );
   if( xPred->GetN() )   xPred->Draw( "l" );
   if( insConc->GetN() ) insConc->Draw( "l" );
+  
+  // TAxis yaxis = cgmsBG->GetYaxis();
+  
   
   // TGaxis *axis = new TGaxis(gPad->GetUxmax(),gPad->GetUymin(),
                             // gPad->GetUxmax(), gPad->GetUymax(), 
@@ -2266,6 +2407,7 @@ void NLSimple::serialize( Archive &ar, const unsigned int version )
   ar & m_cgmsDelay;                         //initially set to 15 minutes
   ar & m_basalInsulinConc;                  //units per kilo per hour
   ar & m_basalGlucoseConcentration;
+  ar & m_customEventDefs;
   
   ar & m_dt;
   ar & m_predictAhead;
@@ -2274,8 +2416,6 @@ void NLSimple::serialize( Archive &ar, const unsigned int version )
   ar & m_paramaters;           //size == NumNLSimplePars
   ar & m_paramaterErrorPlus;
   ar & m_paramaterErrorMinus;
-    
-  ar & m_currCgmsCorrFactor;
     
   ar & m_cgmsData;
   ar & m_freePlasmaInsulin;
@@ -2652,6 +2792,7 @@ void FitNLSimpleEvent::updateModelWithCurrentGuesses( NLSimple &model ) const
         break;
       };//case GlucoseAbsorbtionRateGraph: case GlucoseConsumptionGraph:
       
+      // CustomEvent
       
       case GlucoseConsentrationGraph: case BloodGlucoseConcenDeriv: 
       case NumGraphType: case AlarmGraph:
@@ -2758,7 +2899,7 @@ getClarkeErrorGridObjs( const ConsentrationGraph &cmgsGraph,
   {
     const PosixTime &time = el.m_time;
     const double meterValue = el.m_value;
-    const double cgmsValue = cmgsGraph.value(time);
+    const double cgmsValue = cmgsGraph.value(time + cmgsDelay);
     
     TH2F *regionH = NULL;
     
@@ -2907,6 +3048,273 @@ getClarkeErrorGridObjs( const ConsentrationGraph &cmgsGraph,
 }//getClarkeErrorGridObjs(...)
 
 
+EventDef::EventDef(): 
+  m_name(""), m_spline(NULL), m_times(NULL), m_values(NULL), 
+  m_nPoints(0), m_duration(0,0,0,0), m_eventDefType(NumEventDefTypes)
+{
+}//EventDef::EventDef()
+
+
+
+EventDef::EventDef( std::string name, TimeDuration eventLength, 
+                    EventDefType defType, unsigned int nPoints) :
+m_name(name), m_spline(NULL), m_times( nPoints ? new double[nPoints] : NULL ), 
+m_values( nPoints ? new double[nPoints] : NULL ),
+  m_nPoints( nPoints ), m_duration(eventLength), m_eventDefType(defType)
+{
+  const double nMinutes = toNMinutes(eventLength);
+  const double dT = nMinutes / (nPoints - 1);
+  
+  if( nPoints ) m_values[0] = m_times[0]  = 0.0;
+  
+  for( unsigned int i = 1; i < nPoints; ++i )
+  {
+    m_times[i]  = m_times[i-1] + dT;
+    m_values[i] = 0.0;
+  }//for
+}//EventDef::EventDef(...)
+
+
+EventDef::EventDef( const EventDef &rhs ) : 
+  m_spline(NULL), m_times(NULL), m_values(NULL), m_nPoints( 0 )
+{
+  *this = rhs;
+}//EventDef::EventDef
+
+EventDef::~EventDef()
+{
+  if( m_times )  delete [] m_times;
+  if( m_values ) delete [] m_values;
+  if( m_spline ) delete m_spline;
+  
+  m_spline = NULL;
+  m_times = m_values = NULL;
+}//EventDef::~EventDef()
+
+
+const EventDef &EventDef::operator=( const EventDef &rhs )
+{
+  if( &rhs == this ) return *this;
+  
+  m_name = rhs.m_name;
+  m_duration = rhs.m_duration;
+  m_eventDefType = rhs.m_eventDefType;
+  
+  if( m_nPoints != rhs.m_nPoints )
+  {
+    m_nPoints = rhs.m_nPoints;
+  
+    if( m_times )  delete [] m_times;
+    if( m_values ) delete [] m_values;
+    
+    m_times = m_values = NULL;
+    
+    if( m_nPoints )
+    {
+      m_times  = new double[m_nPoints];
+      m_values = new double[m_nPoints];
+    }//if( rhs.m_nPoints > 0 )
+  }//if( m_nPoints != rhs.m_nPoints )
+  
+  for( size_t i=0; i<m_nPoints; ++i )
+  {
+    m_times[i]  = rhs.m_times[i];
+    m_values[i] = rhs.m_values[i];
+  }//for(
+  
+  if( m_spline )
+  {
+    delete m_spline;
+    m_spline = NULL;
+  }//if( m_spline )
+  
+  if( rhs.m_spline ) buildSpline();
+  
+  return *this;
+}//EventDef::operator=
+
+
+template<class Archive>
+void EventDef::save(Archive & ar, const unsigned int version) const
+{
+  unsigned int ver = version; //keep compiler from complaining
+  ver = ver;
+  
+  ar & m_name;
+  ar & m_nPoints;
+  ar & m_duration;
+  ar & m_eventDefType;
+  
+  if( m_nPoints )
+  {
+    DVec timesV(m_times+0,  m_times+m_nPoints );
+    DVec valueV(m_values+0, m_values+m_nPoints );
+    ar & timesV;
+    ar & valueV;
+  }else
+  {
+    DVec emptyVec1(0), emptyVec2(0);
+    ar & emptyVec1;
+    ar & emptyVec2;
+  }//if( m_nPoints ) / else
+}//EventDef::save(...)
+
+
+template<class Archive>
+void EventDef::load(Archive & ar, const unsigned int version)
+{
+  unsigned int ver = version; //keep compiler from complaining
+  ver = ver;
+  
+  ar & m_name;
+  ar & m_nPoints;
+  ar & m_duration;
+  ar & m_eventDefType;
+  
+  if( m_times )  delete [] m_times;
+  if( m_values ) delete [] m_values;
+   
+  m_times = m_values = NULL;
+  
+  if( m_nPoints )
+  {
+    m_times  = new double[m_nPoints];
+    m_values = new double[m_nPoints];
+  }//if( m_nPoints )
+  
+  DVec timesV, valueV;
+  ar & timesV;
+  ar & valueV;
+  
+  for( size_t i = 0; i < m_nPoints; ++i )
+  {
+    m_times[i] = timesV[i];
+    m_values[i] = valueV[i];
+  }//
+}//EventDef::load(...)
+    
+
+
+unsigned int EventDef::getNPoints() const
+{
+  return m_nPoints;
+}//int EventDef:getNPoints() const
+
+
+void EventDef::setName( const std::string name )
+{
+  m_name = name;
+}//void EventDef::setName( const std::string *name )
+
+
+const std::string &EventDef::getName() const
+{
+  return m_name;
+}//std::string getName() const
+
+
+const EventDefType &EventDef::getEventDefType() const
+{
+  return m_eventDefType;
+}//const EventDefType &EventDef::getEventDefType() const
+
+const TimeDuration &EventDef::getDuration() const
+{
+  return m_duration;
+}//TimeDuration EventDef::getDuration() const
+
+
+double EventDef::getPar( unsigned int parNum ) const
+{
+  assert( parNum < m_nPoints );
+  return m_values[parNum];
+}//double EventDef::getPar( int parNum ) const
+
+
+void EventDef::setPar( unsigned int point, double value )
+{
+  if( m_spline )
+  {
+    delete m_spline;
+    m_spline = NULL;
+  }//if( m_spline )
+  
+  assert( point < m_nPoints );
+  m_values[point] = value;
+}//void EventDef::setPar( int point, double value )
+
+void EventDef::setPar( const std::vector<double> &par )
+{
+  for( unsigned int i = 0; i < par.size(); ++i )
+    setPar( i, par[i] );
+}//void EventDef::setPar( const std::vector<double> &par )
+
+
+double EventDef::eval( const TimeDuration &dur ) const
+{
+  if( !m_nPoints ) return 0.0;
+  if( dur > m_duration ) return 0.0;
+  
+  if( !m_spline ) buildSpline();
+  
+  return m_spline->Eval( toNMinutes(dur) );
+}//double EventDef::eval( const TimeDuration &dur )
+
+
+void EventDef::buildSpline() const
+{
+  if( !m_nPoints ) return;
+  assert( !m_spline );
+  
+  //create new spline with zero derivatives at begining and end of functions
+  m_spline = new TSpline3( m_name.c_str(), m_times, m_values, m_nPoints, "b1 e1", 0.0, 0.0 );
+}//void EventDef::buildSpline() const
+
+
+void EventDef::draw() const
+{
+  if( !m_spline ) buildSpline();
+  if( !m_spline ) return;
+  if( !gPad )     new TCanvas();
+  
+  string yTitle = "";
+  string title = m_name;
+  
+  switch(m_eventDefType)
+  {
+    case IndependantEffect:    
+      yTitle = "BG Change / Minute";
+      title += " - Constant Effect"; 
+      break;
+    case MultiplyInsulin:
+      yTitle = "Insulin Mult. Factor";      
+      title += " - Effects Insulin Sens."; 
+      break;
+    case MultiplyCarbConsumed: 
+      yTitle = "Carb. Abs. Mult. Factor";
+      title += " - Effects Meal Sens."; 
+      break;
+    case NumEventDefTypes:     
+      title += " - Undefined Effect"; 
+      break;
+  };//switch(m_eventDefType)
+  
+  // newSpline->SetTitle( title.c_str() );
+  // TSpline3 *newSpline = (TSpline3 *)m_spline->Clone();
+  
+  TGraph *graph = new TGraph(m_nPoints);
+  graph->SetTitle( title.c_str() );
+  
+  for( int i = 0; i < m_nPoints; ++i ) 
+  {
+    graph->SetPoint(i, m_times[i], m_spline->Eval( m_times[i] ) );
+  }//for( loop over times )
+  
+  TH1 *hist = graph->GetHistogram();
+  hist->GetXaxis()->SetTitle( "Minutes After Begining" );
+  hist->GetYaxis()->SetTitle( yTitle.c_str() );
+  graph->Draw( "a l c *" );
+}//void draw() const
 
 
 

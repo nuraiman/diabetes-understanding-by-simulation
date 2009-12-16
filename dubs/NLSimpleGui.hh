@@ -53,7 +53,7 @@
 
 class NLSimple;
 class ConsentrationGraph;
-
+namespace boost{ namespace posix_time{ struct ptime; } }
 
 class NLSimpleGui
 {
@@ -78,8 +78,10 @@ class NLSimpleGui
     TRootEmbeddedCanvas *m_errorGridCanvas;
     TRootEmbeddedCanvas *m_errorLegendCanvas;
     TRootEmbeddedCanvas *m_delaySimgaCanvas;
+    TRootEmbeddedCanvas *m_customEventCanvas;
     TGRadioButton *m_clarkeMeterButton;
     TGRadioButton *m_clarkePredictionButton;
+    TGListBox *m_customEventListBox;
     
     // TGDockableFrame *m_menuDock;
     TGMenuBar *m_menuBar;
@@ -96,6 +98,16 @@ class NLSimpleGui
     void addGraphTab();          //add graph tab to m_tabWidget
     void addProgramOptionsTab(); //add options tab to m_tabWidget
     void addErrorGridTab();      //add Clarke Error Grid  tab to m_tabWidget
+    enum CustomEventID
+    {
+      kCE_ListBox = 89,
+      kCE_AddDefinition,
+      kCE_DeleteDefinition
+    };//enum CustomEventID
+    void addCustomEventTab();
+    void updateCustomEventTab();
+    void drawSelectedCustomEvent();
+    void handleCustomEventButton( Int_t senderId );
     void createEquationsCanvas( const TGFrame *parent );
     TGVerticalFrame *createButtonsFrame( const TGFrame *parent );
     
@@ -109,6 +121,7 @@ class NLSimpleGui
     void addCgmsData();  //unimpleneted as of yet
     void addCarbData();
     void addMeterData();
+    void addCustomEventData();
     void refreshPredictions();
     void updateDelayAndError();
     
@@ -159,6 +172,7 @@ class InputSimpleData : public TGTransientFrame
                      const TGWindow *main,
                      TString message,
                      double defaultValue,
+                     const boost::posix_time::ptime defaultTime,
                      int type
                    );
     virtual ~InputSimpleData();
@@ -258,6 +272,49 @@ class ConstructNLSimple : public TGTransientFrame
     
     ClassDef(ConstructNLSimple,0)
 };//class ConstructNLSimple : public TGTransientFrame
+
+
+
+
+class ConstructCustomEvent : public TGTransientFrame
+{
+  public:  
+    NLSimple      *&m_model;
+    TGComboBox    *m_idEntry;
+    TGTextEntry   *m_nameEntry;
+    TGNumberEntry *m_nPointsEntry;
+    TGNumberEntry *m_durationEntry;
+    TGButtonGroup *m_eventTypeGroup;
+    
+    ConstructCustomEvent( NLSimple *&model, const TGWindow *parent, const TGWindow *main);
+    virtual ~ConstructCustomEvent();
+    virtual void CloseWindow();
+    
+    void handleButton( Int_t );
+    
+    bool addEventDefToModel();
+    
+    enum
+    {
+      kOkayButtonId,
+      kCancelButtonId,
+      kComboBoxId,
+      kIdEntryId,
+      kNameEntryId,
+      kNPointsEntryId,
+      kDurationId,
+      kIndependantEffectId,
+      kMultiplyInsulinId,
+      kMultiplyCarbConsumedId,
+    };//enum
+    
+  ClassDef(ConstructCustomEvent,0)
+};//class ConstructCustomEvent : public TGTransientFrame
+
+
+
+
+
 
 
 
