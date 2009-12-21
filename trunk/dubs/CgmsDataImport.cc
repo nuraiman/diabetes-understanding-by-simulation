@@ -55,10 +55,8 @@ CgmsDataImport::importSpreadsheet( string filename, InfoType type,
     getline( inputFile, currentLine, eolChar );
     algorithm::trim(currentLine);
     if( currentLine.size() == 0 ) continue;
-	  if( currentLine[0] == '#' ) continue;
-	  if( currentLine.find_first_not_of(", ") == string::npos ) continue;
-    
-    // cout << "On Line: " << currentLine << endl;
+    if( currentLine[0] == '#' ) continue;
+    if( currentLine.find_first_not_of(", ") == string::npos ) continue;
     
     if( indMap.empty() && source!=NavigatorTab )
     {
@@ -346,6 +344,9 @@ CgmsDataImport::getSpreadsheetTypeFromHeader( std::string header )
 char 
 CgmsDataImport::getEolCharacter( std::string fileName )
 {
+    //by default osx has  '\r\n' ofr
+  //cout << "CgmsDataImport::getEolCharacter( " << fileName << "):" << endl;
+
   ifstream inputFile( fileName.c_str() );
   
   if( !inputFile.is_open() )
@@ -355,12 +356,13 @@ CgmsDataImport::getEolCharacter( std::string fileName )
   }//if( !inputFile.is_open() )
   
   char line[2024];
-  inputFile.getline( line, 2024, '\n' );
-  
+  inputFile.getline( line, 2023, '\n' );
+  //cout << "getEolCharacter(---): got line " << line << endl;
+
   if( !inputFile.eof() ) return '\n';
-  
+
   string lineStr = line;  //To get rid of some wierd compiler warning
-  
+
   foreach( const char c, lineStr )  //I like boost
   {
     if( c == '\r' ) return '\r';

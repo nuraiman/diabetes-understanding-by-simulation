@@ -518,8 +518,9 @@ unsigned int ConsentrationGraph::add( double amountPerVol,
     GraphElement newElement( currentTime, totalValue );
     
     GraphElementSet::erase( posIter );
-    ConstGraphIter newPos = GraphElementSet::insert( posIter, newElement ); 
-    assert( newPos == posIter );
+    posIter = GraphElementSet::insert( posIter, newElement );
+    //ConstGraphIter newPos = GraphElementSet::insert( posIter, newElement );
+    //assert( newPos == posIter );
   }//for( loop over previously defined times )
   
   removeNonInfoAddingPoints();
