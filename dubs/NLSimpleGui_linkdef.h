@@ -10,6 +10,8 @@
 #pragma link C++ class InputSimpleData;
 #pragma link C++ class ConstructNLSimple;
 #pragma link C++ class ConstructCustomEvent;
+#pragma link C++ class CreateGraphGui;
+#pragma link C++ class ProgramOptionsGui;
 #
 #endif
 

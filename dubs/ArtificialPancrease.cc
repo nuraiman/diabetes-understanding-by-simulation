@@ -19,6 +19,7 @@
 #include "TH2.h"
 #include "TCanvas.h"
 #include "TApplication.h"
+#include "TRint.h"
 #include "TLegend.h"
 #include "TROOT.h"
 #include "TPaveText.h"
@@ -49,7 +50,7 @@ TApplication *gTheApp = (TApplication *)NULL;
 using namespace std;
 
 //foward declaration
-void setStyle();
+//void setStyle();
 
 NLSimple createMar31Model();
 void testFFT();
@@ -76,14 +77,15 @@ double ModelDefaults::kGenSigmaMult = kFailValue;
 double ModelDefaults::kGenConvergCriteria = kFailValue;
 std::string DefaultInputs::ns_defaultModelFileName = ""; 
 
-int main( int argc, char** argv )
+
+int _main( int argc, char** argv )
 {
   using namespace boost;
   using namespace boost::posix_time;
   using namespace boost::gregorian;
   
-  setStyle();
-  ProgramOptions::decodeOptions( argc, argv );
+  //setStyle();
+  //ProgramOptions::decodeOptions( argc, argv );
   
   NLSimple *modelCreateTest = NULL;
   if( DefaultInputs::ns_defaultModelFileName.size() ) modelCreateTest = new NLSimple( DefaultInputs::ns_defaultModelFileName );
@@ -365,12 +367,12 @@ void testKineticModels()
 
 }//testKineticModels
 
-
+/*
 void setStyle()
 {
   Int_t dummy_arg = 0;
-  gTheApp = new TApplication("App", &dummy_arg, (char **)NULL);
-  
+//  gTheApp = new TApplication("App", &dummy_arg, (char **)NULL);
+  gTheApp = (TApplication *)new TRint( "App", &dummy_arg, (char **)NULL);
   
   TStyle *myStyle = gROOT->GetStyle("Plain"); //base style on Plain
    
@@ -390,4 +392,4 @@ void setStyle()
   gROOT->SetStyle("Plain");
   gROOT->ForceStyle();
 }//void setStyle()
-
+*/
