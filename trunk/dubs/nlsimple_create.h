@@ -36,7 +36,7 @@ private:
     //ConsentrationGraph *m_ExcersizeData;
 
     double m_minutesGraphPerPage;
-
+    bool m_useKgs;
 
     enum GraphPad
     {
@@ -67,7 +67,7 @@ private slots:
     void cancel();
     void handleTimeLimitButton();
     void enableCreateButton();
-
+    void changeMassUnits();
     void zoomInX();
     void zoomOutX();
 };
