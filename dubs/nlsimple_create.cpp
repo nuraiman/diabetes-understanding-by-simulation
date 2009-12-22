@@ -38,6 +38,7 @@
 
 #include <QDir>
 #include <QFileDialog>
+#include <QScrollBar>
 
 #include "MiscGuiUtils.hh"
 
@@ -55,7 +56,7 @@ NlSimpleCreate::NlSimpleCreate( NLSimple *&model, QWidget *parent) :
     m_meterData(NULL),
     m_customData(NULL),
     //ConsentrationGraph *m_ExcersizeData;
-    m_minutesGraphPerPage(3 * 60 * 24)
+    m_minutesGraphPerPage(-1)
 
 {
     m_ui->setupUi(this);
@@ -77,6 +78,12 @@ void NlSimpleCreate::init()
     m_ui->m_basalInsulinAmount->setFocusPolicy( Qt::StrongFocus );
     m_ui->m_startDateEntry->setDateTime( posixTimeToQTime(kGenericT0) );
     m_ui->m_endDateEntry->setDateTime( posixTimeToQTime(kGenericT0) );
+
+    double weightInlbs = 2.20462262 * PersonConstants::kPersonsWeight;
+    m_ui->m_weightInput->setRange(1,500);
+    m_ui->m_weightInput->setValue( (int)weightInlbs );
+    m_ui->m_unitButton->setText("lbs");
+    m_useKgs = false;
 }//void NlSimpleCreate::init()
 
 
@@ -172,8 +179,15 @@ void NlSimpleCreate::findTimeLimits()
 
 void NlSimpleCreate::drawPreview( GraphPad pad )
 {
-  TQtWidget *qtWidget = dynamic_cast<TQtWidget *>(m_ui->tabWidget->widget(pad));
-  assert( qtWidget );
+  //TQtWidget *qtWidget = dynamic_cast<TQtWidget *>(m_ui->tabWidget->widget(pad));
+  QObjectList qlist = m_ui->tabWidget->widget(pad)->children();
+
+  TQtWidget *qtWidget = m_ui->tabWidget->widget(pad)->findChild<TQtWidget *>();
+  if( !qtWidget ) qtWidget = dynamic_cast<TQtWidget *>(m_ui->tabWidget->widget(pad));
+
+  if( !qtWidget ) cout << "Error finding TQtWidget for pad " << pad << endl;
+  if( !qtWidget ) return;
+
   TCanvas *can = qtWidget->GetCanvas();
   can->cd();
   can->SetEditable( kTRUE );
@@ -243,7 +257,7 @@ void NlSimpleCreate::drawPreview( GraphPad pad )
     graphs[i]->Draw( drawOptions.c_str() );
   }//for( size_t i = 0; i < graphs.size(); ++i )
   can->Update();
-  //updateModelGraphSize();
+  updateModelGraphSize();
 }//void NlSimpleCreate::drawPreview( GraphPad pad )
 
 void NlSimpleCreate::updateModelGraphSize()
@@ -257,43 +271,45 @@ void NlSimpleCreate::updateModelGraphSize()
 
 void NlSimpleCreate::updateModelGraphSize(int tabNumber)
 {
-  TQtWidget *qtWidget = dynamic_cast<TQtWidget *>(m_ui->tabWidget->widget(tabNumber));
-  assert( qtWidget );
-  TCanvas *can = qtWidget->GetCanvas();
+  if( !m_ui->tabWidget->widget(tabNumber) ) return;
+  // assert( !m_ui->tabWidget->widget(tabNumber) );
+  TQtWidget *qtWidget = m_ui->tabWidget->widget(tabNumber)->findChild<TQtWidget *>();
+  if( !qtWidget ) qtWidget = dynamic_cast<TQtWidget *>(m_ui->tabWidget->widget(tabNumber));
+  if( !qtWidget ) cout << "Error finding TQtWidget in void "
+                       << "NlSimpleCreate::updateModelGraphSize(" << tabNumber << ")" <<  endl;
+  QScrollArea *scrollArea = m_ui->tabWidget->widget(tabNumber)->findChild<QScrollArea *>();
 
+  if( !qtWidget ) return;
+  if( !scrollArea ) return;
+
+  TCanvas *can = qtWidget->GetCanvas();
   can->SetEditable( kTRUE );
   can->Update(); //need this or else TCanvas won't have updated axis range
 
   double xmin, xmax, ymin, ymax;
   can->GetRangeAxis( xmin, ymin, xmax, ymax );
-  double nMinutes = xmax - xmin;
-  // cout << m_minutesGraphPerPage << "  " << nMinutes << endl;
-  // cout << "X Range of " << xmin << " to " << xmax << endl;
+  const double nMinutes = xmax - xmin;
 
-  //always fill up screen
-  if( nMinutes < m_minutesGraphPerPage ) m_minutesGraphPerPage = nMinutes;
+  if( nMinutes > 1 )
+  {
+    //see if have made it this far before
+    if( m_minutesGraphPerPage < 0 ) m_minutesGraphPerPage = nMinutes;
+    //always fill up screen
+    if( nMinutes < m_minutesGraphPerPage ) m_minutesGraphPerPage = nMinutes;
 
-  int pageWidth = qtWidget->width();
-  double nPages = std::min(5.0, nMinutes / m_minutesGraphPerPage);
+    //for memmories sake, allow max of 5 pages wide
+    double nPages = std::min(5.0, nMinutes / m_minutesGraphPerPage);
+    if( nPages >= 5.0 )  m_minutesGraphPerPage = nMinutes / 5.0;
 
-  //We can run out of memmorry oif we let the canvas get too large
-  //  so we need to protect against that posibility
-  if( nPages >= 5.0 )  m_minutesGraphPerPage = nMinutes / 5.0;
-  qtWidget->setBaseSize( nPages * pageWidth, qtWidget->height() );
+    if( m_minutesGraphPerPage == nMinutes )
+       scrollArea->setHorizontalScrollBarPolicy( Qt::ScrollBarAlwaysOff );
+    else scrollArea->setHorizontalScrollBarPolicy ( Qt::ScrollBarAsNeeded );
 
-  //m_embededCanvas->SetWidth( nPages * pageWidth );
+    const int newWidth = nPages * scrollArea->width();
+    qtWidget->setMinimumSize( newWidth, scrollArea->height() - scrollArea->verticalScrollBar()->height() );
+    qtWidget->setMaximumSize( newWidth, scrollArea->height() - scrollArea->verticalScrollBar()->height() );
+  }//if( nMinutes > 1 )
 
-  //need to make ROOT update gPad now
-  int w = qtWidget->width();
-  int h = qtWidget->height();
-  can->SetCanvasSize( w, h );
-  can->SetWindowSize( w + (w-can->GetWw()), h+(h-can->GetWh()));
-
- // m_baseFrame->SetHeight( h - scrollWidth);
- // m_baseFrame->SetSize( m_baseFrame->GetSize() );
-
-  //m_embededCanvas->SetHeight( h -scrollWidth);
-  //m_embededCanvas->SetSize( m_embededCanvas->GetSize() );
   can->Update();
   can->SetEditable( kFALSE );
 }//void NlSimpleCreate::updateModelGraphSize(int tabNumber)
@@ -314,6 +330,7 @@ void NlSimpleCreate::addCgmsData()
 
    findTimeLimits();
    drawPreview(kCGMS_PAD);
+   m_ui->tabWidget->setCurrentIndex(kCGMS_PAD);
    enableCreateButton();
 }//void NlSimpleCreate::addCgmsData()
 
@@ -333,7 +350,8 @@ void NlSimpleCreate::addBolusData()
 
     findTimeLimits();
     drawPreview(kBOLUS_PAD);
-    ConsentrationGraph *m_insulinData; //created from m_bolusData
+    m_ui->tabWidget->setCurrentIndex(kBOLUS_PAD);
+    //ConsentrationGraph *m_insulinData; //created from m_bolusData
     enableCreateButton();
 }//void NlSimpleCreate::addBolusData()
 
@@ -353,6 +371,7 @@ void NlSimpleCreate::addCarbData()
 
   findTimeLimits();
   drawPreview(kCARB_PAD);
+  m_ui->tabWidget->setCurrentIndex(kCARB_PAD);
   enableCreateButton();
 }//void NlSimpleCreate::addCarbData()
 
@@ -371,6 +390,7 @@ void NlSimpleCreate::addMeterData()
 
   findTimeLimits();
   drawPreview(kMETER_PAD);
+  m_ui->tabWidget->setCurrentIndex(kMETER_PAD);
   enableCreateButton();
 }//void NlSimpleCreate::addMeterData()
 
@@ -389,6 +409,7 @@ void NlSimpleCreate::addCustomData()
     }
    findTimeLimits();
    drawPreview(kCustom_PAD);
+   m_ui->tabWidget->setCurrentIndex(kCustom_PAD);
    enableCreateButton();
 }//void NlSimpleCreate::addCustomData()
 
@@ -410,7 +431,10 @@ void NlSimpleCreate::constructModel()
       return;
   }//if( insPerHour <= 0.0 )
 
-  insPerHour /= PersonConstants::kPersonsWeight;
+  double weight = m_ui->m_weightInput->value();
+  if( !m_useKgs ) weight /= 0.45359237;
+  PersonConstants::kPersonsWeight = weight;
+  insPerHour /= weight;
   //assert( insPerHour > 0.0 );
 
 
@@ -492,5 +516,20 @@ void NlSimpleCreate::zoomOutX()
     updateModelGraphSize();
 }//void NlSimpleCreate::zoomOutX()
 
+void NlSimpleCreate::changeMassUnits()
+{
+  if( m_useKgs )
+  {
+    double kgs = (double) m_ui->m_weightInput->value();
+    m_ui->m_weightInput->setValue(kgs * 2.20462262 + 2); //the 2 is cause of integer truncations
+    m_ui->m_unitButton->setText("lbs");
+  }else
+  {
+    double lbs = (double) m_ui->m_weightInput->value();
+    m_ui->m_weightInput->setValue(lbs * 0.45359237 );
+    m_ui->m_unitButton->setText("kg");
+  }
 
+  m_useKgs = !m_useKgs;
+}//void NlSimpleCreate::changeMassUnits()
 
