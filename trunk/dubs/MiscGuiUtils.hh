@@ -3,12 +3,14 @@
 
 #include "ArtificialPancrease.hh"
 #include <QDateTime>
+#include <QString>
 
 class QWidget;
 class NLSimple;
 class ConsentrationGraph;
 
 NLSimple *openNLSimpleModelFile( QWidget *parent = 0 );
+NLSimple *openNLSimpleModelFile( QString &name, QWidget *parent = 0 );
 
 //below 'graphType' is of enum type CgmsDataImport::InfoType
 ConsentrationGraph *openConsentrationGraph( QWidget *parent = 0, int graphType = -1 );

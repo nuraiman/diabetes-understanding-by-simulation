@@ -15,7 +15,7 @@ namespace Ui {
 class NlSimpleCreate : public QDialog {
     Q_OBJECT
 public:
-    NlSimpleCreate( NLSimple *&model, QWidget *parent = 0);
+    NlSimpleCreate( NLSimple *&model, QString *fileName = NULL, QWidget *parent = 0 );
     ~NlSimpleCreate();
 
 protected:
@@ -25,6 +25,7 @@ protected:
 private:
     Ui::NlSimpleCreate *m_ui;
     NLSimple *&m_model;
+    QString *m_fileName;
 
     bool m_userSetTime;
     ConsentrationGraph *m_cgmsData;
