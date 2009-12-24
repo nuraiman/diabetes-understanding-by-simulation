@@ -1,5 +1,8 @@
 #include "MiscGuiUtils.hh"
 
+#include <iostream>
+#include <iomanip>
+
 #include <QFileDialog>
 #include <QString>
 #include <QWidget>
@@ -13,6 +16,16 @@
 #include "ResponseModel.hh"
 
 #include "ArtificialPancrease.hh"
+
+using namespace std;
+
+NLSimple *openNLSimpleModelFile( QString &name, QWidget *parent )
+{
+  name = QFileDialog::getOpenFileName( "../../../../data/", "Dub Model (*.dubm)", parent );
+  if ( name.isEmpty() ) return NULL;
+
+  return new NLSimple( name.toStdString() );
+}//NLSimple *openNLSimpleModelFile( QString &name, QWidget *parent )
 
 
 NLSimple *openNLSimpleModelFile( QWidget *parent )
@@ -71,16 +84,17 @@ ConsentrationGraph *openConsentrationGraph( QWidget *parent, int graphType )
   {
       mesage = "Select Data File";
   }
-
+//cout << "About to open a file with parent=" << parent << " and message " << mesage.toStdString() << endl;
     //QString fileToOpen( QFileDialog::getOpenFileName( "../../../../data/", "Input (*.TAB *.dub *.csv *.txt)", parent, name ) );
-    QString fileToOpen = QFileDialog::getOpenFileName ( parent, mesage, "../../../../data/", "Input (*.TAB *.dub *.csv *.txt)" );
+    QString fileToOpen( QFileDialog::getOpenFileName ( parent, mesage, "../../../../data/", "Input (*.TAB *.dub *.csv *.txt)" ) );
 
     if ( fileToOpen.isEmpty() ) return NULL;
 
     if( !fileToOpen.endsWith(".dub", Qt::CaseInsensitive) )
     {
-        ConsentrationGraph graph = CgmsDataImport::importSpreadsheet( fileToOpen.toStdString(),  CgmsDataImport::InfoType(graphType) );
-        return new ConsentrationGraph( graph );
+      //cout << "About to import spreadsheet " << fileToOpen.toStdString() << endl;
+      ConsentrationGraph graph = CgmsDataImport::importSpreadsheet( fileToOpen.toStdString(),  CgmsDataImport::InfoType(graphType) );
+      return new ConsentrationGraph( graph );
     }//if( a predifined graph )
 
     ConsentrationGraph *graph = new ConsentrationGraph( fileToOpen.toStdString() );

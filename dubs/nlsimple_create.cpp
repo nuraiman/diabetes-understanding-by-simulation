@@ -1,8 +1,6 @@
 #include "nlsimple_create.h"
 #include "ui_nlsimple_create.h"
 
-
-
 #include <cstdlib>
 #include <iostream>
 #include <iomanip>
@@ -45,10 +43,11 @@
 using namespace std;
 
 
-NlSimpleCreate::NlSimpleCreate( NLSimple *&model, QWidget *parent) :
+NlSimpleCreate::NlSimpleCreate( NLSimple *&model, QString *fileName, QWidget *parent ) :
     QDialog(parent),
     m_ui(new Ui::NlSimpleCreate),
     m_model(model),
+    m_fileName(fileName),
     m_userSetTime(false),
     m_bolusData(NULL),
     m_insulinData(NULL), //created from m_bolusData
@@ -57,7 +56,6 @@ NlSimpleCreate::NlSimpleCreate( NLSimple *&model, QWidget *parent) :
     m_customData(NULL),
     //ConsentrationGraph *m_ExcersizeData;
     m_minutesGraphPerPage(-1)
-
 {
     m_ui->setupUi(this);
     init();
@@ -65,25 +63,26 @@ NlSimpleCreate::NlSimpleCreate( NLSimple *&model, QWidget *parent) :
 
 void NlSimpleCreate::init()
 {
-    m_ui->m_createButton->setEnabled(false);
-    m_ui->tabWidget->setTabText( kCGMS_PAD, "CGMS" );
-    m_ui->tabWidget->setTabText( kBOLUS_PAD, "Bolus" );
-    m_ui->tabWidget->setTabText( kCARB_PAD, "Meals" );
-    m_ui->tabWidget->setTabText( kMETER_PAD, "Meter" );
-    m_ui->tabWidget->setTabText( kCustom_PAD, "Custom" );
-    m_ui->tabWidget->setCurrentIndex(kCGMS_PAD);
-    m_ui->m_createButton->setEnabled(false);
-    m_ui->m_endDateEntry->setFocusPolicy( Qt::StrongFocus );
-    m_ui->m_startDateEntry->setFocusPolicy( Qt::StrongFocus );
-    m_ui->m_basalInsulinAmount->setFocusPolicy( Qt::StrongFocus );
-    m_ui->m_startDateEntry->setDateTime( posixTimeToQTime(kGenericT0) );
-    m_ui->m_endDateEntry->setDateTime( posixTimeToQTime(kGenericT0) );
+  if(m_fileName) (*m_fileName) = "";
+  m_ui->m_createButton->setEnabled(false);
+  m_ui->tabWidget->setTabText( kCGMS_PAD, "CGMS" );
+  m_ui->tabWidget->setTabText( kBOLUS_PAD, "Bolus" );
+  m_ui->tabWidget->setTabText( kCARB_PAD, "Meals" );
+  m_ui->tabWidget->setTabText( kMETER_PAD, "Meter" );
+  m_ui->tabWidget->setTabText( kCustom_PAD, "Custom" );
+  m_ui->tabWidget->setCurrentIndex(kCGMS_PAD);
+  m_ui->m_createButton->setEnabled(false);
+  m_ui->m_endDateEntry->setFocusPolicy( Qt::StrongFocus );
+  m_ui->m_startDateEntry->setFocusPolicy( Qt::StrongFocus );
+  m_ui->m_basalInsulinAmount->setFocusPolicy( Qt::StrongFocus );
+  m_ui->m_startDateEntry->setDateTime( posixTimeToQTime(kGenericT0) );
+  m_ui->m_endDateEntry->setDateTime( posixTimeToQTime(kGenericT0) );
 
-    double weightInlbs = 2.20462262 * PersonConstants::kPersonsWeight;
-    m_ui->m_weightInput->setRange(1,500);
-    m_ui->m_weightInput->setValue( (int)weightInlbs );
-    m_ui->m_unitButton->setText("lbs");
-    m_useKgs = false;
+  double weightInlbs = 2.20462262 * PersonConstants::kPersonsWeight;
+  m_ui->m_weightInput->setRange(1,500);
+  m_ui->m_weightInput->setValue( (int)weightInlbs );
+  m_ui->m_unitButton->setText("lbs");
+  m_useKgs = false;
 }//void NlSimpleCreate::init()
 
 
@@ -179,11 +178,9 @@ void NlSimpleCreate::findTimeLimits()
 
 void NlSimpleCreate::drawPreview( GraphPad pad )
 {
-  //TQtWidget *qtWidget = dynamic_cast<TQtWidget *>(m_ui->tabWidget->widget(pad));
-  QObjectList qlist = m_ui->tabWidget->widget(pad)->children();
-
+  m_ui->tabWidget->setCurrentIndex(pad);
   TQtWidget *qtWidget = m_ui->tabWidget->widget(pad)->findChild<TQtWidget *>();
-  if( !qtWidget ) qtWidget = dynamic_cast<TQtWidget *>(m_ui->tabWidget->widget(pad));
+  //if( !qtWidget ) qtWidget = dynamic_cast<TQtWidget *>(m_ui->tabWidget->widget(pad));
 
   if( !qtWidget ) cout << "Error finding TQtWidget for pad " << pad << endl;
   if( !qtWidget ) return;
@@ -243,7 +240,8 @@ void NlSimpleCreate::drawPreview( GraphPad pad )
   {
     if( graphs[i]->GetN() < 2 )
     {
-      std::cout << "Refusing to display " << graphs[i]->GetN() << " points" << std::endl;
+      cout << "Refusing to display " << graphs[i]->GetN() << " points" << endl;
+      delete graphs[i]; graphs[i] = NULL;
       continue;
     }//if( graphs[i]->GetN() < 2 )
 
@@ -257,7 +255,7 @@ void NlSimpleCreate::drawPreview( GraphPad pad )
     graphs[i]->Draw( drawOptions.c_str() );
   }//for( size_t i = 0; i < graphs.size(); ++i )
   can->Update();
-  updateModelGraphSize();
+  updateModelGraphSize(pad);
 }//void NlSimpleCreate::drawPreview( GraphPad pad )
 
 void NlSimpleCreate::updateModelGraphSize()
@@ -274,7 +272,7 @@ void NlSimpleCreate::updateModelGraphSize(int tabNumber)
   if( !m_ui->tabWidget->widget(tabNumber) ) return;
   // assert( !m_ui->tabWidget->widget(tabNumber) );
   TQtWidget *qtWidget = m_ui->tabWidget->widget(tabNumber)->findChild<TQtWidget *>();
-  if( !qtWidget ) qtWidget = dynamic_cast<TQtWidget *>(m_ui->tabWidget->widget(tabNumber));
+  //if( !qtWidget ) qtWidget = dynamic_cast<TQtWidget *>(m_ui->tabWidget->widget(tabNumber));
   if( !qtWidget ) cout << "Error finding TQtWidget in void "
                        << "NlSimpleCreate::updateModelGraphSize(" << tabNumber << ")" <<  endl;
   QScrollArea *scrollArea = m_ui->tabWidget->widget(tabNumber)->findChild<QScrollArea *>();
@@ -283,6 +281,14 @@ void NlSimpleCreate::updateModelGraphSize(int tabNumber)
   if( !scrollArea ) return;
 
   TCanvas *can = qtWidget->GetCanvas();
+  TObject *obj;
+  for( TIter nextObj(can->GetListOfPrimitives()); (obj = nextObj()); )
+  {
+    string className = obj->ClassName();
+    if( className == "TFrame" ) break;
+  }//for(...)
+  if( !obj ) return; //we didn't find a TFrame, why bother
+
   can->SetEditable( kTRUE );
   can->Update(); //need this or else TCanvas won't have updated axis range
 
@@ -422,6 +428,7 @@ void NlSimpleCreate::constructModel()
   // m_meterData;
   assert( m_bolusData );
 
+
   double insPerHour = m_ui->m_basalInsulinAmount->value();
   if( insPerHour <= 0.0 )
   {
@@ -454,20 +461,21 @@ void NlSimpleCreate::constructModel()
   if( m_meterData ) m_model->addFingerStickData( *m_meterData );
   if(m_customData) m_model->addCustomEvents( *m_customData );
 
-  close();
+  done(1);
 }//void NlSimpleCreate::constructModel()
 
 void NlSimpleCreate::openDefinedModel()
 {
-  m_model = openNLSimpleModelFile( this );
+  if( m_fileName ) m_model = openNLSimpleModelFile( *m_fileName, this );
+  else             m_model = openNLSimpleModelFile( this );
 
-  if( m_model ) this->close();
+  if( m_model ) done(1);
 }//void NlSimpleCreate::openDefinedModel()
 
 void NlSimpleCreate::cancel()
 {
     m_model = NULL;
-    close();
+    done(0);
 }//void NlSimpleCreate::cancel()
 
 
