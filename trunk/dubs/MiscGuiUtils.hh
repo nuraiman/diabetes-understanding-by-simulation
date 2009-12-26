@@ -4,7 +4,9 @@
 #include "ArtificialPancrease.hh"
 #include <QDateTime>
 #include <QString>
+#include <string>
 
+class TCanvas;
 class QWidget;
 class NLSimple;
 class ConsentrationGraph;
@@ -17,5 +19,9 @@ ConsentrationGraph *openConsentrationGraph( QWidget *parent = 0, int graphType =
 
 PosixTime qtimeToPosixTime( const QDateTime &qdt );
 QDateTime posixTimeToQTime( const PosixTime &time );
+
+
+void cleanCanvas( TCanvas *can, const std::string &classNotToDelete );
+
 
 #endif // MISCGUIUTILS_HH

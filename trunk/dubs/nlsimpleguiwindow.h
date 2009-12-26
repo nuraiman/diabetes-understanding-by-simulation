@@ -8,6 +8,7 @@ class NLSimple;
 class TPaveText;
 class ConsentrationGraph;
 class QButtonGroup;
+class TCanvas;
 
 namespace Ui
 {
@@ -24,6 +25,7 @@ public:
 
  protected:
      void init();
+     TCanvas *getModelCanvas();
 
 private:
     Ui::NLSimpleGuiWindow *ui;
@@ -42,6 +44,7 @@ private slots:
 
     void drawModel();
     void drawEquations();
+    void updateCustomEventTab();
     void doGeneticOptimization();
     void doMinuit2Fit();
     void addCgmsData();
@@ -49,7 +52,6 @@ private slots:
     void addMeterData();
     void addCustomEventData();
     void refreshPredictions();
-    void updateDelayAndError();
     void zoomModelPreviewPlus();
     void zoomModelPreviewMinus();
     void zoomModelPreviewPlus( double factor ); //amount = fraction of current width
@@ -58,6 +60,8 @@ private slots:
     void drawClarkAnalysis( const ConsentrationGraph &xGraph,
                             const ConsentrationGraph &yGraph,
                             bool isMeterVCgms );
+
+    friend class NLSimple;
 };
 
 #endif // NLSIMPLEGUIWINDOW_H

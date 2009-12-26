@@ -78,7 +78,7 @@ void NlSimpleCreate::init()
   m_ui->m_startDateEntry->setDateTime( posixTimeToQTime(kGenericT0) );
   m_ui->m_endDateEntry->setDateTime( posixTimeToQTime(kGenericT0) );
 
-  double weightInlbs = 2.20462262 * PersonConstants::kPersonsWeight;
+  double weightInlbs = 2.20462262 * ProgramOptions::kPersonsWeight;
   m_ui->m_weightInput->setRange(1,500);
   m_ui->m_weightInput->setValue( (int)weightInlbs );
   m_ui->m_unitButton->setText("lbs");
@@ -440,7 +440,6 @@ void NlSimpleCreate::constructModel()
 
   double weight = m_ui->m_weightInput->value();
   if( !m_useKgs ) weight /= 0.45359237;
-  PersonConstants::kPersonsWeight = weight;
   insPerHour /= weight;
   //assert( insPerHour > 0.0 );
 
@@ -454,12 +453,14 @@ void NlSimpleCreate::constructModel()
   if(m_meterData) m_meterData->trim( startTime, endTime, false );
   if(m_customData) m_customData->trim( startTime, endTime, false );
 
-  m_model = new NLSimple( "SimpleModel", insPerHour, PersonConstants::kBasalGlucConc, m_bolusData->getStartTime() );
+  m_model = new NLSimple( "SimpleModel", insPerHour, ProgramOptions::kBasalGlucConc, m_bolusData->getStartTime() );
   m_model->addBolusData( *m_bolusData );
   m_model->addCgmsData( *m_cgmsData );
   m_model->addGlucoseAbsorption( *m_carbConsumptionData );
   if( m_meterData ) m_model->addFingerStickData( *m_meterData );
   if(m_customData) m_model->addCustomEvents( *m_customData );
+
+  m_model->m_settings.m_personsWeight = weight;
 
   done(1);
 }//void NlSimpleCreate::constructModel()
