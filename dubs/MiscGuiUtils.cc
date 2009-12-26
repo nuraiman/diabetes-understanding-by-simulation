@@ -10,6 +10,7 @@
 #include <QDate>
 #include <QTime>
 #include <QDateTime>
+#include <QDir>
 
 #include "ConsentrationGraph.hh"
 #include "CgmsDataImport.hh"
@@ -17,11 +18,13 @@
 
 #include "ArtificialPancrease.hh"
 
+#include "TCanvas.h"
+
 using namespace std;
 
 NLSimple *openNLSimpleModelFile( QString &name, QWidget *parent )
 {
-  name = QFileDialog::getOpenFileName( "../../../../data/", "Dub Model (*.dubm)", parent );
+  name = QFileDialog::getOpenFileName( QDir::currentPath(), "Dub Model (*.dubm)", parent );
   if ( name.isEmpty() ) return NULL;
 
   return new NLSimple( name.toStdString() );
@@ -30,7 +33,7 @@ NLSimple *openNLSimpleModelFile( QString &name, QWidget *parent )
 
 NLSimple *openNLSimpleModelFile( QWidget *parent )
 {
-    QString fileToOpen( QFileDialog::getOpenFileName( "../../../../data/", "Dub Model (*.dubm)", parent ) );
+    QString fileToOpen( QFileDialog::getOpenFileName( QDir::currentPath(), "Dub Model (*.dubm)", parent ) );
     if ( fileToOpen.isEmpty() ) return NULL;
 
     return new NLSimple( fileToOpen.toStdString() );
@@ -86,7 +89,7 @@ ConsentrationGraph *openConsentrationGraph( QWidget *parent, int graphType )
   }
 //cout << "About to open a file with parent=" << parent << " and message " << mesage.toStdString() << endl;
     //QString fileToOpen( QFileDialog::getOpenFileName( "../../../../data/", "Input (*.TAB *.dub *.csv *.txt)", parent, name ) );
-    QString fileToOpen( QFileDialog::getOpenFileName ( parent, mesage, "../../../../data/", "Input (*.TAB *.dub *.csv *.txt)" ) );
+    QString fileToOpen( QFileDialog::getOpenFileName ( parent, mesage, QDir::currentPath(), "Input (*.TAB *.dub *.csv *.txt)" ) );
 
     if ( fileToOpen.isEmpty() ) return NULL;
 
@@ -137,3 +140,22 @@ QDateTime posixTimeToQTime( const PosixTime &time )
 
     return QDateTime(d,t);
 }
+
+
+
+void cleanCanvas( TCanvas *can, const std::string &classNotToDelete )
+{
+  if( !can ) return;
+  can->cd();
+  can->SetEditable( kTRUE );
+
+  TObject *obj;
+  TList *list = can->GetListOfPrimitives();
+  for( TIter nextObj(list); (obj = nextObj()); )
+  {
+    if( classNotToDelete != obj->ClassName() ) delete obj;
+  }//for(...)
+
+  can->Update();
+}//void cleanCanvas( TCanvas *can, std::string classNotToDelete )
+

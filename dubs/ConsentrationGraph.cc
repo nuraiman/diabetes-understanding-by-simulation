@@ -25,7 +25,7 @@
 
 
 //GSL includes
-//You may comment out these includes and code will still 
+//You may comment out these includes and code will still
 //  compile (edit Makefile too though), you just can't call spline interpolation
 #include <gsl/gsl_bspline.h>
 #include <gsl/gsl_multifit.h>
@@ -47,6 +47,7 @@
 #include "ConsentrationGraph.hh"
 #include "KineticModels.hh"
 #include "CgmsDataImport.hh"
+#include "ProgramOptions.hh"
 #include "RungeKuttaIntegrater.hh"
 #include "ConsentrationGraphGui.hh"
 
@@ -60,12 +61,12 @@ using namespace boost::posix_time;
 
 
 
-GraphElement::GraphElement() : m_time(kGenericT0), m_value(-999.9) 
+GraphElement::GraphElement() : m_time(kGenericT0), m_value(-999.9)
 {}
 
 
-GraphElement::GraphElement( const PosixTime &time, double value ) : 
-     m_time(time), m_value(value) 
+GraphElement::GraphElement( const PosixTime &time, double value ) :
+     m_time(time), m_value(value)
 {}
 
 template<class Archive>
@@ -73,7 +74,7 @@ void GraphElement::serialize( Archive &ar, const unsigned int version )
 {
   unsigned int ver = version; //keep compiler from complaining
   ver = ver;
-      
+
   ar & m_time;
   ar & m_value;
 }//serialize
@@ -87,7 +88,7 @@ bool GraphElement::operator<( const GraphElement &lhs ) const
 
 double toNMinutes( const TimeDuration &timeDuration )
 {
-  return timeDuration.total_nanoseconds() / 60.0 / 1.0E9; 
+  return timeDuration.total_nanoseconds() / 60.0 / 1.0E9;
 }//toNMinutes
 
 TimeDuration toTimeDuration( double nMinutes )
@@ -96,7 +97,7 @@ TimeDuration toTimeDuration( double nMinutes )
   nMinutes -= mins;
   nMinutes *= 60.0;
   long microsecs = (long) 1.0E6 * nMinutes;
-  
+
   return minutes(mins) + microseconds(microsecs);
 }//toTimeDuration
 
@@ -105,26 +106,26 @@ TimeDuration toTimeDuration( double nMinutes )
 
 
 ConsentrationGraph::ConsentrationGraph( const ConsentrationGraph &rhs ) :
-                    GraphElementSet( rhs ), 
-                    m_t0( rhs.m_t0 ), 
-                    m_dt( rhs.m_dt ), 
+                    GraphElementSet( rhs ),
+                    m_t0( rhs.m_t0 ),
+                    m_dt( rhs.m_dt ),
                     m_yOffsetForDrawing( rhs.m_yOffsetForDrawing ),
                     m_graphType( rhs.m_graphType )
 {};
 
 
 ConsentrationGraph::ConsentrationGraph( ptime t0, double dt, GraphType graphType ) :
-                    GraphElementSet(), 
-                    m_t0( t0 ), 
-                    m_dt( toTimeDuration(dt) ), 
+                    GraphElementSet(),
+                    m_t0( t0 ),
+                    m_dt( toTimeDuration(dt) ),
                     m_yOffsetForDrawing( 0.0 ),
                     m_graphType( graphType )
 {};
 
 ConsentrationGraph::ConsentrationGraph( PosixTime t0, TimeDuration dt, GraphType graphType ):
-                    GraphElementSet(), 
-                    m_t0( t0 ), 
-                    m_dt( dt ), 
+                    GraphElementSet(),
+                    m_t0( t0 ),
+                    m_dt( dt ),
                     m_yOffsetForDrawing( 0.0 ),
                     m_graphType( graphType )
 {};
@@ -134,31 +135,31 @@ ConsentrationGraph::ConsentrationGraph( const std::string &savedFileName )
   *this = loadFromFile( savedFileName );
 }//ConsentrationGraph(from a file )
 
-const ConsentrationGraph &ConsentrationGraph::operator=( 
+const ConsentrationGraph &ConsentrationGraph::operator=(
                                                 const ConsentrationGraph &rhs )
 {
   m_graphType = rhs.m_graphType;
-  
+
   // if( m_graphType != rhs.m_graphType )
   // {
-    // cout << "ConsentrationGraph, you cannot assign a" 
+    // cout << "ConsentrationGraph, you cannot assign a"
          // << " graphs of different types" << endl;
     // exit(1);
   // }//if( m_graphType != rhs.m_graphType )
-  
+
   m_t0 = rhs.m_t0;
   m_dt = rhs.m_dt;
   m_yOffsetForDrawing = rhs.m_yOffsetForDrawing;
-  
+
   std::set<GraphElement>::operator=( rhs );
-  
+
   return *this;
 }//operator=
 
 
-void ConsentrationGraph::setT0_dontChangeOffsetValues( ptime newT0 ) 
-{ 
-  m_t0 = newT0; 
+void ConsentrationGraph::setT0_dontChangeOffsetValues( ptime newT0 )
+{
+  m_t0 = newT0;
 }//setT0_keepOffsetsSame
 
 
@@ -184,7 +185,7 @@ std::string ConsentrationGraph::getGraphTypeStr() const
     case AlarmGraph:                 return "AlarmGraph";
     case NumGraphType:               return "NumGraphType";
   };//switch( m_graphType )
-  
+
   assert(0);
   return "";
 }//getGraphTypeStr
@@ -195,7 +196,7 @@ boost::posix_time::ptime ConsentrationGraph::getT0() const { return m_t0; }
 boost::posix_time::ptime ConsentrationGraph::getStartTime() const
 {
   if( empty() ) return m_t0;
-  
+
   return begin()->m_time;
 }//getStartTime
 
@@ -203,38 +204,43 @@ boost::posix_time::ptime ConsentrationGraph::getStartTime() const
 
 boost::posix_time::ptime ConsentrationGraph::getEndTime() const
 {
-  if( empty() ) return m_t0;
-  
-  std::set<GraphElement>::const_reverse_iterator riter = rbegin();
-  
-  while( riter != rend() && riter->m_value==0.0 ) ++riter;
-  
-  if( riter == rend() ) return m_t0;
-  
-  return riter->m_time;
+  ConstGraphIter lastElement = getLastElement();
+  if( lastElement == end() ) return m_t0;
+  return lastElement->m_time;
 }//getEndTime
 
+ConstGraphIter ConsentrationGraph::getLastElement() const
+{
+  if( empty() ) end();
+
+  ConstGraphIter iter = end();
+  --iter;
+
+  while( iter != begin() && iter->m_value==0.0 ) --iter;
+
+  return iter;
+}//const GraphElement &getLastElement() const;
 
 
 void ConsentrationGraph::trim( const PosixTime &t_start, const PosixTime &t_end,
                                bool interpTrimmed )
 {
   if( empty() ) return;
-  
+
   if( t_start != kGenericT0 )
   {
     ConstGraphIter ub = upper_bound(t_start);
     ConstGraphIter lb = lower_bound(t_start);
-    
-    if( lb == end() ) 
+
+    if( lb == end() )
     {
       cout << "ConsentrationGraph::trim( \"" << t_start << "\", \"" << t_end
            << "\" ): Warning, you are to removing"
-           << " all data, t_start (" << t_start 
+           << " all data, t_start (" << t_start
            << ") is after the last data point (" << getEndTime() << ")" << endl;
-    }// if( lb == end() ) 
-    
-    
+    }// if( lb == end() )
+
+
     if( lb == ub )//the set<> does not exactly contain this time
     {
       double val = value(t_start);
@@ -245,21 +251,21 @@ void ConsentrationGraph::trim( const PosixTime &t_start, const PosixTime &t_end,
       GraphElementSet::erase( begin(), lb );
     }//
   }//if( remove begining )
-  
+
   if( t_end != kGenericT0 )
   {
     ConstGraphIter ub = upper_bound(t_end);
     ConstGraphIter lb = lower_bound(t_end);
-    
-    if( ub == begin() ) 
+
+    if( ub == begin() )
     {
       cout << "ConsentrationGraph::trim(\"" << t_start << "\", \"" << t_end
            << "\" ): Warning, you are to removing"
            << " all data, t_end (" << t_end
            << ") is before first data point (" << getStartTime() << ")" << endl;
-    }// if( lb == end() ) 
-    
-    
+    }// if( lb == end() )
+
+
     if( lb == ub )//the set<> does not exactly contain this time
     {
       double val = value(t_end);
@@ -269,14 +275,14 @@ void ConsentrationGraph::trim( const PosixTime &t_start, const PosixTime &t_end,
     {
       GraphElementSet::erase( ub, end() );
     }//
-    
+
   }//if( remove end )
-  
+
   if( (t_start == kGenericT0) && (t_end == kGenericT0) )
   {
     cout << "ConsentrationGraph::trim(...): Warning, you made a useless call\n";
   }//
-  
+
 }//trim
 
 
@@ -284,9 +290,9 @@ bool ConsentrationGraph::containsTime( ptime absoluteTime ) const
 {
   ConstGraphIter ending = GraphElementSet::end();
   ConstGraphIter lowB = GraphElementSet::lower_bound( GraphElement(absoluteTime, 0.0) );
-  
+
   const bool timeMatch = (lowB != ending) && (lowB->m_time == absoluteTime );
-  
+
   return timeMatch;
 }//containsTime(...)
 
@@ -301,27 +307,27 @@ double ConsentrationGraph::valueUsingOffset( double nMinutesAfterT0 ) const
 double ConsentrationGraph::value( const PosixTime &time ) const
 {
   if( empty() ) return 0.0;
-  
+
   const ConstGraphIter lowerBound = lower_bound(time);
   if( lowerBound->m_time == time ) return lowerBound->m_value;
   //For graphs that should be discreet, we only return answer for correct time
-  if( m_graphType == BolusGraph 
+  if( m_graphType == BolusGraph
      || m_graphType == CustomEvent || m_graphType == AlarmGraph ) return 0.0;
-  
+
   if( lowerBound == GraphElementSet::end() )    return 0.0;
   if( (lowerBound == begin()) && (lowerBound->m_time != time) ) return 0.0;
-   
+
   ConstGraphIter prevElement = lowerBound;
   --prevElement;
-  
+
   const double thisDConsen = lowerBound->m_value - prevElement->m_value;
   if( thisDConsen == 0.0 ) return prevElement->m_value;
-  
+
   const TimeDuration dt = lowerBound->m_time - prevElement->m_time;
   const double thisDt = toNMinutes(dt);
   const double timeFromLast = toNMinutes(time - prevElement->m_time);
   const double fracTime = timeFromLast / thisDt;
-  
+
   return prevElement->m_value + fracTime*thisDConsen;
 }//double ConsentrationGraph::value( unsigned int nOffsetminutes ) const
 
@@ -343,7 +349,7 @@ ConstGraphIter ConsentrationGraph::upper_bound( const PosixTime &time ) const
   return GraphElementSet::upper_bound( GraphElement(time, kFailValue) );
 }//upper_bound( ptime )
 
-    
+
 
 unsigned int ConsentrationGraph::addNewDataPoints( const ConsentrationGraph &rhs )
 {
@@ -354,14 +360,14 @@ unsigned int ConsentrationGraph::addNewDataPoints( const ConsentrationGraph &rhs
          << " to this graph of type " <<  getGraphTypeStr() << endl;
     exit(1);
   }//if( m_graphType != rhs.m_graphType )
-  
+
   unsigned int nAdded = 0;
   foreach( const GraphElement &ge, static_cast<const GraphElementSet>(rhs) )
-  { 
+  {
     addNewDataPoint( ge.m_time, ge.m_value );
     ++nAdded;
   }//foreach rhs point
-  
+
   return nAdded;
 }//addNewDataPoints( const ConsentrationGraph &newDataPoints )
 
@@ -370,109 +376,109 @@ ConstGraphIter ConsentrationGraph::addNewDataPoint( const PosixTime &time, doubl
 {
   const GraphElement newElement( time, value );
   ConstGraphIter posIter = GraphElementSet::lower_bound( newElement );
-  
+
   if( !empty() && posIter != end() && /*posIter != begin()*/ posIter->m_time == time )
   {
     if( posIter->m_value == value ) return end();
     if( posIter->m_value != 0.0 )
     {
       ptime lastTime = getEndTime();
-    
+
       cout << "ConstGraphIter ConsentrationGraph::addNewDataPoint(double, double):"
-           << " can not add time " << time << " with value " << value 
+           << " can not add time " << time << " with value " << value
            << " to current graph with t0 of " << m_t0
            << " and end time of " << lastTime << endl
-           << "Already have a value of " << posIter->m_value << " for that time " 
+           << "Already have a value of " << posIter->m_value << " for that time "
            << posIter->m_time << " compared to " << time << endl;
            // << CgmsDataImport::convertToNavigatorDate(time) << endl;
       return end();
     }else
     {
       GraphElementSet::erase( posIter );
-      ConstGraphIter newPos = GraphElementSet::insert( posIter, newElement ); 
+      ConstGraphIter newPos = GraphElementSet::insert( posIter, newElement );
       assert( newPos == posIter );
       return newPos;
     }//if( posIter->m_value != 0.0 ) / else
   }//if( need to protect against improperly added points )
-    
+
   //If we made it here, we are in the clear
-  pair<ConstGraphIter,bool> pos = GraphElementSet::insert( newElement ); 
-  
+  pair<ConstGraphIter,bool> pos = GraphElementSet::insert( newElement );
+
   // cout << "Succesfully inserted " << pos.first->m_time << "  " << pos.first->m_value << endl;
-  
+
   return pos.first;
 }//addNewDataPoint
 
 
 
-    
+
 unsigned int ConsentrationGraph::removeNonInfoAddingPoints()
 {
   if( size() < 3 ) return 0;
-  
+
   vector<ConstGraphIter> pointsToErase;
   ConstGraphIter endPoint = end();
   --endPoint;  //endPoint is now last define element in ::GraphElementSet
-  
+
   ConstGraphIter leftPoint =  begin();
   ConstGraphIter midPoint = begin();
   ++midPoint;
   ConstGraphIter rightPoint = begin();
   ++rightPoint;
   ++rightPoint;
-  
-  
-  while( rightPoint != endPoint ) 
+
+
+  while( rightPoint != endPoint )
   {
-    if( (leftPoint->m_value == 0.0) 
-        && (midPoint->m_value == 0.0) 
+    if( (leftPoint->m_value == 0.0)
+        && (midPoint->m_value == 0.0)
         && (rightPoint->m_value == 0.0) )
     {
       pointsToErase.push_back( midPoint );
     }else ++leftPoint;  //only increment left point if all are not zero
-    
+
     ++midPoint;
     ++rightPoint;
-  }//while( midPoint != end() ) 
-  
+  }//while( midPoint != end() )
+
 
   if( (size() - pointsToErase.size()) > 1 )
   {
     leftPoint  = endPoint;
     --leftPoint;
-  
-    if( (leftPoint->m_value == 0.0) && (endPoint->m_value == 0.0) ) 
+
+    if( (leftPoint->m_value == 0.0) && (endPoint->m_value == 0.0) )
     {
       pointsToErase.push_back( endPoint );
-    } 
+    }
   }//if( more than one point left, remove trailing zeros )
-  
+
   if( (size() - pointsToErase.size()) > 1 )
   {
     leftPoint = begin();
     rightPoint = begin();
     ++rightPoint;
-  
-    if( (leftPoint->m_value == 0.0) && (rightPoint->m_value == 0.0) ) 
+
+    if( (leftPoint->m_value == 0.0) && (rightPoint->m_value == 0.0) )
     {
       pointsToErase.push_back( leftPoint );
-    } 
+    }
   }//if( more than one point left, remove leading zeros )
 
-  
+
   foreach( const ConstGraphIter &iter, pointsToErase )
   {
     std::set<GraphElement>::erase( iter );
   }
-  
+
   return pointsToErase.size();
 }//removeNonInfoAddingPoints
 
 
-unsigned int ConsentrationGraph::add( double amountPerVol, 
-                                      const PosixTime &beginTime, 
+unsigned int ConsentrationGraph::add( double amountPerVol,
+                                      const PosixTime &beginTime,
                                       AbsFuncPointer absorbFunc )
-{ 
+{
   //We will allow absorbFunc(...) to be zero to begin with, but once it
   //  becomes non-zero, the next time it is zero, it will be zero forever on.
   bool hasBecomeNonZero = false;
@@ -484,74 +490,74 @@ unsigned int ConsentrationGraph::add( double amountPerVol,
   //  Note that new points inbetween existing points will be added in as well,
   //  This mmight change in the future (there is some possibility of numerical
   //  instabilities in doing this)
-  for( PosixTime currTime = beginTime; 
+  for( PosixTime currTime = beginTime;
        (!hasBecomeNonZero || (addValue > 0.0)); currTime += m_dt )
   {
     double thisAbsorbOffsetTime = toNMinutes(currTime - beginTime);
-    
+
     if( !containsTime( currTime ) )
     {
       GraphElementSet::insert( GraphElement(currTime, 0.0) );
       ++nPointsAdded;
     }//if( we don't have an element for this time yet )
-    
+
     addValue = absorbFunc( amountPerVol, thisAbsorbOffsetTime );
-    
+
     if( !hasBecomeNonZero ) hasBecomeNonZero = (addValue > 0.0 );
   }//for( the absorbtion function has more in it )
-  
-  
+
+
   //We have to do is loop through already defined times, and update those values
   //The first place equal to, or past beginTimeOffset
   ConstGraphIter posIter = upper_bound(beginTime);
-  
+
   for( ; posIter != GraphElementSet::end(); ++posIter )
   {
     const PosixTime &currentTime = posIter->m_time;
     double thisAbsorbOffsetTime = toNMinutes(currentTime - beginTime);
-    
+
     assert( thisAbsorbOffsetTime >= 0.0 );
-    
+
     const double addValue = absorbFunc( amountPerVol, thisAbsorbOffsetTime );
     const double totalValue = addValue + value( currentTime );
-    
+
     GraphElement newElement( currentTime, totalValue );
-    
+
     GraphElementSet::erase( posIter );
     posIter = GraphElementSet::insert( posIter, newElement );
     //ConstGraphIter newPos = GraphElementSet::insert( posIter, newElement );
     //assert( newPos == posIter );
   }//for( loop over previously defined times )
-  
+
   removeNonInfoAddingPoints();
-  
+
   return nPointsAdded;
 }//ConsentrationGraph::add(...)
-    
 
 
-unsigned int ConsentrationGraph::add( double amountPerVol, const PosixTime &beginTime, 
+
+unsigned int ConsentrationGraph::add( double amountPerVol, const PosixTime &beginTime,
                                                      AbsorbtionFunction absFunc)
-{ 
+{
    switch( absFunc )
   {
-    case NovologAbsorbtion:        
+    case NovologAbsorbtion:
       assert( m_graphType == InsulinGraph ); break;
-      
-    case FastCarbAbsorbtionRate:   
+
+    case FastCarbAbsorbtionRate:
       assert( m_graphType == GlucoseAbsorbtionRateGraph ); break;
-      
-    case MediumCarbAbsorbtionRate: 
+
+    case MediumCarbAbsorbtionRate:
       assert( m_graphType == GlucoseAbsorbtionRateGraph ); break;
-      
-    case SlowCarbAbsorbtionRate:   
+
+    case SlowCarbAbsorbtionRate:
       assert( m_graphType == GlucoseAbsorbtionRateGraph ); break;
-      
+
     case  NumAbsorbtionFunctions: break;
   };//switch( absFunction )
-  
+
   AbsFuncPointer func = getFunctionPointer( absFunc );
-  
+
   return add( amountPerVol, beginTime, func );
 }//ConsentrationGraph::add(...)
 
@@ -559,10 +565,10 @@ unsigned int ConsentrationGraph::add( double amountPerVol, const PosixTime &begi
 
 
 
-ConsentrationGraph ConsentrationGraph::getTotal( const ConsentrationGraph &rhs, 
+ConsentrationGraph ConsentrationGraph::getTotal( const ConsentrationGraph &rhs,
                                                  const double weight ) const
 {
-  
+
   if( m_graphType != rhs.m_graphType )
   {
     cout << "ConsentrationGraph::getTotal(...): I can't add"
@@ -570,73 +576,73 @@ ConsentrationGraph ConsentrationGraph::getTotal( const ConsentrationGraph &rhs,
          << " to this graph of type " <<  getGraphTypeStr() << endl;
     exit(1);
   }//if( m_graphType != rhs.m_graphType )
-  
-  
+
+
   const TimeDuration minDt = std::min( m_dt, rhs.m_dt );
   const ptime startTime = std::min( m_t0, rhs.m_t0 );
-  
+
   ConsentrationGraph total( startTime, toNMinutes(minDt), m_graphType);
-  
+
   foreach( const GraphElement &ge, *static_cast<const GraphElementSet *>(this) )
   {
     const double value = ge.m_value + (weight * rhs.value(ge.m_time));
-    
+
     total.insert( ge.m_time, value );
   }//foreach( base element of *this )
-  
+
   foreach( const GraphElement &ge, static_cast< const GraphElementSet &>(rhs) )
-  { 
+  {
     if( !total.containsTime( ge.m_time ) )
     {
       const double val =  value(ge.m_time) + (weight * ge.m_value);
-    
+
       total.insert( ge.m_time, val );
     }//if( we haven't already inserted this time )
   }//foreach( base element of rhs )
-  
+
   return total;
 }//getTotal
 
 
 
 
-ConsentrationGraph ConsentrationGraph::getTotal( double amountPerVol,  
-                                                 PosixTime functionT0, 
+ConsentrationGraph ConsentrationGraph::getTotal( double amountPerVol,
+                                                 PosixTime functionT0,
                                                  AbsFuncPointer f ) const
 {
   const ptime startTime = std::min( m_t0, functionT0 );
-  
+
   ConsentrationGraph duplicateGraph( startTime, toNMinutes(m_dt), m_graphType);
-  
+
   //makesure 'total' has an element for all necassary times
   foreach( const GraphElement &ge, *static_cast< const GraphElementSet *>(this) )
   {
     duplicateGraph.insert( ge.m_time, ge.m_value );
   }//foreach( element in *this )
-  
-  
+
+
   ConsentrationGraph total( startTime, toNMinutes(m_dt), m_graphType);
-  
+
   foreach( const GraphElement &ge, static_cast<GraphElementSet &>(duplicateGraph) )
   {
-    
+
     const double functionRelOffset = toNMinutes( functionT0 - ge.m_time );
     double val = ge.m_value + f( amountPerVol, functionRelOffset);
-    
+
     total.insert( ge.m_time, val );
   }//foreach( eleement in 'total' )
-  
+
   return total;
 }//getTotal
 
 
 
-ConsentrationGraph ConsentrationGraph::getTotal( double amountPerVol, 
-                                                 PosixTime absoluteTime, 
+ConsentrationGraph ConsentrationGraph::getTotal( double amountPerVol,
+                                                 PosixTime absoluteTime,
                                              AbsorbtionFunction absFunc ) const
 {
   AbsFuncPointer func = getFunctionPointer( absFunc );
-  
+
   return getTotal( amountPerVol, absoluteTime, func );
 }//getTotal
 
@@ -665,17 +671,17 @@ string ConsentrationGraph::getDateForGraphTitle( PosixTime time )
 {
   string dateStr = to_simple_string( time.date() );
   dateStr = dateStr.substr( 5, 3 ); //Get the 3 letter month
-  
+
   int dayOfMonth = time.date().day();
-  
+
   dateStr += " ";
   dateStr += lexical_cast<string>(dayOfMonth);
-  
+
   if( dayOfMonth == 1 || dayOfMonth == 31 ) dateStr += "^{st}";
   else if( dayOfMonth == 2 )                dateStr += "^{nd}";
   else if( dayOfMonth == 3 )                dateStr += "^{rd}";
   else                                      dateStr += "^{th}";
-  
+
   return dateStr;
 }//sstring ConsentrationGraph::getDateForGraphTitle( ptime time )
 
@@ -691,7 +697,7 @@ ptime ConsentrationGraph::roundDownToNearest15Minutes( PosixTime time, int slop 
 
   ptime lostTime = time - timeOfDay;
   assert( lostTime.time_of_day() <= time_duration( 0,slop,0,0) );
-  
+
   return roundedTime;
 }//roundDownToNearest15Minutes
 
@@ -700,17 +706,17 @@ ptime ConsentrationGraph::roundDownToNearest15Minutes( PosixTime time, int slop 
 TimeDuration ConsentrationGraph::getMostCommonDt( ) const
 {
   if( empty() ) return m_dt;
-  
+
   typedef std::pair<PosixTime, double>   TimeValuePair;
   typedef std::vector< TimeValuePair >   TimeValueVec;
-  
+
   TimeValueVec timeValues;
-  
+
   foreach( const GraphElement &el, static_cast< set<GraphElement> >(*this) )
   {
     timeValues.push_back( TimeValuePair(el.m_time, el.m_value) );
   }//foreach( base pair )
-  
+
   return CgmsDataImport::getMostCommonPosixDt( timeValues );
 }//double ConsentrationGraph::getMostCommonDt( ) const
 
@@ -718,22 +724,22 @@ TimeDuration ConsentrationGraph::getMostCommonDt( ) const
 
 
 
-ConsentrationGraph 
-ConsentrationGraph::getSmoothedGraph( double wavelength, 
+ConsentrationGraph
+ConsentrationGraph::getSmoothedGraph( double wavelength,
                                       SmoothingAlgo smoothType) const
 {
   ConsentrationGraph smoothedGraph( *this );
-    
+
   switch( smoothType )
   {
-    case FourierSmoothing: 
+    case FourierSmoothing:
       smoothedGraph.fastFourierSmooth( wavelength );
       break;
-      
+
     case ButterworthSmoothing:
       smoothedGraph.butterWorthFilter( wavelength, 4 );
       break;
-      
+
     case BSplineSmoothing:
       #ifndef __GSL_BSPLINE_H__
         assert(0);
@@ -741,33 +747,33 @@ ConsentrationGraph::getSmoothedGraph( double wavelength,
       smoothedGraph.bSplineSmoothOrDeriv( false, wavelength / 2.0, 6 );
       #endif  //#ifndef __GSL_BSPLINE_H__
       break;
-      
+
     case NoSmoothing:
       break;
   };//switch( smoothType )
-  
+
   return smoothedGraph;
 }//ConsentrationGraph::getSmoothedGraph
 
 
-ConsentrationGraph 
-ConsentrationGraph::getDerivativeGraph( double wavelength, 
+ConsentrationGraph
+ConsentrationGraph::getDerivativeGraph( double wavelength,
                                         SmoothingAlgo smoothType) const
 {
   ConsentrationGraph derivGraph( *this );
-    
+
   switch( smoothType )
   {
-    case FourierSmoothing: 
+    case FourierSmoothing:
       derivGraph.fastFourierSmooth( wavelength );
       derivGraph.differntiate(5);
       break;
-      
+
     case ButterworthSmoothing:
       derivGraph.butterWorthFilter( wavelength, 4 );
       derivGraph.differntiate(5);
       break;
-      
+
     case BSplineSmoothing:
       #ifndef __GSL_BSPLINE_H__
         assert(0);
@@ -775,66 +781,66 @@ ConsentrationGraph::getDerivativeGraph( double wavelength,
       derivGraph.bSplineSmoothOrDeriv( true, wavelength / 2.0, 6 );
       #endif  //#ifndef __GSL_BSPLINE_H__
       break;
-      
+
     case NoSmoothing:
       break;
   };//switch( smoothType )
-  
+
   return derivGraph;
 }//ConsentrationGraph::getDerivativeGraph
 
 
 //see below link for good summary of numerical differentiation
 // http://www.physics.arizona.edu/~restrepo/475A/Notes/sourcea/node39.html#dint5
-void 
+void
 ConsentrationGraph::differntiate( int nPoint )
 {
   removeNonInfoAddingPoints();
-  
+
   m_yOffsetForDrawing = 0.0;
-  
+
   assert( nPoint > 0 );
-  
+
   if( empty() )
   {
     m_graphType = BloodGlucoseConcenDeriv;
     return;
   }//don't do anything if there is no data
-  
+
   if( size() <= (unsigned int)nPoint )//we don't need the equal, but so what
   {
-    cerr << "differntiate(): I can't take " << nPoint 
+    cerr << "differntiate(): I can't take " << nPoint
          << "-point derivative of a graph with "
          << size() << " data points" << endl;
     exit(1);
   }//if( size() <= nPoint )
-  
+
   const TimeDuration h = getMostCommonDt();
   const PosixTime t0 = begin()->m_time;
   const PosixTime tEnd = getEndTime();
-  
+
   if( (nPoint != 3) && (nPoint!=5) )
   {
     cerr << "You can only choose nPoint=3 or 5 when"
          << " calling differntiate( nPoint)" << endl;
     exit(1);
   }//if( (nPoint != 3) && (nPoint!=5) )
-  
+
   if( m_graphType != GlucoseConsentrationGraph )
   {
     cerr << "differentiation isn't allowed for grapgsof type "
          << getGraphTypeStr() << endl;
     exit(1);
   }//if( we shouldn't take the derivative )
-    
+
   //Change the type of the graph
   m_graphType = BloodGlucoseConcenDeriv;
-    
+
   GraphElementSet theDerivs;
-  
+
   const TimeDuration h0 = (nPoint == 3) ? h : h*2;
   double deriv = -999.9;
-  
+
   //Okay now lets put in derivative of the first point
   if( nPoint == 3 )
   {
@@ -844,9 +850,9 @@ ConsentrationGraph::differntiate( int nPoint )
     deriv = ( -25.0*value(t0) + 48.0*value(t0+h) - 36.0*value(t0+(h*2))
               + 16.0*value(t0+(h*3)) - 3.0*value(t0+(h*4))) / toNMinutes(h*12);
   }else assert(0);
-  
+
   theDerivs.insert( GraphElement( t0, deriv ) );
-  
+
   //Okay, now loop over the time between the start and end times
   for( PosixTime t = t0+h0; t <= (tEnd-h); t += h0 )
   {
@@ -855,46 +861,46 @@ ConsentrationGraph::differntiate( int nPoint )
       deriv = ( value(t + h) - value(t - h) ) / toNMinutes(h*2);
     }else if( nPoint == 5 )
     {
-      deriv = ( value(t-(h*2)) - 8.0*value(t-h) 
+      deriv = ( value(t-(h*2)) - 8.0*value(t-h)
                 + 8.0*value(t+h) - value(t+(h*2)) ) / toNMinutes(h*12);
     }else assert(0);
-    
+
     theDerivs.insert( GraphElement( t, deriv ) );
   }//for( loop over all times of graph, except endpoints P
-  
-  
-  //Okay now lets put in derivative of the last point, 
+
+
+  //Okay now lets put in derivative of the last point,
   //  we have to use 3-point formula
   deriv = (value(tEnd-(h*2)) - 4.0*value(tEnd-h) + 3.0*value(tEnd)) / toNMinutes(h*2);
   theDerivs.insert( GraphElement( tEnd, deriv ) );
-    
+
   //remove all the current data points
   clear();
-  
+
   foreach( const GraphElement &e, theDerivs ) insert( e.m_time, e.m_value );
-  
+
 }//differntiate( int )
 
 
 
-double 
-ConsentrationGraph::bSplineSmoothOrDeriv(  bool takeDeriv, 
+double
+ConsentrationGraph::bSplineSmoothOrDeriv(  bool takeDeriv,
                                            double knotDist, int splineOrder )
 {
 #ifndef __GSL_BSPLINE_H__
-    cerr << "You may not call bSplineSmoothOrDeriv(...) unless your using GSL" 
+    cerr << "You may not call bSplineSmoothOrDeriv(...) unless your using GSL"
          << endl;
     assert(0);
     if( takeDeriv ) knotDist = (double)splineOrder; //Just to keep from geting warnings
     return 0.0;
 #endif
-  const double readingUncert = ModelDefaults::kCgmsIndivReadingUncert;
+  const double readingUncert = ProgramOptions::kCgmsIndivReadingUncert;
   const double graphDuration = toNMinutes(getEndTime() - getStartTime());
-  
+
   const size_t n = size();
   const size_t nKnots = ceil( graphDuration / knotDist );
   const size_t nbreak = nKnots + 2 - splineOrder;
-       
+
   gsl_rng_env_setup();
   gsl_rng *r = gsl_rng_alloc(gsl_rng_default);
   gsl_bspline_workspace *bw = gsl_bspline_alloc(splineOrder, nbreak);
@@ -913,7 +919,7 @@ ConsentrationGraph::bSplineSmoothOrDeriv(  bool takeDeriv,
 
   const PosixTime tStart = begin()->m_time;
   const PosixTime tEnd = getEndTime();
-  
+
   size_t position = 0;
   ConstGraphIter iter;
   for( iter = begin(); iter != end(); ++iter )
@@ -925,44 +931,44 @@ ConsentrationGraph::bSplineSmoothOrDeriv(  bool takeDeriv,
     gsl_vector_set(w, position, weight);
     ++position;
   }//for( loop over base points )
-  
+
   // use uniform breakpoints
   gsl_bspline_knots_uniform(0, toNMinutes(tEnd-tStart), bw);
-     
-  // construct the fit matrix X 
+
+  // construct the fit matrix X
   for( size_t i = 0; i < n; ++i )
   {
     double xi = gsl_vector_get(x, i);
     gsl_bspline_eval(xi, B, bw); //compute B_j(xi) for all j
-     
+
     for( size_t j = 0; j < nKnots; ++j) //fill in row i of X
     {
       double Bj = gsl_vector_get(B, j);
       gsl_matrix_set(X, i, j, Bj);
     }//for( loop over the coeficients )
   }//for( loop over the time points )
-     
+
   /* do the fit */
   double chisq = -999;
   const double dof = n - nKnots;
   gsl_multifit_wlinear(X, w, y, c, cov, &chisq, mw);
-  
-    
+
+
   const double dt = toNMinutes(getMostCommonDt());
   const double t0 = 0;//begin()->m_minutes;
   const double tEndDouble = toNMinutes(getEndTime() - begin()->m_time);
-  
+
   clear(); //removeall data points
-  
+
   if( takeDeriv )
   {
     m_yOffsetForDrawing = 0.0;
     insert( tStart, 0.0 );
     for( double time = t0 + 0.5*dt; time <= (tEndDouble - 0.5*dt); time += dt)
     {
-      double deriv = 0.0; //lets avearge the derivative over the 
+      double deriv = 0.0; //lets avearge the derivative over the
       for( int i=-5; i<=4; ++i )
-      {  
+      {
         double dydt = 0.0, error=0.0;
         double t = time + dt * i/10.0;
         gsl_bspline_deriv_eval(t, 1, dB, bw, derivWS);
@@ -970,11 +976,11 @@ ConsentrationGraph::bSplineSmoothOrDeriv(  bool takeDeriv,
         gsl_multifit_linear_est(derivs, c, cov, &dydt, &error);
         deriv += dydt;
       }//for( loop over the sub times )
-      
+
       const PosixTime realTime = tStart + toTimeDuration(time);
       insert( realTime, deriv/10.0 );
     }//for( loop over time this graph is defined for )
-    
+
     //need to catch last point now
     double dydt = 0.0, error=0.0;
     gsl_bspline_deriv_eval(tEndDouble, 1, dB, bw, derivWS);
@@ -992,7 +998,7 @@ ConsentrationGraph::bSplineSmoothOrDeriv(  bool takeDeriv,
       insert( realTime, val );
     }//for( loop over time this graph is defined for )
   }//if( takeDeriv ) / else
-  
+
   gsl_rng_free(r);
   gsl_vector_free(x);
   gsl_vector_free(y);
@@ -1006,8 +1012,8 @@ ConsentrationGraph::bSplineSmoothOrDeriv(  bool takeDeriv,
   gsl_vector_free(derivs);
   gsl_bspline_free(bw);
   gsl_bspline_deriv_free( derivWS );
-  
-  
+
+
   if( takeDeriv )
   {
     if( m_graphType != GlucoseConsentrationGraph )
@@ -1016,10 +1022,10 @@ ConsentrationGraph::bSplineSmoothOrDeriv(  bool takeDeriv,
            << getGraphTypeStr() << endl;
       exit(1);
     }//if( we shouldn't have taken the derivative )
-    
+
     m_graphType = BloodGlucoseConcenDeriv;
   }//if( takeDeriv )
-  
+
   return chisq / dof;
 }//bSplineDerivative
 
@@ -1029,35 +1035,35 @@ ConsentrationGraph::bSplineSmoothOrDeriv(  bool takeDeriv,
 
 
 void ConsentrationGraph::fastFourierSmooth( double lambda_min, double time_window )
-{ 
+{
   removeNonInfoAddingPoints();
- 
+
   if( empty() ) return;
-  
+
   GraphElementSet xFormResult;
-  
-  //Since this is primarily intended for CGMS readings, using a dt of the 
+
+  //Since this is primarily intended for CGMS readings, using a dt of the
   //  most common time would be adequate.
   const PosixTime startTime = begin()->m_time;
   const double dt = toNMinutes(getMostCommonDt());
   const double freq_max = dt / lambda_min;
   const double totalTime = toNMinutes( getEndTime() - startTime );
- 
+
   // if((time_window > totalTime) || (time_window <= 0.0))
   if(time_window >= 0.0) cout << "I am ignoring your time_window request" << endl;
-  
+
   time_window = totalTime;
 
   const int nPoints = floor( totalTime / dt ); //we might miss a litle info
   int pointsPerWindow = floor( time_window / dt );
-  const int nWindows = nPoints / pointsPerWindow;  
-    
+  const int nWindows = nPoints / pointsPerWindow;
+
   double *xAxis = new double[pointsPerWindow];
   double *input = new double[pointsPerWindow];
   double *xformed_real = new double [pointsPerWindow];
   double *xformed_imag = new double [pointsPerWindow];
- 
-  
+
+
   for( int window=0; window < nWindows; ++window )
   {
     for( int point = 0; point < pointsPerWindow; ++point )
@@ -1067,8 +1073,8 @@ void ConsentrationGraph::fastFourierSmooth( double lambda_min, double time_windo
       xAxis[point] = t;
       input[point] = value( startTime + toTimeDuration(t) );
     }//for
-    
-    
+
+
     TVirtualFFT *fft_own = TVirtualFFT::FFT(1, &pointsPerWindow, "R2C");
     fft_own->SetPoints(input);
     fft_own->Transform();
@@ -1082,7 +1088,7 @@ void ConsentrationGraph::fastFourierSmooth( double lambda_min, double time_windo
       xformed_real[point] = 0.0;
       xformed_imag[point] = 0.0;
     }
-    
+
     TVirtualFFT *fft_back = TVirtualFFT::FFT(1, &pointsPerWindow, "C2R");
     fft_back->SetPointsComplex(xformed_real, xformed_imag);
     fft_back->Transform();
@@ -1095,14 +1101,14 @@ void ConsentrationGraph::fastFourierSmooth( double lambda_min, double time_windo
       xFormResult.insert( GraphElement( realTime, val ) );
     }//
   }//for( loop over the time of the graph )
-  
+
   // delete fft_own;
   // delete fft_back;
   delete [] xAxis;
   delete [] input;
   delete [] xformed_real;
   delete [] xformed_imag;
- 
+
   std::set<GraphElement>::erase( begin(), end() );
   std::set<GraphElement>::insert( xFormResult.begin(), xFormResult.end() );
 }//void fastFourierSmooth( double ohmega_min = 20.0, double time_window = 180.0 )
@@ -1112,34 +1118,34 @@ void ConsentrationGraph::fastFourierSmooth( double lambda_min, double time_windo
 //Butterworth filter adapter from code found at:
 //  http://pagesperso-orange.fr/jean-pierre.moreau/Cplus/tfilters_cpp.txt
 //Calc Butterworth coef
-void ConsentrationGraph::calcButterworthCoef(double cuttOffFrequ, double samplingTime, 
+void ConsentrationGraph::calcButterworthCoef(double cuttOffFrequ, double samplingTime,
                                      int filterOrder, Filter_Coef C,
-                                     int *NSections, double *groupDelay )  
+                                     int *NSections, double *groupDelay )
 {
   const double Pi = M_PI; //3.1415926535;
-  
+
   *groupDelay=0.0;
-  
+
   double Arg = Pi * samplingTime * cuttOffFrequ;
-  
-  if( fabs(samplingTime * cuttOffFrequ) > 2.0 ) 
+
+  if( fabs(samplingTime * cuttOffFrequ) > 2.0 )
   {
     Arg -= 2.0 * Pi * floor(samplingTime * cuttOffFrequ/2.0);
     cout << "Butterworth(...): You can't filter at a frequency higher than 1/2"
-         << " the sampling freuency, instead I will filter at" 
+         << " the sampling freuency, instead I will filter at"
          << Arg / Pi / samplingTime << "Hz" << endl;
   }//if( asking to filter something higher than one-half the sampling frequency )
-  
-  const double Omega = tan( Arg );   
+
+  const double Omega = tan( Arg );
   const double OmegaSq = Omega * Omega;
   const double temp = (filterOrder%2) ? 0.0 : 0.5;
-  
+
   int Ns2 = filterOrder/2;
   *NSections = Ns2 + (filterOrder % 2);
-  
-  if (filterOrder>1) 
+
+  if (filterOrder>1)
   {
-    for( int i=1; i<Ns2+1; i++ ) 
+    for( int i=1; i<Ns2+1; i++ )
     {
       double Rep = Omega * cos( Pi*(i-temp)/filterOrder );
       *groupDelay = *groupDelay + (samplingTime * Rep) / OmegaSq;
@@ -1151,8 +1157,8 @@ void ConsentrationGraph::calcButterworthCoef(double cuttOffFrequ, double samplin
       C[4][i] = 1.0;
       C[5][i] = OmegaSq/W1;
     }
-    
-    if( temp == 0.0 ) 
+
+    if( temp == 0.0 )
     {
       C[1][*NSections]=(1.0-Omega)/(1.0+Omega);
       C[2][*NSections]= 0.0;
@@ -1161,7 +1167,7 @@ void ConsentrationGraph::calcButterworthCoef(double cuttOffFrequ, double samplin
       C[5][*NSections]= Omega/(1.0+Omega);
       *groupDelay= *groupDelay+samplingTime/(2.0*Omega);
     }//if( 1st or 3rd order filter )
-  }//if (filterOrder>1) 
+  }//if (filterOrder>1)
 } // Butterworth()
 
 
@@ -1170,11 +1176,11 @@ void ConsentrationGraph::calcButterworthCoef(double cuttOffFrequ, double samplin
 *             (removing frequencies greater then Fc)                  *
 * ------------------------------------------------------------------- */
 void ConsentrationGraph::butterworthFilter( double *Xs,double Xd, int NSections,
- 	                                          Filter_Coef C, Memory_Coef D )  
+                                              Filter_Coef C, Memory_Coef D )
 {
   double x = Xd;
-  
-  for( int i=1; i<NSections+1; i++) 
+
+  for( int i=1; i<NSections+1; i++)
   {
     double err = x+C[1][i]*D[1][i]+C[2][i]*D[2][i];
     double y = C[5][i]*(err +C[3][i]*D[1][i]+C[4][i]*D[2][i]);
@@ -1182,24 +1188,24 @@ void ConsentrationGraph::butterworthFilter( double *Xs,double Xd, int NSections,
     D[1][i]=err;
     x=y;
   }
-  
+
   *Xs=x;
 }//butterworthFilter
 
 
 //INIT FILTER PROCEDURE
-void ConsentrationGraph::butterworthInit( double Xdc, Filter_Coef C, 
-                                          int NSections, Memory_Coef D ) 
+void ConsentrationGraph::butterworthInit( double Xdc, Filter_Coef C,
+                                          int NSections, Memory_Coef D )
 {
   double dc=Xdc;
-  for( int j=1; j<NSections+1; j++) 
+  for( int j=1; j<NSections+1; j++)
   {
     D[2][j]=dc/(1-C[1][j]-C[2][j]);
     D[1][j]=D[2][j];
-    
+
     double Csum=0;
     for( int i=1; i<5; i++) Csum = Csum + C[i][j];
-    
+
     dc = C[5][j] * (dc+D[2][j]*Csum);
   } //j loop
 } // butterworthInit()
@@ -1209,52 +1215,52 @@ void ConsentrationGraph::butterworthInit( double Xdc, Filter_Coef C,
 void ConsentrationGraph::butterWorthFilter( double timescale, int filterOrder )
 {
   removeNonInfoAddingPoints();
- 
+
   if( empty() ) return;
-  
+
   GraphElementSet xFormResult;
-  
+
   const PosixTime endTime = getEndTime();
   const PosixTime startTime = begin()->m_time;
-  
+
   const double dt = toNMinutes( getMostCommonDt() );
   const double totalTime = toNMinutes(endTime - startTime);
   const int totalPoints = totalTime / dt + 1;
-  
+
   double *input = new double[totalPoints+1];
-  
+
   for( int point = 0; point <= totalPoints; ++point )
   {
     const PosixTime t = startTime + toTimeDuration( point*dt );
     input[point] = value(t);
   }//for
-  
+
   //input cut off frequencys and order of filter (1 to 4)
-  double cuttOffFreq = 1.0 / timescale; 
+  double cuttOffFreq = 1.0 / timescale;
   Filter_Coef C;  //determines how the filter filters
   Memory_Coef D;  //to storeinfo for use in butterworthFilter(...)
   int      NSections; //Number of required 2nd order sections (integer)
   double   timeDelay; //The butter worth filter introduces a timedelay we must corect for
-  
-  
+
+
   // 1. Calculate the filter coefficients
   calcButterworthCoef( cuttOffFreq, dt, filterOrder, C, &NSections, &timeDelay);
   const TimeDuration posixTimeDelay = toTimeDuration(timeDelay);
-  
+
   // 2. Initialize filter memory
   butterworthInit( value(startTime), C, NSections, D);
 
   // 3. Recursively call Butterworth filter
-  for( int point=0; point<=totalPoints; ++point) 
+  for( int point=0; point<=totalPoints; ++point)
   {
     double val = 0.0;
     butterworthFilter(&val, input[point], NSections, C, D);
     const PosixTime t = startTime + toTimeDuration( point*dt );
     xFormResult.insert( GraphElement( t - posixTimeDelay, val ) );
   }//for( loop over data points )
-  
+
   delete [] input;
- 
+
   std::set<GraphElement>::erase( begin(), end() );
   std::set<GraphElement>::insert( xFormResult.begin(), xFormResult.end() );
 }//
@@ -1266,82 +1272,82 @@ TGraph *ConsentrationGraph::getTGraph( boost::posix_time::ptime t_start,
                                        boost::posix_time::ptime t_end  ) const
 {
   unsigned int nPoints = size(); //(((int)duration) / 1);
-  
+
   if( !nPoints ) return new TGraph( nPoints );
-  
-  double *xAxis = new double[nPoints]; 
+
+  double *xAxis = new double[nPoints];
   double *yAxis = new double[nPoints];
 
   vector< pair<double,string> > newDayLabel;
   vector< pair<double,string> > every60MinuteLabel;
-  
+
   //Start the graph at the nearest 15min mark before first value
   const PosixTime firstValuesTime = begin()->m_time;
- 
+
   time_duration timeOfDay = firstValuesTime.time_of_day();
   PosixTime previousLabelTime =  roundDownToNearest15Minutes( firstValuesTime );
-  
+
   //So we can clearly label new days
   //  This is complicated by the fact the input data might not exactly
   //  stradel midnight
   gregorian::date currentDate = firstValuesTime.date();
   double offsetToFirstMidnight = -999;
-  
+
   nPoints = 0;
   foreach( const GraphElement &el, static_cast<GraphElementSet>(*this) )
   {
     const PosixTime &currentTime = el.m_time;
-    
+
     if( t_start != kGenericT0 && currentTime < t_start ) continue;
     if( t_end   != kGenericT0 && currentTime > t_end   ) continue;
-    
+
     const double xAxisTime = toNMinutes(currentTime - kTGraphStartTime);
-        
+
     xAxis[nPoints] = xAxisTime;
     yAxis[nPoints] = el.m_value + m_yOffsetForDrawing;
-    ++nPoints;    
- 
+    ++nPoints;
+
     if( (currentTime - previousLabelTime) >= minutes(60) )
     {
       previousLabelTime = currentTime;
-      
+
       int slop = (int)toNMinutes(m_dt) + 1;
       ptime labelsVal = roundDownToNearest15Minutes( previousLabelTime, slop );
-      
+
       every60MinuteLabel.push_back( make_pair(xAxisTime, getTimeNoDate(labelsVal)) );
     }//15 minutes have elapsed
-    
+
     if( currentDate != currentTime.date() )
     {
       if( offsetToFirstMidnight < 0.0 ) offsetToFirstMidnight = xAxisTime;
-        
+
       //get number of days that have elapsed
       gregorian::date_duration dd = currentTime.date() - firstValuesTime.date() - gregorian::days(1);
       double nMinutesToThisMidnight = offsetToFirstMidnight + 1440*dd.days();
-      
+
       newDayLabel.push_back( make_pair(nMinutesToThisMidnight, getDate(currentTime)) );
       currentDate = currentTime.date();
     }//if( same day as last point ) / else
   }//for( loop over data points )
-  
+
   TGraph *graph = new TGraph( nPoints, xAxis, yAxis );
-  
-  if( nPoints < 4 ) 
+
+  if( nPoints < 4 )
   {
     delete [] xAxis;
     delete [] yAxis;
     return graph;
-  }//if( nPoints < 4 ) 
-  
-  
+  }//if( nPoints < 4 )
+
+
   //Figure out how sparce to make the labels
   size_t nLabelSkip = 1;
-  
-  if( every60MinuteLabel.size() > 15 ) 
+
+  if( every60MinuteLabel.size() > 15 )
     nLabelSkip = every60MinuteLabel.size() / 15;
-  
+
   const int nBins = graph->GetXaxis()->GetNbins();
-  
+
   // if( newDayLabel.size() < 4 )
   // {
     for( size_t i = 0; i < every60MinuteLabel.size(); i += nLabelSkip )
@@ -1351,95 +1357,95 @@ TGraph *ConsentrationGraph::getTGraph( boost::posix_time::ptime t_start,
       if( bin <= nBins ) graph->GetXaxis()->SetBinLabel( bin, label.second.c_str() );
     }//foreach 15 minute label
   // }//if( graph is less than three days long )
-  
+
   for( size_t i=0; i<newDayLabel.size(); ++i )
   {
     pair<double,string> label = newDayLabel[i];
     int bin = graph->GetXaxis()->FindBin( label.first );
     if( bin <= nBins ) graph->GetXaxis()->SetBinLabel( bin, label.second.c_str() );
   }//foreach 15 minute label
-  
+
   // cout << "Axis has " << graph->GetXaxis()->GetNbins() << " bins" << endl;
-  
+
   graph->GetXaxis()->CenterLabels(kFALSE);
-  
+
   ptime firstTime = begin()->m_time;
   ptime lastTime = (--end())->m_time;
-  
+
   string graphTitle = ", From ";
-  
+
   if( t_start != kGenericT0 ) graphTitle += getDateForGraphTitle( t_start );
   else                        graphTitle += getDateForGraphTitle( firstTime );
   graphTitle += " Through ";
   if( t_end != kGenericT0 )   graphTitle += getDateForGraphTitle(t_end) ;
   else                        graphTitle += getDateForGraphTitle(lastTime) ;
-                      
+
   if( m_t0.date() == lastTime.date() ) graphTitle = ", " + getDateForGraphTitle( m_t0 );
-  
-  
+
+
   switch( m_graphType )
   {
-    case InsulinGraph: 
-      graph->GetYaxis()->SetTitle( "Plasma Insulin Concentration (mU/L)" ); 
+    case InsulinGraph:
+      graph->GetYaxis()->SetTitle( "Plasma Insulin Concentration (mU/L)" );
       graphTitle = "Plasma Insulin Concentration" + graphTitle;
     break;
-    
-    case BolusGraph:             
-      graph->GetYaxis()->SetTitle( "Insulin Boluses (U)" ); 
+
+    case BolusGraph:
+      graph->GetYaxis()->SetTitle( "Insulin Boluses (U)" );
       graphTitle = "Insulin Boluses" + graphTitle;
     break;
-    
+
     case GlucoseConsentrationGraph:
       graph->GetYaxis()->SetTitle( "Blood Glucose Concentration (mg/dL)" );
       graphTitle = "Blood Glucose Concentration" + graphTitle;
     break;
-    
+
     case GlucoseAbsorbtionRateGraph:
-      graph->GetYaxis()->SetTitle( "Glucose Absorption Rate (mg/dL/min)" ); 
+      graph->GetYaxis()->SetTitle( "Glucose Absorption Rate (mg/dL/min)" );
       graphTitle = "Glucose Absorption Rate" + graphTitle;
-    break; 
-    
+    break;
+
     case GlucoseConsumptionGraph:
-      graph->GetYaxis()->SetTitle( "Carbs Consumed (g)" ); 
+      graph->GetYaxis()->SetTitle( "Carbs Consumed (g)" );
       graphTitle = "Carbohydrates Consumed" + graphTitle;
     break;
-    
+
     case BloodGlucoseConcenDeriv:
-      graph->GetYaxis()->SetTitle( "#frac{dG^{blood}}{dt} (mg/dl/min)" ); 
+      graph->GetYaxis()->SetTitle( "#frac{dG^{blood}}{dt} (mg/dl/min)" );
       // graph->GetYaxis()->SetTitleOffset(0.1);
       graphTitle = "Change in Glucose Concentration" + graphTitle;
     break;
-    
+
     case CustomEvent:
-      graph->GetYaxis()->SetTitle( "Custom Event Type" ); 
+      graph->GetYaxis()->SetTitle( "Custom Event Type" );
       graphTitle = "Custom Event" + graphTitle;
     break;
-    
+
     case AlarmGraph:
-      graph->GetYaxis()->SetTitle( "Alarm Type" ); 
+      graph->GetYaxis()->SetTitle( "Alarm Type" );
       graphTitle = "Alarm Events" + graphTitle;
     break;
-    
+
     case NumGraphType:
-      graph->GetYaxis()->SetTitle( "" ); 
+      graph->GetYaxis()->SetTitle( "" );
     break;
   }//switch( m_graphType )
-  
+
   graph->SetTitle( graphTitle.c_str() );
   const double startd = toNMinutes(t_start - kTGraphStartTime);
   const double endd = toNMinutes(t_end - kTGraphStartTime);
-  
-  if( (t_start != kGenericT0) && (t_end != kGenericT0) ) 
+
+  if( (t_start != kGenericT0) && (t_end != kGenericT0) )
     graph->GetXaxis()->SetLimits( startd, endd );
-  
+
   double *maxHeight = max_element( yAxis+0, yAxis+nPoints );
   double *minHeight = min_element( yAxis+0, yAxis+nPoints );
   graph->SetMaximum( *maxHeight );
   graph->SetMinimum( *minHeight );
-  
+
   delete [] xAxis;
   delete [] yAxis;
-  
+
   return graph;
 }//getTGraph
 
@@ -1455,77 +1461,77 @@ double ConsentrationGraph::getYOffset() const {return m_yOffsetForDrawing;}
 
 
 //Forms a TGraph and draws on current active TPad (gPad)
-TGraph* ConsentrationGraph::draw( string options, 
+TGraph* ConsentrationGraph::draw( string options,
                                string title, bool pause, int color ) const
-{  
+{
   if( title == "" ) title = "ConsentrationGraph";
-  
+
   if( !size() )
   {
     cout << "You tried to draw an empty graph, ignoring request" << endl;
     return (TGraph *)NULL;
   }//if( !size() )
-  
-  
+
+
   assert(gTheApp);
   // Int_t dummy_arg = 0;
   // if( !gTheApp ) gTheApp = new TApplication("App", &dummy_arg, (char **)NULL);
-  
+
   if( !gPad ) new TCanvas();
-  
+
   gPad->SetTitle( title.c_str() );
-  
-  TGraph *graph = getTGraph();  
-  
+
+  TGraph *graph = getTGraph();
+
   if( color > 0 ) graph->SetLineColor( color );
-  
-  
+
+
   switch( m_graphType )
   {
-    case InsulinGraph: 
+    case InsulinGraph:
     break;
-    
-    case BolusGraph:             
+
+    case BolusGraph:
       if( options == "" ) options += "A*";
     break;
-    
+
     case GlucoseConsentrationGraph:
     break;
-    
+
     case GlucoseAbsorbtionRateGraph:
-    break; 
-    
+    break;
+
     case GlucoseConsumptionGraph:
       if( options == "" ) options += "A*";
     break;
-    
+
     case BloodGlucoseConcenDeriv:
     break;
-    
+
     case CustomEvent: case AlarmGraph:
      options += "*";
     break;
-    
+
     case NumGraphType:
     break;
   }//switch( m_graphType )
-  
+
 
   if( options == "" ) options += "Al";
   graph->Draw( options.c_str() );
-  
-  if( pause ) 
+
+  if( pause )
   {
     gTheApp->Run(kTRUE);
     delete gPad;
     delete graph;
-    
+
     return (TGraph *)NULL;
   }//if( pause )
-  
+
   return graph;
 }//draw(...)
-    
+
 
 
 template<class Archive>
@@ -1533,7 +1539,7 @@ void ConsentrationGraph::serialize( Archive &ar, const unsigned int version )
 {
   unsigned int ver = version; //keep compiler from complaining
   ver = ver;
-      
+
   ar & m_t0;
   ar & m_dt;
   ar & m_yOffsetForDrawing;
@@ -1545,36 +1551,36 @@ void ConsentrationGraph::serialize( Archive &ar, const unsigned int version )
 
 ConsentrationGraph ConsentrationGraph::loadFromFile( std::string filename )
 {
-  
+
   if( filename == "" )
   {
     ConsentrationGraph *newGraph = NULL;
     new CreateGraphGui( newGraph, gClient->GetRoot(), gClient->GetDefaultRoot() );
-    
+
     if( !newGraph )
     {
       cout << "Error opening file; Exiting now" << endl;
       exit(-1);
     }//if( !newGraph )
-    
+
     ConsentrationGraph tempGraph( *newGraph );
     delete newGraph;
-    
+
     return tempGraph;
   }//if( you didn't specify a name )
-  
+
   std::ifstream ifs( filename.c_str() );
   if( !ifs.is_open() )
   {
     cout << "Couldn't open file " << filename << " for reading" << endl;
     exit(-1);
   }//if( !ofs.is_open() )
-  
+
   boost::archive::text_iarchive ia(ifs);
   ConsentrationGraph tempGraph( kGenericT0, 0.0, NumGraphType);
   // restore the schedule from the archive
   ia >> tempGraph;
-  
+
   return tempGraph;
 }//loadFromFile
 
@@ -1582,23 +1588,23 @@ ConsentrationGraph ConsentrationGraph::loadFromFile( std::string filename )
 bool ConsentrationGraph::saveToFile( std::string filename )
 {
   std::ofstream ofs( filename.c_str() );
-  
+
   if( !ofs.is_open() )
   {
     cout << "Couldn't open file " << filename << " for writing" << endl;
     exit(1);
   }//if( !ofs.is_open() )
-  
+
   boost::archive::text_oarchive oa(ofs);
-  
+
   oa << *this;
-  
+
   return true;
 }//bool ConsentrationGraph::saveToFile( std::string filename )
 
 
 
-AbsFuncPointer ConsentrationGraph::getFunctionPointer( 
+AbsFuncPointer ConsentrationGraph::getFunctionPointer(
                                              AbsorbtionFunction absFunc ) const
 {
   switch( absFunc )
@@ -1614,7 +1620,7 @@ AbsFuncPointer ConsentrationGraph::getFunctionPointer(
         case InsulinGraph:                 return &NovologConsentrationFunc;
         case GlucoseConsentrationGraph:    assert(0); return NULL;
         case GlucoseAbsorbtionRateGraph:   return &MediumCarbAbsorbtionFunc;
-          
+
         case BolusGraph:
         case GlucoseConsumptionGraph:
         case BloodGlucoseConcenDeriv:
@@ -1625,13 +1631,13 @@ AbsFuncPointer ConsentrationGraph::getFunctionPointer(
       };//switch( m_graphType )
     };//case NumAbsorbtionFunctions:
   };//switch( absFunc )
-  
+
   assert(0);
   return NULL; //keep compiler from complaining
 }//getFunctionPointer
 
 
-    
+
 
 
 

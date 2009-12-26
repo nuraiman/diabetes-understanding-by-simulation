@@ -23,7 +23,8 @@ SOURCES += main.cpp \
     NLSimpleGui.cc \
     RungeKuttaIntegrater.cc \
     MiscGuiUtils.cc \
-    nlsimple_create.cpp
+    nlsimple_create.cpp \
+    DataInputGui.cc
 HEADERS += nlsimpleguiwindow.h \
     ArtificialPancrease.hh \
     ConsentrationGraphGui.hh \
@@ -35,7 +36,8 @@ HEADERS += nlsimpleguiwindow.h \
     NLSimpleGui.hh \
     RungeKuttaIntegrater.hh \
     MiscGuiUtils.hh \
-    nlsimple_create.h
+    nlsimple_create.h \
+    DataInputGui.hh
 
 # below assumes NLSimpleGui_linkdef containes all the '#pragma link C++ class ClassName;' statments in it
 CREATE_ROOT_DICT_FOR_CLASSES = ConsentrationGraphGui.hh \
@@ -43,21 +45,10 @@ CREATE_ROOT_DICT_FOR_CLASSES = ConsentrationGraphGui.hh \
     ProgramOptions.hh \
     NLSimpleGui_linkdef.h
 FORMS = nlsimpleguiwindow.ui \
-    nlsimple_create.ui
+    nlsimple_create.ui \
+    DataInputGui.ui
 includeDir = $$(QTROOTSYSDIR)/include
 incFile = $$includeDir/rootcint.pri
-LIBS += /usr/local/lib/libboost_date_time.a \
-    /usr/local/lib/libboost_serialization.a \
-    /usr/local/lib/libboost_program_options.a \
-    /usr/local/lib/libgsl.a \
-    /usr/local/lib/libgslcblas.a \
-    -L$$(ROOTSYS) \
-    -lGQt \
-    -lMinuit \
-    -lMLP \
-    -lTreePlayer \
-    -lMinuit2 \
-    -lTMVA
 exists ($$includeDir):exists ($$incFile):include ($$incFile)# Win32 wants us to check the directory existence separately
 !exists ($$includeDir) { 
     incFile = $$(ROOTSYS)/include/rootcint.pri
@@ -77,6 +68,26 @@ exists ($$includeDir):exists ($$incFile):include ($$incFile)# Win32 wants us to 
         INCLUDEPATH += $(ROOTSYS)/include
     }
 }
+mystaticconfig { 
+    QMAKE_LIBS_QT = 
+    QMAKE_LIBS_QT_THREAD = 
+    LIBS += $(QTDIR)/lib/libqt.a \
+        -lz \
+        -framework \
+        Carbon \
+        -L$$(ROOTSYS)/lib \
+        -lRoot
+}
+LIBS += /usr/local/lib/libboost_date_time.a \
+    /usr/local/lib/libboost_serialization.a \
+    /usr/local/lib/libboost_program_options.a \
+    /usr/local/lib/libgsl.a \
+    /usr/local/lib/libgslcblas.a \
+    -L$$(ROOTSYS) \
+    -lGQt \
+    -lMinuit \
+    -lMinuit2 \
+    -lTMVA
 
 # mac:QMAKE_INFO_PLIST=Info.plist
 unix { 

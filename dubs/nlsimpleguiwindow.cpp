@@ -4,6 +4,8 @@
 #include "MiscGuiUtils.hh"
 #include "ResponseModel.hh"
 #include "nlsimple_create.h"
+#include "DataInputGui.hh"
+#include "CgmsDataImport.hh"
 #include "ArtificialPancrease.hh"
 
 #include <QApplication>
@@ -81,6 +83,14 @@ NLSimpleGuiWindow::NLSimpleGuiWindow( NLSimple *model, QWidget *parent)
   tw->setTabText( tw->indexOf(ui->optionsTab),     "Options"    );
   tw->setTabText( tw->indexOf(ui->clarkeGridTab),  "Error Grid" );
 
+
+  connect( ui->geneticOptimizeButton, SIGNAL(clicked()), this, SLOT(doGeneticOptimization()) );
+  connect( ui->baysianFineTuneButton, SIGNAL(clicked()), this, SLOT(doMinuit2Fit())          );
+  connect( ui->addCgmsButton,         SIGNAL(clicked()), this, SLOT(addCgmsData())           );
+  connect( ui->addMealDataButton,     SIGNAL(clicked()), this, SLOT(addCarbData())           );
+  connect( ui->addMeterDataButton,    SIGNAL(clicked()), this, SLOT(addMeterData())          );
+  connect( ui->addCustonDataBustom,   SIGNAL(clicked()), this, SLOT(addCustomEventData())    );
+
   init();
 }//NLSimpleGuiWindow cinstructor
 
@@ -88,6 +98,8 @@ NLSimpleGuiWindow::NLSimpleGuiWindow( NLSimple *model, QWidget *parent)
 
 void NLSimpleGuiWindow::init()
 {
+  m_model->m_gui = this;
+
   drawModel();
   drawEquations();
   refreshClarkAnalysis();
@@ -104,24 +116,22 @@ NLSimpleGuiWindow::~NLSimpleGuiWindow()
 
 
 
-
-
-void NLSimpleGuiWindow::drawModel()
+TCanvas *NLSimpleGuiWindow::getModelCanvas()
 {
   ui->tabWidget->setCurrentWidget(ui->modelDisplyTab);
-
   TCanvas *can = ui->m_modelDisplayWidget->GetCanvas();
   can->cd();
   can->SetEditable( kTRUE );
 
-  //lets ovoid memmory clutter
-  TObject *obj;
-  TList *list = can->GetListOfPrimitives();
-  for( TIter nextObj(list); (obj = nextObj()); )
-  {
-    string className = obj->ClassName();
-    if( className != "TFrame" ) delete obj;
-  }//for(...)
+  return can;
+}//TVirtualPad *NLSimpleGuiWindow::getModelCanvas()
+
+
+
+void NLSimpleGuiWindow::drawModel()
+{
+  TCanvas *can = getModelCanvas();
+  cleanCanvas( can, "TFrame" ); //lets ovoid memmory clutter
 
   m_model->draw( false );
   can->SetEditable( kFALSE );
@@ -151,33 +161,78 @@ void NLSimpleGuiWindow::drawEquations()
 }// void NLSimpleGuiWindow::drawEquations()
 
 
+void NLSimpleGuiWindow::updateCustomEventTab()
+{
+}//void updateCustomEventTab()
+
 void NLSimpleGuiWindow::doGeneticOptimization()
 {
+  if( !m_model ) return;
+
+  drawModel();
+  m_model->geneticallyOptimizeModel( m_model->m_settings.m_lastPredictionWeight );
+
+  drawModel();
+  drawEquations();
 }// void NLSimpleGuiWindow::doGeneticOptimization()
 
 
 void NLSimpleGuiWindow::doMinuit2Fit()
 {
+  if( !m_model ) return;
+
+  m_model->fitModelToDataViaMinuit2( m_model->m_settings.m_lastPredictionWeight );
+
+  drawModel();
+  drawEquations();
 }// void NLSimpleGuiWindow::doMinuit2Fit()
 
 
 void NLSimpleGuiWindow::addCgmsData()
 {
+  DataInputGui inputGui( &(m_model->m_cgmsData),
+                         "Enter new CGMS Data",
+                         int(CgmsDataImport::CgmsReading),
+                         this );
+  inputGui.show();
+  inputGui.raise();
+  inputGui.exec();
 }// void NLSimpleGuiWindow::addCgmsData()
 
 
 void NLSimpleGuiWindow::addCarbData()
 {
+  DataInputGui inputGui( &(m_model->m_mealData),
+                         "Enter new Meal Data",
+                         int(CgmsDataImport::GlucoseEaten),
+                         this );
+  inputGui.show();
+  inputGui.raise();
+  inputGui.exec();
 }// void NLSimpleGuiWindow::addCarbData()
 
 
 void NLSimpleGuiWindow::addMeterData()
 {
+  DataInputGui inputGui( &(m_model->m_fingerMeterData),
+                         "Enter new Meter Data",
+                         int(CgmsDataImport::MeterReading),
+                         this );
+  inputGui.show();
+  inputGui.raise();
+  inputGui.exec();
 }// void NLSimpleGuiWindow::addMeterData()
 
 
 void NLSimpleGuiWindow::addCustomEventData()
 {
+  DataInputGui inputGui( &(m_model->m_customEvents),
+                         "Enter new Meter Data",
+                         int(CgmsDataImport::GenericEvent),
+                         this );
+  inputGui.show();
+  inputGui.raise();
+  inputGui.exec();
 }// void NLSimpleGuiWindow::addCustomEventData()
 
 
@@ -186,9 +241,7 @@ void NLSimpleGuiWindow::refreshPredictions()
 }// void NLSimpleGuiWindow::refreshPredictions()
 
 
-void NLSimpleGuiWindow::updateDelayAndError()
-{
-}// void NLSimpleGuiWindow::updateDelayAndError()
+
 
 void NLSimpleGuiWindow::zoomModelPreviewPlus( double factor )
 {
@@ -239,35 +292,13 @@ void NLSimpleGuiWindow::zoomModelPreviewMinus()
 void NLSimpleGuiWindow::cleanupClarkAnalysis()
 {
   TCanvas *can = ui->clarkeErrorGridWidget->GetCanvas();
-  can->cd();
-  can->SetEditable( kTRUE );
-  TObject *obj;
-  for( TIter nextObj(can->GetListOfPrimitives()); (obj = nextObj()); )
-  {
-    string className = obj->ClassName();
-    if( className != "TFrame" ) delete obj;
-  }//for(...)
-  can->Update();
+  cleanCanvas( can, "TFrame" );
 
   can = ui->clarkeLegendWidget->GetCanvas();
-  can->cd();
-  can->SetEditable( kTRUE );
-  for( TIter nextObj(can->GetListOfPrimitives()); (obj = nextObj()); )
-  {
-    string className = obj->ClassName();
-    if( className != "TFrame" ) delete obj;
-  }//for(...)
-  can->Update();
+  cleanCanvas( can, "TFrame" );
 
   can = ui->clarkResultsWidget->GetCanvas();
-  can->cd();
-  can->SetEditable( kTRUE );
-  for( TIter nextObj(can->GetListOfPrimitives()); (obj = nextObj()); )
-  {
-    string className = obj->ClassName();
-    if( className != "TFrame" ) delete obj;
-  }//for(...)
-  can->Update();
+  cleanCanvas( can, "TFrame" );
 }// void NLSimpleGuiWindow::cleanupClarkAnalysis()
 
 
@@ -375,6 +406,7 @@ void NLSimpleGuiWindow::openNewModel()
   QString newFileName;
   NlSimpleCreate createDialog( newModel, &newFileName, this );
   createDialog.show();
+  createDialog.raise();
   createDialog.setModal(true);
   createDialog.exec();
 
