@@ -1,5 +1,6 @@
 #include "nlsimpleguiwindow.h"
 #include "ui_nlsimpleguiwindow.h"
+#include "ProgramOptionsGui.hh"
 
 #include "MiscGuiUtils.hh"
 #include "ResponseModel.hh"
@@ -29,10 +30,12 @@ using namespace std;
 
 NLSimpleGuiWindow::NLSimpleGuiWindow( NLSimple *model, QWidget *parent)
     : QMainWindow(parent), ui(new Ui::NLSimpleGuiWindow), m_model(model),
-      m_ownsModel(model==NULL), m_fileName(""), m_equationPt(NULL)
+      m_ownsModel(model==NULL), m_fileName(""), m_equationPt(NULL),
+      m_programOptionsGui(NULL)
 {
   ui->setupUi(this);
   if( !m_model ) openNewModel();
+  if( !m_model ) quit();
 
   QMenu *fileMenu = ui->menuBar->addMenu( "&File" );
   QAction *newAction = fileMenu->addAction( "&new model" );
@@ -83,6 +86,10 @@ NLSimpleGuiWindow::NLSimpleGuiWindow( NLSimple *model, QWidget *parent)
   tw->setTabText( tw->indexOf(ui->optionsTab),     "Options"    );
   tw->setTabText( tw->indexOf(ui->clarkeGridTab),  "Error Grid" );
 
+  ui->endDisplayTime->setCalendarPopup(true);
+  ui->startDisplayTime->setCalendarPopup(true);
+  // ui->endDisplayTime->setDisplayFormat("MMM dd yy hh:mm AP");
+  // ui->startDisplayTime->setDisplayFormat("MMM dd yy hh:mm AP");
 
   connect( ui->geneticOptimizeButton, SIGNAL(clicked()), this, SLOT(doGeneticOptimization()) );
   connect( ui->baysianFineTuneButton, SIGNAL(clicked()), this, SLOT(doMinuit2Fit())          );
@@ -90,15 +97,38 @@ NLSimpleGuiWindow::NLSimpleGuiWindow( NLSimple *model, QWidget *parent)
   connect( ui->addMealDataButton,     SIGNAL(clicked()), this, SLOT(addCarbData())           );
   connect( ui->addMeterDataButton,    SIGNAL(clicked()), this, SLOT(addMeterData())          );
   connect( ui->addCustonDataBustom,   SIGNAL(clicked()), this, SLOT(addCustomEventData())    );
+  connect( ui->redrawButton,          SIGNAL(clicked()), this, SLOT(drawModel())             );
+  connect( ui->zoomIn,                SIGNAL(clicked()), this, SLOT(zoomModelPreviewPlus())  );
+  connect( ui->zoomOut,               SIGNAL(clicked()), this, SLOT(zoomModelPreviewMinus()) );
+  connect( ui->zoomIn,                SIGNAL(clicked()), this, SLOT(zoomModelPreviewPlus())  );
+  connect( ui->endDisplayTime,        SIGNAL(dateTimeChanged(QDateTime)), this, SLOT(checkDisplayTimeLimitsConsistency()) );
+  connect( ui->startDisplayTime,      SIGNAL(dateTimeChanged(QDateTime)), this, SLOT(checkDisplayTimeLimitsConsistency()) );
+  connect( ui->endDisplayTime,        SIGNAL(editingFinished()), this, SLOT(drawModel())    );
+  connect( ui->startDisplayTime,      SIGNAL(editingFinished()), this, SLOT(drawModel())    );
 
   init();
-}//NLSimpleGuiWindow cinstructor
+}//NLSimpleGuiWindow constructor
 
 
 
 void NLSimpleGuiWindow::init()
 {
+  if( !m_model ) return;
+
   m_model->m_gui = this;
+
+  ui->tabWidget->setCurrentWidget(ui->optionsTab);
+
+  if(m_programOptionsGui) delete m_programOptionsGui; // will probably cause a seg fault..
+  m_programOptionsGui = new ProgramOptionsGui( &(m_model->m_settings) , ui->optionsTab);
+  QLayout *layout = new QVBoxLayout( ui->optionsTab );
+  layout->addWidget( m_programOptionsGui );
+  m_programOptionsGui->setLayout( layout );
+
+
+  ui->endDisplayTime->setDateTime( posixTimeToQTime(kGenericT0) );
+  ui->startDisplayTime->setDateTime( posixTimeToQTime(kGenericT0) );
+  setMinMaxDisplayLimits();
 
   drawModel();
   drawEquations();
@@ -106,6 +136,8 @@ void NLSimpleGuiWindow::init()
 
   ui->tabWidget->setCurrentWidget(ui->modelDisplyTab);
 }//void NLSimpleGuiWindow::init()
+
+
 
 
 NLSimpleGuiWindow::~NLSimpleGuiWindow()
@@ -133,7 +165,19 @@ void NLSimpleGuiWindow::drawModel()
   TCanvas *can = getModelCanvas();
   cleanCanvas( can, "TFrame" ); //lets ovoid memmory clutter
 
-  m_model->draw( false );
+  PosixTime endTime = qtimeToPosixTime( ui->endDisplayTime->dateTime() );
+  PosixTime startTime = qtimeToPosixTime( ui->startDisplayTime->dateTime() );
+
+  TimeDuration deltaGeneric = (endTime-kGenericT0);
+  if( deltaGeneric.is_negative() ) deltaGeneric = -deltaGeneric;
+  if( deltaGeneric < TimeDuration(0,0,2,0) ) endTime = kGenericT0;
+
+  deltaGeneric = (startTime-kGenericT0);
+  if( deltaGeneric.is_negative() ) deltaGeneric = -deltaGeneric;
+  if( deltaGeneric < TimeDuration(0,0,2,0) ) startTime = kGenericT0;
+
+
+  m_model->draw( false, startTime, endTime );
   can->SetEditable( kFALSE );
   can->Update();
 }//void NLSimpleGuiWindow::drawModel()
@@ -196,7 +240,13 @@ void NLSimpleGuiWindow::addCgmsData()
                          this );
   inputGui.show();
   inputGui.raise();
-  inputGui.exec();
+
+  const int returnCode = inputGui.exec();
+  if( returnCode )
+  {
+    setMinMaxDisplayLimits();
+    drawModel();
+  }//if( returnCode )
 }// void NLSimpleGuiWindow::addCgmsData()
 
 
@@ -208,7 +258,13 @@ void NLSimpleGuiWindow::addCarbData()
                          this );
   inputGui.show();
   inputGui.raise();
-  inputGui.exec();
+
+  const int returnCode = inputGui.exec();
+  if( returnCode )
+  {
+    setMinMaxDisplayLimits();
+    drawModel();
+  }//if( returnCode )
 }// void NLSimpleGuiWindow::addCarbData()
 
 
@@ -220,7 +276,13 @@ void NLSimpleGuiWindow::addMeterData()
                          this );
   inputGui.show();
   inputGui.raise();
-  inputGui.exec();
+
+  const int returnCode = inputGui.exec();
+  if( returnCode )
+  {
+    setMinMaxDisplayLimits();
+    drawModel();
+  }//if( returnCode )
 }// void NLSimpleGuiWindow::addMeterData()
 
 
@@ -232,7 +294,13 @@ void NLSimpleGuiWindow::addCustomEventData()
                          this );
   inputGui.show();
   inputGui.raise();
-  inputGui.exec();
+
+  const int returnCode = inputGui.exec();
+  if( returnCode )
+  {
+    setMinMaxDisplayLimits();
+    drawModel();
+  }//if( returnCode )
 }// void NLSimpleGuiWindow::addCustomEventData()
 
 
@@ -243,7 +311,7 @@ void NLSimpleGuiWindow::refreshPredictions()
 
 
 
-void NLSimpleGuiWindow::zoomModelPreviewPlus( double factor )
+void NLSimpleGuiWindow::zoomModelPreview( double factor )
 {
   TQtWidget *qtWidget = ui->m_modelDisplayWidget;
   QScrollArea *scrollArea = ui->m_modelDisplayScrollArea;
@@ -275,18 +343,93 @@ void NLSimpleGuiWindow::zoomModelPreviewPlus( double factor )
 
   can->Update();
   can->SetEditable( kFALSE );
-}//void NLSimpleGuiWindow::zoomModelPreviewPlus( double factor )
+}//void NLSimpleGuiWindow::zoomModelPreview( double factor )
 
 void NLSimpleGuiWindow::zoomModelPreviewPlus()
 {
-  zoomModelPreviewPlus(1.1);
+  zoomModelPreview(1.1);
 }// void NLSimpleGuiWindow::zoomModelPreviewPlus()
 
 
 void NLSimpleGuiWindow::zoomModelPreviewMinus()
 {
-  zoomModelPreviewPlus(0.9);
+  zoomModelPreview(0.9);
 }// void NLSimpleGuiWindow::zoomModelPreviewMinus()
+
+void NLSimpleGuiWindow::setMinMaxDisplayLimits()
+{
+  //Probably isn't necassary to change widgets, but I was having some trouble
+  //  before getting a NULL painter with TQWidget...
+  QWidget *origTabWidget = ui->tabWidget->currentWidget();
+  ui->tabWidget->setCurrentWidget(ui->modelDisplyTab);
+
+  PosixTime start(kGenericT0), end(kGenericT0);
+  if( !m_model->m_cgmsData.empty() )
+  {
+    end   = m_model->m_cgmsData.getEndTime();
+    start = m_model->m_cgmsData.getStartTime();
+
+    m_programOptionsGui->setTrainingTimeLimits(start, end, true);
+
+    if( !m_model->m_predictedBloodGlucose.empty() )
+    {
+      end   = max( end, m_model->m_predictedBloodGlucose.getEndTime() );
+      start = min( start, m_model->m_predictedBloodGlucose.getStartTime() );
+    }//if( have CGMS data )
+  }else if( !m_model->m_predictedBloodGlucose.empty() )
+  {
+    end   = m_model->m_predictedBloodGlucose.getEndTime();
+    start = m_model->m_predictedBloodGlucose.getStartTime();
+  }//if( have CGMS data )
+
+  //m_model->m_glucoseAbsorbtionRate
+  //m_model->m_freePlasmaInsulin
+  //m_model->m_predictedInsulinX
+
+  if( (start==kGenericT0) || (end==kGenericT0) ) return;
+
+  ui->endDisplayTime->setDateTimeRange( posixTimeToQTime(start), posixTimeToQTime(end) );
+  ui->startDisplayTime->setDateTimeRange( posixTimeToQTime(start), posixTimeToQTime(end) );
+
+  // if( posixTimeToQTime(kGenericT0) == ui->endDisplayTime->dateTime() )
+   //  ui->endDisplayTime->setDateTime( posixTimeToQTime(end) );
+  // if( posixTimeToQTime(kGenericT0) == ui->startDisplayTime->dateTime() )
+    // ui->startDisplayTime->setDateTime( posixTimeToQTime(start) );
+
+  ui->endDisplayTime->setDateTime( posixTimeToQTime(end) );
+  ui->startDisplayTime->setDateTime( posixTimeToQTime(start) );
+
+  ui->tabWidget->setCurrentWidget(origTabWidget);
+}//void NLSimpleGuiWindow:setMinMaxDisplayLimits()
+
+
+//Check to make sure display time comes before end display time
+void NLSimpleGuiWindow::checkDisplayTimeLimitsConsistency()
+{
+  QDateTimeEdit *endEntry = ui->endDisplayTime;
+  QDateTimeEdit *startEntry = ui->startDisplayTime;
+
+  if( startEntry->dateTime() <= endEntry->dateTime() )
+    return;
+  if( posixTimeToQTime(kGenericT0) == endEntry->dateTime() )
+    return;
+  if( posixTimeToQTime(kGenericT0) == startEntry->dateTime() )
+    return;
+
+  QObject *caller = QObject::sender();
+  if( caller == dynamic_cast<QObject *>(endEntry) )
+  {
+    endEntry->setDateTime( startEntry->dateTime() );
+  }else if( caller == dynamic_cast<QObject *>(startEntry) )
+  {
+    startEntry->setDateTime( endEntry->dateTime() );
+  }else
+  {
+    cout << "void NLSimpleGuiWindow::checkDisplayTimeLimitsConsistency()"
+         << " error in caller logic" << endl;
+    endEntry->setDateTime( startEntry->dateTime() );
+  }//
+}//void NLSimpleGuiWindow::checkDisplayTimeLimitsConsistency()
 
 
 void NLSimpleGuiWindow::cleanupClarkAnalysis()
@@ -373,6 +516,8 @@ void NLSimpleGuiWindow::drawClarkAnalysis( const ConsentrationGraph &xGraph,
   for( size_t i=6; i < clarkesObj.size(); ++i ) clarkesObj[i]->Draw();
   can->SetEditable( kFALSE );
   can->Update();
+  // can->ResizePad();
+  // ui->clarkeErrorGridWidget->Refresh();
 
   can = ui->clarkeLegendWidget->GetCanvas();
   can->cd();

@@ -142,12 +142,24 @@ QDateTime posixTimeToQTime( const PosixTime &time )
 }
 
 
+QTime durationToQTime( const TimeDuration &duration )
+{
+  return QTime( duration.hours(), duration.minutes(), duration.seconds(), duration.total_milliseconds()%1000 );
+}//QTime durationToQTime( const TimeDuration &duration )
+
+TimeDuration qtTimeToDuration( const QTime &time )
+{
+  TimeDuration dur(time.hour(), time.minute(), time.second(), 0);
+  dur += boost::posix_time::milliseconds( time.msec() );
+  return dur;
+}//TimeDuration qtTimeToDuration( const QTime &time );
 
 void cleanCanvas( TCanvas *can, const std::string &classNotToDelete )
 {
   if( !can ) return;
   can->cd();
   can->SetEditable( kTRUE );
+  can->Update();
 
   TObject *obj;
   TList *list = can->GetListOfPrimitives();

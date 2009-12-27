@@ -191,9 +191,9 @@ void NLSimpleGui::addProgramOptionsTab()
   int width = m_tabWidget->GetWidth();
   int height =  m_tabWidget->GetHeight();
 
-  ProgramOptionsGui *settingsEntry = new ProgramOptionsGui( m_tabWidget, m_model, width, height );
+  ProgramOptionsGuiROOT *settingsEntry = new ProgramOptionsGuiROOT( m_tabWidget, m_model, width, height );
   m_tabWidget->AddTab("Settings", settingsEntry );
-  ((ProgramOptionsGui *)settingsEntry)->Connect( "valueChanged(UInt_t)", "NLSimpleGui", this, "setModelSettingChanged(UInt_t)");
+  ((ProgramOptionsGuiROOT *)settingsEntry)->Connect( "valueChanged(UInt_t)", "NLSimpleGui", this, "setModelSettingChanged(UInt_t)");
 }//addProgramOptionsTab
 
 

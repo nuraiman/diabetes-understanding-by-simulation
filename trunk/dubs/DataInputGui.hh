@@ -10,6 +10,7 @@ namespace Ui {
     class DataInputGui;
 }
 
+//Returns a '1' if you added points, a '0' if you clicked cancel
 class DataInputGui : public QDialog {
     Q_OBJECT
 public:
@@ -30,6 +31,7 @@ private:
     int m_type;
 
 private slots:
+    void cancelOperation();
     void readFromFile();
     void readSingleInputCloseWindow();
 };

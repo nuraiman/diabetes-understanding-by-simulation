@@ -218,7 +218,7 @@ void ModelSettings::serialize( Archive &ar, const unsigned int version )
 
 
 
-TGNumberEntry *ProgramOptionsGui::addNewEntryField( TGVerticalFrame *parentFrame,
+TGNumberEntry *ProgramOptionsGuiROOT::addNewEntryField( TGVerticalFrame *parentFrame,
                                             const char *label,
                                             double defaultNumer,
                                             TGNumberFormat::EStyle format,
@@ -274,14 +274,14 @@ TGNumberEntry *ProgramOptionsGui::addNewEntryField( TGVerticalFrame *parentFrame
   };//switch(format)
 
   parentFrame->AddFrame(entry, new TGLayoutHints(kLHintsLeft | kLHintsTop,2,2,2,2));
-  if(connect) entry->Connect( "ValueSet(Long_t)", "ProgramOptionsGui", this, connect );
+  if(connect) entry->Connect( "ValueSet(Long_t)", "ProgramOptionsGuiROOT", this, connect );
 
   return entry;
 }//
 
 
 
-ProgramOptionsGui::ProgramOptionsGui( const TGWindow *parentW, NLSimple *model,
+ProgramOptionsGuiROOT::ProgramOptionsGuiROOT( const TGWindow *parentW, NLSimple *model,
                                       UInt_t w, UInt_t h )
   : TGCompositeFrame( parentW, w, h - 21),
     m_model( model ),
@@ -415,24 +415,24 @@ ProgramOptionsGui::ProgramOptionsGui( const TGWindow *parentW, NLSimple *model,
   horizantalFrame->AddFrame( geneticVF, horizHints);
 
   AddFrame(horizantalFrame, verticalHints);
-}//ProgramOptionsGui
+}//ProgramOptionsGuiROOT
 
 
 
-void ProgramOptionsGui::valueChanged(UInt_t bitmask)
+void ProgramOptionsGuiROOT::valueChanged(UInt_t bitmask)
 {
   assert(bitmask);  //should only be called for a reason
 
   if( m_debug ) cout << "Emitting valueChanged(0x" << hex << bitmask << dec << ")" << endl;
 
   Emit( "valueChanged(UInt_t)", bitmask );
-}//ProgramOptionsGui::valueChanged()
+}//ProgramOptionsGuiROOT::valueChanged()
 
 
 
 
 
-void ProgramOptionsGui::optionValueChanged()
+void ProgramOptionsGuiROOT::optionValueChanged()
 {
   unsigned int changedPar = 0x0;
 
@@ -472,7 +472,7 @@ void ProgramOptionsGui::optionValueChanged()
 
 
 
-void ProgramOptionsGui::modelCalcValueChanged()
+void ProgramOptionsGuiROOT::modelCalcValueChanged()
 {
   unsigned int changedPar = 0x0;
 
@@ -581,7 +581,7 @@ void ProgramOptionsGui::modelCalcValueChanged()
 }//modelCalcValueChanged()
 
 
-void ProgramOptionsGui::personConstChanged()
+void ProgramOptionsGuiROOT::personConstChanged()
 {
   unsigned int changedPar = 0x0;
 

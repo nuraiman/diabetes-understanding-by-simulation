@@ -542,3 +542,32 @@ void NlSimpleCreate::changeMassUnits()
   m_useKgs = !m_useKgs;
 }//void NlSimpleCreate::changeMassUnits()
 
+
+void NlSimpleCreate::checkDisplayTimeLimitsConsistency()
+{
+  QDateTimeEdit *endEntry = m_ui->m_endDateEntry;
+  QDateTimeEdit *startEntry = m_ui->m_startDateEntry;
+
+  if( startEntry->dateTime() <= endEntry->dateTime() )
+    return;
+  if( posixTimeToQTime(kGenericT0) == endEntry->dateTime() )
+    return;
+  if( posixTimeToQTime(kGenericT0) == startEntry->dateTime() )
+    return;
+
+  QObject *caller = QObject::sender();
+  if( caller == dynamic_cast<QObject *>(endEntry) )
+  {
+    endEntry->setDateTime( startEntry->dateTime() );
+  }else if( caller == dynamic_cast<QObject *>(startEntry) )
+  {
+    startEntry->setDateTime( endEntry->dateTime() );
+  }else
+  {
+    cout << "void NlSimpleCreate::checkDisplayTimeLimitsConsistency()"
+         << " error in caller logic" << endl;
+    endEntry->setDateTime( startEntry->dateTime() );
+  }//
+}//void NlSimpleCreate::checkDisplayTimeLimitsConsistency()
+
+
