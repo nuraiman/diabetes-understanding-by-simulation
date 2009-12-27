@@ -144,9 +144,9 @@ class ModelSettings
 //  ProgramOptionsGui::valueChanged(UInt_t bitmask) emitting a signal
 //    which this seems less than ideal, but to be worried about later
 class NLSimple;
-class ProgramOptionsGui : public TGCompositeFrame
+class ProgramOptionsGuiROOT : public TGCompositeFrame
 {
-    RQ_OBJECT("ProgramOptionsGui")
+    RQ_OBJECT("ProgramOptionsGuiROOT")
   public:
     enum ProgOptionEnum
     {
@@ -167,7 +167,7 @@ class ProgramOptionsGui : public TGCompositeFrame
 
     //Pass in  w and h of the parent window, if model!=NULL, then model will
     //  be updated when the gui is changed
-    ProgramOptionsGui( const TGWindow *parentW, NLSimple *model, UInt_t w, UInt_t h );
+    ProgramOptionsGuiROOT( const TGWindow *parentW, NLSimple *model, UInt_t w, UInt_t h );
 
     TGNumberEntry *addNewEntryField( TGVerticalFrame *parentFrame,
                                      const char *label, double defaultNumer,
@@ -180,7 +180,7 @@ class ProgramOptionsGui : public TGCompositeFrame
     void modelCalcValueChanged();      // *SIGNAL*
     void personConstChanged();         // *SIGNAL*
 
-    ClassDef(ProgramOptionsGui, 0 );
+    ClassDef(ProgramOptionsGuiROOT, 0 );
 };
 
 

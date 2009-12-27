@@ -71,6 +71,7 @@ private slots:
     void changeMassUnits();
     void zoomInX();
     void zoomOutX();
+    void checkDisplayTimeLimitsConsistency();
 };
 
 #endif // NLSIMPLE_CREATE_H

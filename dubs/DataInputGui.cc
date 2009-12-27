@@ -24,7 +24,7 @@ DataInputGui::DataInputGui( ConsentrationGraph *graph,
   //m_ui->importButton->setText("Get Data\nFrom File" );
   connect( m_ui->importButton, SIGNAL(clicked()), this, SLOT(readFromFile()) );
   connect( m_ui->okButton, SIGNAL(clicked()), this, SLOT(readSingleInputCloseWindow()) );
-  connect( m_ui->cancelButton, SIGNAL(clicked()), this, SLOT(close()) );
+  connect( m_ui->cancelButton, SIGNAL(clicked()), this, SLOT(cancelOperation()) );
 
   switch( m_type )
   {
@@ -78,7 +78,6 @@ void DataInputGui::readFromFile()
 {
   const GraphType graphType = m_graph->getGraphType();
 
-  //Following test will probably fail my first time through...
   switch( m_type )
   {
     case CgmsDataImport::CgmsReading:       assert( graphType == GlucoseConsentrationGraph ); break;
@@ -90,7 +89,7 @@ void DataInputGui::readFromFile()
     assert(0);
   };//switch(type)
 
-  ConsentrationGraph *newData = openConsentrationGraph( this, graphType );
+  ConsentrationGraph *newData = openConsentrationGraph( this, m_type );
   if( !newData ) return;
 
   m_graph->addNewDataPoints( *newData );
@@ -99,6 +98,10 @@ void DataInputGui::readFromFile()
   done(1);
 }//void readFromFile()
 
+void DataInputGui::cancelOperation()
+{
+  done(0);
+}//void DataInputGui::cancelOperation()
 
 void DataInputGui::readSingleInputCloseWindow()
 {

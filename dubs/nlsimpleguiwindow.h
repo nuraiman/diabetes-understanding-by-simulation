@@ -9,6 +9,8 @@ class TPaveText;
 class ConsentrationGraph;
 class QButtonGroup;
 class TCanvas;
+class ProgramOptionsGui;
+
 
 namespace Ui
 {
@@ -34,6 +36,7 @@ private:
     std::string m_fileName;
     TPaveText *m_equationPt;
     QButtonGroup *m_clarkeButtonGroup;
+    ProgramOptionsGui *m_programOptionsGui;
 
 private slots:
     void openExistingModel();
@@ -54,7 +57,9 @@ private slots:
     void refreshPredictions();
     void zoomModelPreviewPlus();
     void zoomModelPreviewMinus();
-    void zoomModelPreviewPlus( double factor ); //amount = fraction of current width
+    void zoomModelPreview( double factor ); //amount = fraction of current width
+    void setMinMaxDisplayLimits();
+    void checkDisplayTimeLimitsConsistency();
     void cleanupClarkAnalysis();
     void refreshClarkAnalysis();
     void drawClarkAnalysis( const ConsentrationGraph &xGraph,

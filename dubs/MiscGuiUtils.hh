@@ -19,7 +19,8 @@ ConsentrationGraph *openConsentrationGraph( QWidget *parent = 0, int graphType =
 
 PosixTime qtimeToPosixTime( const QDateTime &qdt );
 QDateTime posixTimeToQTime( const PosixTime &time );
-
+QTime durationToQTime( const TimeDuration &duration );
+TimeDuration qtTimeToDuration( const QTime &time );
 
 void cleanCanvas( TCanvas *can, const std::string &classNotToDelete );
 
