@@ -123,10 +123,11 @@ void NlSimpleCreate::findTimeLimits()
                       || m_meterData || m_customData );
   }//if( m_userSetTime )
 
-  PosixTime currStartTime = qtimeToPosixTime( m_ui->m_startDateEntry->dateTime() );
+  //PosixTime currStartTime = qtimeToPosixTime( m_ui->m_startDateEntry->dateTime() );
   PosixTime currEndTime = qtimeToPosixTime( m_ui->m_endDateEntry->dateTime() );
 
-  if( (currEndTime == kGenericT0) && (currEndTime == kGenericT0)) m_userSetTime = false;
+  if( (currEndTime == kGenericT0) && (currEndTime == kGenericT0))
+    m_userSetTime = false;
 
   if( m_userSetTime ) return;
 
@@ -149,8 +150,10 @@ void NlSimpleCreate::findTimeLimits()
 
   if( m_carbConsumptionData )
   {
-    PosixTime end = m_carbConsumptionData->getEndTime() + TimeDuration( 24, 0, 0, 0 );
-    PosixTime start = m_carbConsumptionData->getStartTime() - TimeDuration( 24, 0, 0, 0 );
+    PosixTime end = m_carbConsumptionData->getEndTime()
+                   + TimeDuration( 24, 0, 0, 0 );
+    PosixTime start = m_carbConsumptionData->getStartTime()
+                      - TimeDuration( 24, 0, 0, 0 );
     startTime = std::max( startTime, start );
     endTime = (endTime == kGenericT0) ? end : std::min( endTime, end );
   }//if( m_carbConsumptionData )
@@ -311,9 +314,11 @@ void NlSimpleCreate::updateModelGraphSize(int tabNumber)
        scrollArea->setHorizontalScrollBarPolicy( Qt::ScrollBarAlwaysOff );
     else scrollArea->setHorizontalScrollBarPolicy ( Qt::ScrollBarAsNeeded );
 
-    const int newWidth = nPages * scrollArea->width();
-    qtWidget->setMinimumSize( newWidth, scrollArea->height() - scrollArea->verticalScrollBar()->height() );
-    qtWidget->setMaximumSize( newWidth, scrollArea->height() - scrollArea->verticalScrollBar()->height() );
+    const int newWidth  = nPages * scrollArea->width();
+    const int newHeight = scrollArea->height()
+                          - scrollArea->verticalScrollBar()->height();
+    qtWidget->setMinimumSize( newWidth, newHeight );
+    qtWidget->setMaximumSize( newWidth, newHeight );
   }//if( nMinutes > 1 )
 
   can->Update();
@@ -323,7 +328,8 @@ void NlSimpleCreate::updateModelGraphSize(int tabNumber)
 
 void NlSimpleCreate::addCgmsData()
 {
-    ConsentrationGraph *newData = openConsentrationGraph( this, CgmsDataImport::CgmsReading );
+    ConsentrationGraph *newData = openConsentrationGraph( this,
+                                                  CgmsDataImport::CgmsReading );
     if( m_cgmsData && newData )
     {
       m_cgmsData->addNewDataPoints( *newData );
@@ -342,7 +348,8 @@ void NlSimpleCreate::addCgmsData()
 
 void NlSimpleCreate::addBolusData()
 {
-    ConsentrationGraph *newData = openConsentrationGraph( this, CgmsDataImport::BolusTaken );
+    ConsentrationGraph *newData = openConsentrationGraph( this,
+                                                   CgmsDataImport::BolusTaken );
 
     if( m_bolusData && newData )
     {
@@ -363,7 +370,8 @@ void NlSimpleCreate::addBolusData()
 
 void NlSimpleCreate::addCarbData()
 {
-  ConsentrationGraph *newData = openConsentrationGraph( this, CgmsDataImport::GlucoseEaten );
+  ConsentrationGraph *newData = openConsentrationGraph( this,
+                                                 CgmsDataImport::GlucoseEaten );
 
   if( m_carbConsumptionData && newData )
   {
@@ -383,7 +391,8 @@ void NlSimpleCreate::addCarbData()
 
 void NlSimpleCreate::addMeterData()
 {
-    ConsentrationGraph *newData = openConsentrationGraph( this, CgmsDataImport::MeterReading );
+    ConsentrationGraph *newData = openConsentrationGraph( this,
+                                                 CgmsDataImport::MeterReading );
     if( m_meterData && newData )
     {
       m_meterData->addNewDataPoints( *newData );
@@ -403,7 +412,8 @@ void NlSimpleCreate::addMeterData()
 
 void NlSimpleCreate::addCustomData()
 {
-    ConsentrationGraph *newData = openConsentrationGraph( this, CgmsDataImport::GenericEvent );
+    ConsentrationGraph *newData = openConsentrationGraph( this,
+                                                CgmsDataImport::GenericEvent );
     if( m_customData && newData )
     {
       m_customData->addNewDataPoints( *newData );
@@ -432,7 +442,7 @@ void NlSimpleCreate::constructModel()
   double insPerHour = m_ui->m_basalInsulinAmount->value();
   if( insPerHour <= 0.0 )
   {
-      cout << "Error in your program, for some reason basal insulin has a rate of "
+      cout << "Error in program, for some reason basal insulin has a rate of "
            << insPerHour << endl;
       m_ui->m_createButton->setEnabled(false);
       return;
@@ -453,7 +463,10 @@ void NlSimpleCreate::constructModel()
   if(m_meterData) m_meterData->trim( startTime, endTime, false );
   if(m_customData) m_customData->trim( startTime, endTime, false );
 
-  m_model = new NLSimple( "SimpleModel", insPerHour, ProgramOptions::kBasalGlucConc, m_bolusData->getStartTime() );
+  m_model = new NLSimple( "SimpleModel",
+                          insPerHour,
+                          ProgramOptions::kBasalGlucConc,
+                          m_bolusData->getStartTime() );
   m_model->addBolusData( *m_bolusData );
   m_model->addCgmsData( *m_cgmsData );
   m_model->addGlucoseAbsorption( *m_carbConsumptionData );
@@ -530,7 +543,7 @@ void NlSimpleCreate::changeMassUnits()
   if( m_useKgs )
   {
     double kgs = (double) m_ui->m_weightInput->value();
-    m_ui->m_weightInput->setValue(kgs * 2.20462262 + 2); //the 2 is cause of integer truncations
+    m_ui->m_weightInput->setValue(kgs * 2.20462262 + 2); //2 'fixes' int trunc
     m_ui->m_unitButton->setText("lbs");
   }else
   {

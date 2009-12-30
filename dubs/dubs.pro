@@ -25,7 +25,8 @@ SOURCES += main.cpp \
     MiscGuiUtils.cc \
     nlsimple_create.cpp \
     DataInputGui.cc \
-    ProgramOptionsGui.cc
+    ProgramOptionsGui.cc \
+    CustomEventDefineGui.cpp
 HEADERS += nlsimpleguiwindow.h \
     ArtificialPancrease.hh \
     ConsentrationGraphGui.hh \
@@ -39,7 +40,8 @@ HEADERS += nlsimpleguiwindow.h \
     MiscGuiUtils.hh \
     nlsimple_create.h \
     DataInputGui.hh \
-    ProgramOptionsGui.hh
+    ProgramOptionsGui.hh \
+    CustomEventDefineGui.h
 
 # below assumes NLSimpleGui_linkdef containes all the '#pragma link C++ class ClassName;' statments in it
 CREATE_ROOT_DICT_FOR_CLASSES = ConsentrationGraphGui.hh \
@@ -49,7 +51,8 @@ CREATE_ROOT_DICT_FOR_CLASSES = ConsentrationGraphGui.hh \
 FORMS = nlsimpleguiwindow.ui \
     nlsimple_create.ui \
     DataInputGui.ui \
-    ProgramOptionsGui.ui
+    ProgramOptionsGui.ui \
+    CustomEventDefineGui.ui
 includeDir = $$(QTROOTSYSDIR)/include
 incFile = $$includeDir/rootcint.pri
 exists ($$includeDir):exists ($$incFile):include ($$incFile)# Win32 wants us to check the directory existence separately

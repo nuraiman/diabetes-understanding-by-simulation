@@ -1,6 +1,7 @@
 #include "nlsimpleguiwindow.h"
 #include "ui_nlsimpleguiwindow.h"
 #include "ProgramOptionsGui.hh"
+#include "CustomEventDefineGui.h"
 
 #include "MiscGuiUtils.hh"
 #include "ResponseModel.hh"
@@ -17,9 +18,14 @@
 #include <QRadioButton>
 #include <QPushButton>
 #include <QScrollBar>
+#include <QMessageBox>
+#include <QModelIndex>
+
 
 #include <string>
 #include <vector>
+
+#include <boost/lexical_cast.hpp>
 
 #include "TH1F.h"
 #include "TPaveText.h"
@@ -105,6 +111,8 @@ NLSimpleGuiWindow::NLSimpleGuiWindow( NLSimple *model, QWidget *parent)
   connect( ui->startDisplayTime,      SIGNAL(dateTimeChanged(QDateTime)), this, SLOT(checkDisplayTimeLimitsConsistency()) );
   connect( ui->endDisplayTime,        SIGNAL(editingFinished()), this, SLOT(drawModel())    );
   connect( ui->startDisplayTime,      SIGNAL(editingFinished()), this, SLOT(drawModel())    );
+  connect( ui->addCustomEventButton,  SIGNAL(clicked()),         this, SLOT(addCustomEventDef())    );
+  connect( ui->deleteCustoEvenButton, SIGNAL(clicked()),         this, SLOT(deleteCustomEventDef()) );
 
   init();
 }//NLSimpleGuiWindow constructor
@@ -125,7 +133,6 @@ void NLSimpleGuiWindow::init()
   layout->addWidget( m_programOptionsGui );
   m_programOptionsGui->setLayout( layout );
 
-
   ui->endDisplayTime->setDateTime( posixTimeToQTime(kGenericT0) );
   ui->startDisplayTime->setDateTime( posixTimeToQTime(kGenericT0) );
   setMinMaxDisplayLimits();
@@ -133,6 +140,7 @@ void NLSimpleGuiWindow::init()
   drawModel();
   drawEquations();
   refreshClarkAnalysis();
+  updateCustomEventTab();
 
   ui->tabWidget->setCurrentWidget(ui->modelDisplyTab);
 }//void NLSimpleGuiWindow::init()
@@ -205,9 +213,6 @@ void NLSimpleGuiWindow::drawEquations()
 }// void NLSimpleGuiWindow::drawEquations()
 
 
-void NLSimpleGuiWindow::updateCustomEventTab()
-{
-}//void updateCustomEventTab()
 
 void NLSimpleGuiWindow::doGeneticOptimization()
 {
@@ -455,7 +460,7 @@ void NLSimpleGuiWindow::refreshClarkAnalysis()
   bool isCmgsVMeter = (m_clarkeButtonGroup->checkedId() == 0 );
 
   if( isCmgsVMeter ) drawClarkAnalysis( meterGraph, cmgsGraph, isCmgsVMeter );
-  else               drawClarkAnalysis( cmgsGraph, meterGraph, isCmgsVMeter );
+  else               drawClarkAnalysis( cmgsGraph, predictedGraph, isCmgsVMeter );
 }// void NLSimpleGuiWindow::refreshClarkAnalysis()
 
 
@@ -530,6 +535,85 @@ void NLSimpleGuiWindow::drawClarkAnalysis( const ConsentrationGraph &xGraph,
   can->Update();
 }// void NLSimpleGuiWindow::drawPredictedClarkAnalysis()
 
+
+
+int NLSimpleGuiWindow::getIdOfSelectedCustomEvent()
+{
+  QModelIndex currentIndex = ui->customEventListView->currentIndex();
+  string name = currentIndex.data(Qt::DisplayRole).toString().toStdString();
+  if( !name.length() )
+  {
+    cout << "Waring, you wanted a custom event with no name" << endl;
+    return -1;
+  }//if( shouldn't have hit delete button )
+
+  int index = -1;
+  NLSimple::EventDefIter iter = m_model->m_customEventDefs.begin();
+  for( ; iter != m_model->m_customEventDefs.end(); ++iter )
+  {
+    if( iter->second.getName() == name ) index = iter->first;
+  }//
+
+  if( index < 0 )
+  {
+    cout << "Couldn't find a Custom Events by the name '"
+         << name << "', please fix code in "
+         << "void NLSimpleGuiWindow::getIdOfSelectedCustomEvent()" << endl;
+    assert(index >= 0);
+  }//if( I messed up my logic)
+
+  return index;
+}//int NLSimpleGuiWindow::getIdOfSelectedCustomEvent()
+
+
+void NLSimpleGuiWindow::updateCustomEventTab()
+{
+  NLSimple::EventDefMap &evDefMap = m_model->m_customEventDefs;
+
+  QStandardItemModel *model = new QStandardItemModel(0, 3, parent);
+  model->setHeaderData(0, Qt::Horizontal, QObject::tr("ID"));
+  model->setHeaderData(1, Qt::Horizontal, QObject::tr("Name"));
+
+  NLSimple::EventDefIter iter = m_model->m_customEventDefs.begin();
+  for( ; iter != m_model->m_customEventDefs.end(); ++iter )
+  {
+    model->insertRow(0);
+    model->setData(model->index(0, 0), iter->first);
+    model->setData(model->index(0, 1), iter->second.getName().c_str() );
+  }//
+
+  //ui->customEventListView->selectedIndexes()
+
+}//void updateCustomEventTab()
+
+void NLSimpleGuiWindow::deleteCustomEventDef()
+{
+  //Get the message type with its associated name
+  const int index = getIdOfSelectedCustomEvent();
+  string name = m_model->m_customEventDefs[index].getName();
+
+  string message = "Really remove the Custom Event named ";
+  message += name + "with index " + boost::lexical_cast<string>(index) + "?";
+
+  QMessageBox::StandardButton reply;
+  reply = QMessageBox::warning(this, "Confirm Deletion!", message.c_str(),
+                               QMessageBox::Yes | QMessageBox::No );
+
+  if (reply == QMessageBox::No) return;
+
+  m_model->undefineCustomEvent( index );
+}//void NLSimpleGuiWindow::deleteCustomEventDef()
+
+
+void NLSimpleGuiWindow::addCustomEventDef()
+{
+  CustomEventDefineGui defGui(m_model, this);
+  defGui.show();
+  defGui.raise();
+  defGui.setModal(true);
+  defGui.exec();
+  updateCustomEventTab();
+}//void NLSimpleGuiWindow::addCustomEventDef()
 
 
 void NLSimpleGuiWindow::openExistingModel()

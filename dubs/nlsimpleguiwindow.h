@@ -65,7 +65,8 @@ private slots:
     void drawClarkAnalysis( const ConsentrationGraph &xGraph,
                             const ConsentrationGraph &yGraph,
                             bool isMeterVCgms );
-
+    void addCustomEventDef();
+    void deleteCustomEventDef();
     friend class NLSimple;
 };
 
