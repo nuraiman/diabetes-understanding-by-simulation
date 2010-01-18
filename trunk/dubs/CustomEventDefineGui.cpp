@@ -54,6 +54,7 @@ CustomEventDefineGui::CustomEventDefineGui(NLSimple *&model,  QWidget *parent) :
 
   connect(m_ui->buttonBox, SIGNAL(rejected()), this, SLOT(cancel()) );
   connect(m_ui->buttonBox, SIGNAL(accepted()), this, SLOT(addEventDefToModel()));
+  connect(m_ui->nameEdit,  SIGNAL(textChanged(QString)), this, SLOT(enableOkButton()));
 }//CustomEventDefineGui constructor
 
 

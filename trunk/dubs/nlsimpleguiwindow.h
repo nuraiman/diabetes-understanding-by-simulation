@@ -10,7 +10,7 @@ class ConsentrationGraph;
 class QButtonGroup;
 class TCanvas;
 class ProgramOptionsGui;
-
+class QStandardItemModel;
 
 namespace Ui
 {
@@ -28,6 +28,7 @@ public:
  protected:
      void init();
      TCanvas *getModelCanvas();
+     int getIdOfSelectedCustomEvent();
 
 private:
     Ui::NLSimpleGuiWindow *ui;
@@ -37,6 +38,7 @@ private:
     TPaveText *m_equationPt;
     QButtonGroup *m_clarkeButtonGroup;
     ProgramOptionsGui *m_programOptionsGui;
+    QStandardItemModel *m_customEventList;
 
 private slots:
     void openExistingModel();
@@ -67,6 +69,8 @@ private slots:
                             bool isMeterVCgms );
     void addCustomEventDef();
     void deleteCustomEventDef();
+    void drawSelectedCustomEvent();
+
     friend class NLSimple;
 };
 
