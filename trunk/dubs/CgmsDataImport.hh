@@ -22,6 +22,7 @@ namespace CgmsDataImport
     MiniMedCsv,
     Dexcom7Csv,  //I don't claim this works, actually is space or tab seperated
     NavigatorTab,
+    GenericCsv,  //header must contain kDateKey and kTimeKey, and no Minimed, Dexcom, or Navigator specific keys
     NumSpreadSheetSource
   };//
   

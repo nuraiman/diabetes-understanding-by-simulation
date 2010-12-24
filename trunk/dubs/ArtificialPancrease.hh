@@ -2,13 +2,11 @@
 #define ARTIFICIAL_PANCREASE_HH
 
 //Started Thursday April 23 2009 -- Will Johnson
+#include <string>
 #include <vector>
+#include <exception>
 #include "boost/date_time/posix_time/posix_time.hpp"
 #include "boost/foreach.hpp"
-
-//To install ROOT and QT4, just use the INSTALL_QTROOT.sh script at:
-//  http://root.bnl.gov/QtRoot/How2Install4Unix.html
-//  currently code is not dependant on QT, but I would like to use itin near future
 
 const double kFailValue = -9999.9;
 
@@ -45,5 +43,13 @@ const PosixTime kGenericT0( boost::gregorian::date(1982,
 const PosixTime kTGraphStartTime( boost::gregorian::date(2008,
                                   boost::gregorian::Jan, 1),
                                   TimeDuration( 0, 0, 0, 0) );
+
+class CouldntOpenException: public std::exception
+{
+public:
+  CouldntOpenException(){}
+  virtual const char* what() const throw()
+  { return "Couldn't open file"; }
+};//class CouldntOpenException
 
 #endif //ARTIFICIAL_PANCREASE_HH

@@ -67,7 +67,7 @@ CgmsDataImport::importSpreadsheet( string filename, InfoType type,
     {
       assert( source != NumSpreadSheetSource );
       TimeValuePair lineinfo = getInfoFromLine( currentLine, indMap, type, source );
-      
+
       
       //make sure not a something like 2 bolusses in the same minute, 
       //which would crash program later on. 
@@ -89,6 +89,7 @@ CgmsDataImport::importSpreadsheet( string filename, InfoType type,
         prevTime = lineinfo.first;
       }//the was a new time
     }//if( indMap.empty() ) / else
+
   }//while( !inputFile.eof() )
     
   
@@ -298,6 +299,29 @@ CgmsDataImport::getHeaderMap( std::string line )
       }//if( has DisplayTime )
     break;
     
+    case GenericCsv:
+     //lets make sure we don't have any unidentified headers
+      properKeyedMap = csvIndexMap;
+
+      foreach( string thisField, feilds )
+      {
+        if( (thisField != kMeterBgKey)
+          && (thisField != kCalibrationKey)
+          && (thisField != kDateKey)
+          && (thisField != kTimeKey)
+          && (thisField != kBolusKey)
+          && (thisField != kGlucoseKey)
+          && (thisField != kCgmsValueKey)
+          && (thisField != kIsigKey) )
+        {
+            cout << "CgmsDataImport::getHeaderMap(...): Warning, could not"
+                <<  "identify the header value '" << thisField << "', you"
+                << " may wish to check input formating." << endl;
+        }//if( check to see if this name is okay )
+      }//foreach column in header
+    break;
+
+
     case NavigatorTab:
     
     assert(0);
@@ -334,7 +358,9 @@ CgmsDataImport::getSpreadsheetTypeFromHeader( std::string header )
     return NavigatorTab;
   }//if( navigator )
   
-  
+  if( (header.find(kDateKey) != string::npos)
+     && (header.find(kTimeKey) != string::npos) ) return GenericCsv;
+
   return NumSpreadSheetSource;
 }//getSpreadsheetTypeFromHeader
   
@@ -355,13 +381,13 @@ CgmsDataImport::getEolCharacter( std::string fileName )
     exit(1);
   }//if( !inputFile.is_open() )
   
-  char line[2024];
-  inputFile.getline( line, 2023, '\n' );
+  char *line = new char[4048];
+  inputFile.getline( line, 4047, '\n' );
   //cout << "getEolCharacter(---): got line " << line << endl;
-
-  if( !inputFile.eof() ) return '\n';
-
   string lineStr = line;  //To get rid of some wierd compiler warning
+  delete line;
+
+  //if( !inputFile.eof() ) return '\n';
 
   foreach( const char c, lineStr )  //I like boost
   {
@@ -436,7 +462,7 @@ CgmsDataImport::getInfoFromLine( std::string line,
     case BolusTaken:       key = kBolusKey;       break;
     case ISig:             key = kIsigKey;        break;
     case GenericEvent:     
-      cout << "GenericEvent onlyimplemented for Navigator Freestyle only" << endl;
+      cout << "GenericEvent only implemented for Navigator Freestyle only" << endl;
     return TimeValuePair();
     
     assert(0);
@@ -458,7 +484,7 @@ CgmsDataImport::getInfoFromLine( std::string line,
   
   string delim = ",";
   if( source == Dexcom7Csv ) delim = " \t";
-  
+
   vector<string> feilds;
   algorithm::split( feilds, line, algorithm::is_any_of( delim ) );
   foreach( string &thisField, feilds ) algorithm::trim( thisField );
@@ -539,6 +565,10 @@ CgmsDataImport::sanitizeTimeInput( std::string time,
                                             SpreadSheetSource source )
 {
   //do some really basic format checks
+  if( time.find(":") == string::npos )
+    cerr << "CgmsDataImport::sanitizeTimeInput(...): invalid time '"
+         << time << "'" << endl;
+
   assert(time.find(":") != string::npos );
   boost::algorithm::trim(time);
 
@@ -603,6 +633,7 @@ CgmsDataImport::sanatizeSpreadsheetDate( const std::string input,
   string originalInput = input;
   algorithm::trim( originalInput );
   
+  if( source == GenericCsv ) return originalInput;
   if( source == Dexcom7Csv ) return originalInput;
   
   vector<string> dateParts;

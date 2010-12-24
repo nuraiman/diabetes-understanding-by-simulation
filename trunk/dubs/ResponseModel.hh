@@ -18,7 +18,6 @@
 #include "Minuit2/FCNBase.h"
 #include "TMVA/IFitterTarget.h"
 
-#include "NLSimpleGui.hh"
 
 //Eventually, when I add more models, I'll set up a inheritance hiegharchy
 //  to improve organization
@@ -68,7 +67,6 @@
 
 class TVirtualPad;
 class NLSimple;
-class NLSimpleGuiWindow;
 
 class TSpline3;
 class EventDef;
@@ -147,6 +145,7 @@ class NLSimple
     ConsentrationGraph m_glucoseAbsorbtionRate;
     ConsentrationGraph m_mealData;
     ConsentrationGraph m_fingerMeterData;
+    //should add a m_fingerCalibrationData; object that just has calibrations
     ConsentrationGraph m_customEvents;
 
     ConsentrationGraph m_predictedInsulinX;       //currently stored 10x what I use, bug waiting to happen, should be changed some time
@@ -158,11 +157,6 @@ class NLSimple
     ModelSettings m_settings;  //things like cgms delay, and training settings
                                // kept here
 
-    NLSimpleGuiWindow *m_gui;  //This is only non-NULL when program is inside of a GUI
-                               //  this pointer is used to communicate to NLSimpleGui
-                               //  since root/cint sucks and I can't just use signals
-                               //  and slots comm. for this class
-    NLSimpleGui *m_rootGui;
 
     //Start constructors/member-functions
     NLSimple( std::string fileName );
@@ -193,6 +187,8 @@ class NLSimple
     void addCgmsData( const ConsentrationGraph &newData,
                         bool findNewSteadyState = false );
     void addCgmsData( PosixTime, double value );
+    void addBolusData( PosixTime t, double value,
+                       bool finNewSteadyStates = false );
     void addBolusData( const ConsentrationGraph &newData,
                        bool finNewSteadyStates = false );
 
@@ -327,7 +323,6 @@ class NLSimple
                     std::vector< std::vector<double> *> &paramaterV,
                     std::vector<ConsentrationGraph *> resultGV );
 
-    friend class NLSimpleGui;
     void runGui();
     void draw( bool pause = true, PosixTime t_start = kGenericT0,
                PosixTime t_end = kGenericT0 );

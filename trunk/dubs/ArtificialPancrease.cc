@@ -41,8 +41,6 @@
 #include "ArtificialPancrease.hh"
 #include "CgmsDataImport.hh"
 #include "ProgramOptions.hh"
-#include "NLSimpleGui.hh"
-#include "ConsentrationGraphGui.hh"
 
 
 TApplication *gTheApp = (TApplication *)NULL;
@@ -62,6 +60,7 @@ void saveMar31ThorughApr7GraphsToDisk();
 
 int _main( int argc, char** argv )
 {
+    return 1;
   using namespace boost;
   using namespace boost::posix_time;
   using namespace boost::gregorian;
@@ -71,7 +70,7 @@ int _main( int argc, char** argv )
 
   NLSimple *modelCreateTest = NULL;
   if( ProgramOptions::ns_defaultModelFileName.size() ) modelCreateTest = new NLSimple( ProgramOptions::ns_defaultModelFileName );
-  else new ConstructNLSimple( modelCreateTest, gClient->GetRoot(), gClient->GetDefaultRoot() );
+  //else new ConstructNLSimple( modelCreateTest, gClient->GetRoot(), gClient->GetDefaultRoot() );
 
   if( !modelCreateTest ) return 0;
   modelCreateTest->runGui();
