@@ -3,11 +3,6 @@
 
 #include <map>
 
-#include "TGWindow.h"
-#include "TGFrame.h"
-#include "TGNumberEntry.h"
-#include "RQ_OBJECT.h"
-
 // so I should have the gui in a seperate file, but in the interest of easy
 //  programming, I'll do this later (maybe)
 
@@ -133,55 +128,6 @@ class ModelSettings
     void serialize( Archive &ar, const unsigned int version );
 };//class ModelSettings
 #endif //__CINT__
-
-//depreciated below here
-//This class seems a bit awkward, and is error prone for adding
-//  future options into it, so be careful
-//Also, THE MAJOR PROBLEM with this class is that it forces
-//  namespace::PersonConstants and namespace::ModelDefaults
-//  variables to have the same value as the model you pass in
-//  Also, model updating is done via
-//  ProgramOptionsGui::valueChanged(UInt_t bitmask) emitting a signal
-//    which this seems less than ideal, but to be worried about later
-class NLSimple;
-class ProgramOptionsGuiROOT : public TGCompositeFrame
-{
-    RQ_OBJECT("ProgramOptionsGuiROOT")
-  public:
-    enum ProgOptionEnum
-    {
-      E_kPersonsWeight, E_kBasalGlucConc,
-      E_kDefaultCgmsDelay, E_kCgmsIndivReadingUncert,
-      E_kPredictAhead, E_kIntegrationDt,
-      E_kLastPredictionWeight, E_kTargetBG,
-      E_kBGLowSigma, E_kBGHighSigma,
-      E_kGenPopSize, E_kGenConvergNsteps,
-      E_kGenNStepMutate, E_kGenNStepImprove,
-      E_kGenSigmaMult, E_kGenConvergCriteria,
-      E_NUMBER_PROGRAM_OPTIONS
-    };//enum ProgOptionEnum
-
-    NLSimple *m_model;
-    std::vector<TGNumberEntry *> m_entries;
-    const bool m_debug;
-
-    //Pass in  w and h of the parent window, if model!=NULL, then model will
-    //  be updated when the gui is changed
-    ProgramOptionsGuiROOT( const TGWindow *parentW, NLSimple *model, UInt_t w, UInt_t h );
-
-    TGNumberEntry *addNewEntryField( TGVerticalFrame *parentFrame,
-                                     const char *label, double defaultNumer,
-                                     TGNumberFormat::EStyle format,
-                                     const char *connect = NULL );
-
-    //The below both actually change the value of an option
-    void valueChanged(UInt_t bitmask); // *SIGNAL*
-    void optionValueChanged();         // *SIGNAL*
-    void modelCalcValueChanged();      // *SIGNAL*
-    void personConstChanged();         // *SIGNAL*
-
-    ClassDef(ProgramOptionsGuiROOT, 0 );
-};
 
 
 #endif //PROGRAM_OPTIONS_HH

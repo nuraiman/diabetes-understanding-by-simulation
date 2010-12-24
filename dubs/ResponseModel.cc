@@ -62,17 +62,9 @@
 
 #include "ResponseModel.hh"
 #include "KineticModels.hh"
-#include "MiscGuiUtils.hh"
 #include "CgmsDataImport.hh"
 #include "ArtificialPancrease.hh"
 #include "RungeKuttaIntegrater.hh"
-#include "nlsimpleguiwindow.h"
-
-#include <QtGui/QApplication>
-#include <QFileDialog>
-#include <QString>
-#include <QDir>
-
 
 using namespace std;
 using namespace boost;
@@ -125,9 +117,9 @@ NLSimple::NLSimple( const string &description, double basalUnitsPerKiloPerhour,
      m_predictedInsulinX(t0, 5.0, InsulinGraph),
      m_predictedBloodGlucose(t0, 5.0, GlucoseConsentrationGraph),
      m_startSteadyStateTimes(0),
-     m_settings(),
+     m_settings()/*,
      m_gui(NULL),
-     m_rootGui(NULL)
+     m_rootGui(NULL)*/
 {
 }//NLSimple construnctor
 
@@ -153,14 +145,19 @@ NLSimple::NLSimple( std::string fileName ) :
      m_predictedInsulinX(kGenericT0, 5.0, InsulinGraph),
      m_predictedBloodGlucose(kGenericT0, 5.0, GlucoseConsentrationGraph),
      m_startSteadyStateTimes(0),
-     m_settings(),
+     m_settings()/*,
      m_gui(NULL),
-     m_rootGui(NULL)
+     m_rootGui(NULL)*/
 {
+  /*
   if( fileName == "" )
   {
-    QString name = QFileDialog::getOpenFileName( QDir::currentPath(),
-                                                 "Dub Model (*.dubm)" );
+    QString name = QFileDialog::getOpenFileName ( NULL,
+                                                  "Choose File",
+                                                  QDir::currentPath(),
+                                                  "Dub Model (*.dubm)" );
+    //QString name = QFileDialog::getOpenFileName( QDir::currentPath(),
+      //                                           "Dub Model (*.dubm)" );
     fileName = name.toStdString();
 
     if( fileName.empty() )
@@ -169,7 +166,7 @@ NLSimple::NLSimple( std::string fileName ) :
       return;
     }//if( fileName.empty() )
   }//if( fileName == "" )
-
+*/
 
   unsigned int beginExtension = fileName.find_last_of( "." );
   string extention = fileName.substr( beginExtension );
@@ -180,7 +177,7 @@ NLSimple::NLSimple( std::string fileName ) :
   if( !ifs.is_open() )
   {
     cout << "Couldn't open file " << fileName << " for reading" << endl;
-    exit(1);
+    throw CouldntOpenException();
   }//if( !ofs.is_open() )
 
   boost::archive::text_iarchive ia(ifs);
@@ -225,8 +222,8 @@ const NLSimple &NLSimple::operator=( const NLSimple &rhs )
   m_predictedBloodGlucose      = rhs.m_predictedBloodGlucose;
 
   m_startSteadyStateTimes      = rhs.m_startSteadyStateTimes;
-  m_gui                        = NULL;
-  m_rootGui                    = NULL;
+  //m_gui                        = NULL;
+  //m_rootGui                    = NULL;
   m_settings                   = m_settings;
 
   return *this;
@@ -443,6 +440,12 @@ double NLSimple::getBasalInsulinConcentration( double unitsPerKiloPerhour )
   return basalConc;
 }//setBasalInsulinAmount
 
+void NLSimple::addBolusData( PosixTime t, double value, bool finNewSteadyStates  )
+{
+  ConsentrationGraph bolus( t, TimeDuration(0,0,1), BolusGraph );
+  bolus.insert( t, value );
+  addBolusData( bolus, finNewSteadyStates );
+}//addBolusData
 
 void NLSimple::addBolusData( const ConsentrationGraph &newData,
                              bool finNewSteadyStates  )
@@ -734,6 +737,10 @@ void NLSimple::resetPredictions()
 
 void NLSimple::setModelParameters( const std::vector<double> &newPar )
 {
+  resetPredictions();
+  m_paramaters.clear();
+  if( newPar.empty() ) return;
+
   //number of para
   size_t nParExp = NumNLSimplePars;
   foreach( const EventDefPair &et, m_customEventDefs )
@@ -743,7 +750,7 @@ void NLSimple::setModelParameters( const std::vector<double> &newPar )
 
   assert( newPar.size() == nParExp || newPar.empty() );
 
-  resetPredictions();
+  m_paramaters.resize(nParExp);
 
   size_t parNum = 0;
   for( ; parNum < NumNLSimplePars; ++parNum ) m_paramaters[parNum] = newPar[parNum];
@@ -844,7 +851,7 @@ void NLSimple::findSteadyStateBeginings( double nHoursNoInsulin )
   {
     cout << "There are paramaters" << endl;
     foreach( double d, m_paramaters ) cout << "  " << d;
-    cout <<endl;
+    cout << endl;
   }
 
   for( ptime time = startTime; time < endTime; time += dt )
@@ -1813,9 +1820,10 @@ double NLSimple::geneticallyOptimizeModel( double endPredChi2Weight,
     cout << "Parameters: ";
     foreach( Double_t p, currentPars ) cout << p << "  ";
     cout << endl;
-    double currFitness = fittnesFunc.testParamaters( currentPars, (m_gui != NULL) );
+    double currFitness = fittnesFunc.testParamaters( currentPars, false/*(m_gui != NULL)*/ );
     cout << "Current fitness is " << currFitness << " fitness" << endl << endl << endl;
 
+    /*
     if( m_gui )
     {
       m_gui->drawEquations();
@@ -1832,6 +1840,7 @@ double NLSimple::geneticallyOptimizeModel( double endPredChi2Weight,
       pt->Draw();
       can->Update();
     }//if( m_gui )
+*/
 
     fConvCrit = 0.008 * currFitness;
 
@@ -1852,6 +1861,8 @@ double NLSimple::geneticallyOptimizeModel( double endPredChi2Weight,
   cout << endl;
 
   setModelParameters(gvec);
+
+  /*
   if( m_gui )
   {
     m_gui->drawEquations();
@@ -1859,6 +1870,7 @@ double NLSimple::geneticallyOptimizeModel( double endPredChi2Weight,
     m_gui->refreshClarkAnalysis();
     m_gui->updateCustomEventTab();
   }//if( m_gui )
+*/
 
   double chi2 = fittnesFunc.testParamaters( gvec, true );
 
@@ -2333,6 +2345,7 @@ void NLSimple::draw( bool pause,
 
 void NLSimple::runGui()
 {
+  /*
   assert( !m_gui );
 
   m_gui = new NLSimpleGuiWindow( this );
@@ -2341,6 +2354,7 @@ void NLSimple::runGui()
 
   delete m_gui;
   m_gui = NULL;
+  */
 }//runGui
 
 
@@ -2448,7 +2462,7 @@ bool NLSimple::saveToFile( std::string filename )
 {
   if( filename == "" )
   {
-    filename = NLSimpleGui::getFileName( true );
+    // filename = NLSimpleGui::getFileName( true );
 
     if( filename.empty() ) return false;
   }//if( filename == "" )
@@ -2508,7 +2522,7 @@ Double_t ModelTestFCN::EstimatorFunction( std::vector<Double_t>& parameters )
 
 double ModelTestFCN::testParamaters(const std::vector<double>& x, bool updateModel ) const
 {
-   //make sure Minuit isn't apssing in garbage
+   //make sure Minuit isn't passing in garbage
   foreach( double d, x )
   {
     if( isnan(d) || isinf(d) || isinf(-d) )

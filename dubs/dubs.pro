@@ -1,103 +1,75 @@
 # -------------------------------------------------
 # Project created by QtCreator 2009-12-17T17:44:13
 # -------------------------------------------------
-TARGET = dubs
+TARGET = wtdubs
 TEMPLATE = app
 LANGUAGE = C++
-QMAKE_RPATH = 
-!exists ($$(ROOTSYS)/lib/libQtRootGui.$$QMAKE_EXTENSION_SHLIB):message ("No ROOT Qt Extension was found. Use Qt-layer instead")
+QT += xml opengl svg
+unix: QMAKE_RPATH =
+
+QMAKE_MAKEFILE = Makefile.qt
+
 CONFIG += qt \
     warn_on \
     thread \
-    debug
-QT += qt3support
-SOURCES += main.cpp \
-    nlsimpleguiwindow.cpp \
+    debug \
+    console
+
+SOURCES += main.cc \
     ArtificialPancrease.cc \
-    ConsentrationGraphGui.cc \
     ProgramOptions.cc \
     CgmsDataImport.cc \
     KineticModels.cc \
     ResponseModel.cc \
     ConsentrationGraph.cc \
-    NLSimpleGui.cc \
     RungeKuttaIntegrater.cc \
-    MiscGuiUtils.cc \
-    nlsimple_create.cpp \
-    DataInputGui.cc \
-    ProgramOptionsGui.cc \
-    CustomEventDefineGui.cpp
+    WtGui.cc
 HEADERS += nlsimpleguiwindow.h \
     ArtificialPancrease.hh \
-    ConsentrationGraphGui.hh \
     ProgramOptions.hh \
     CgmsDataImport.hh \
     KineticModels.hh \
     ResponseModel.hh \
     ConsentrationGraph.hh \
-    NLSimpleGui.hh \
     RungeKuttaIntegrater.hh \
-    MiscGuiUtils.hh \
-    nlsimple_create.h \
-    DataInputGui.hh \
-    ProgramOptionsGui.hh \
-    CustomEventDefineGui.h
+    WtGui.hh
 
 # below assumes NLSimpleGui_linkdef containes all the '#pragma link C++ class ClassName;' statments in it
 CREATE_ROOT_DICT_FOR_CLASSES = ConsentrationGraphGui.hh \
     NLSimpleGui.hh \
     ProgramOptions.hh \
     NLSimpleGui_linkdef.h
-FORMS = nlsimpleguiwindow.ui \
+
+FORMS += nlsimpleguiwindow.ui \
     nlsimple_create.ui \
     DataInputGui.ui \
     ProgramOptionsGui.ui \
     CustomEventDefineGui.ui
-includeDir = $$(QTROOTSYSDIR)/include
-incFile = $$includeDir/rootcint.pri
-exists ($$includeDir):exists ($$incFile):include ($$incFile)# Win32 wants us to check the directory existence separately
-!exists ($$includeDir) { 
-    incFile = $$(ROOTSYS)/include/rootcint.pri
-    exists ($$incFile):include ($$incFile)
-    !exists ($$incFile) { 
-        message (" ")
-        message ("WARNING: The $$inlcudeFile was not found !!!")
-        message ("Please update your Qt layer version from http://root.bnl.gov ")
-        message (" ")
-        LIBS += $$system(root-config --glibs) \
-            -lGQt \
-            -lMinuit \
-            -lMLP \
-            -lTreePlayer \
-            -lMinuit2 \
-            -lTMVA
-        INCLUDEPATH += $(ROOTSYS)/include
-    }
-}
-mystaticconfig { 
-    QMAKE_LIBS_QT = 
-    QMAKE_LIBS_QT_THREAD = 
-    LIBS += $(QTDIR)/lib/libqt.a \
-        -lz \
-        -framework \
-        Carbon \
-        -L$$(ROOTSYS)/lib \
-        -lRoot
-}
+
+
+
+
 LIBS += /usr/local/lib/libboost_date_time.a \
     /usr/local/lib/libboost_serialization.a \
     /usr/local/lib/libboost_program_options.a \
+    /usr/local/lib/libboost_system.a \
+    /usr/local/lib/libboost_signals.a  \
+    /usr/local/lib/libboost_date_time.a  \
+    /usr/local/lib/libboost_thread.a  \
     /usr/local/lib/libgsl.a \
     /usr/local/lib/libgslcblas.a \
     -L$$(ROOTSYS) \
-    -lGQt \
     -lMinuit \
     -lMinuit2 \
-    -lTMVA
+    -lTMVA \
+    -lTreePlayer \
+    -L/usr/local/lib/  -lwt -lwtdbo -lwthttp
 
-# mac:QMAKE_INFO_PLIST=Info.plist
-unix { 
-    UI_DIR = .ui
-    MOC_DIR = .moc
-    OBJECTS_DIR = .obj
-}
+INCLUDEPATH += /usr/local/include
+
+#mac:QMAKE_INFO_PLIST=Info.plist
+#unix {
+#    UI_DIR = .ui
+#    MOC_DIR = .moc
+#    OBJECTS_DIR = .obj
+#}

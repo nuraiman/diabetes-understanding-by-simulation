@@ -49,7 +49,6 @@
 #include "CgmsDataImport.hh"
 #include "ProgramOptions.hh"
 #include "RungeKuttaIntegrater.hh"
-#include "ConsentrationGraphGui.hh"
 
 using namespace std;
 using namespace boost;
@@ -196,7 +195,6 @@ boost::posix_time::ptime ConsentrationGraph::getT0() const { return m_t0; }
 boost::posix_time::ptime ConsentrationGraph::getStartTime() const
 {
   if( empty() ) return m_t0;
-
   return begin()->m_time;
 }//getStartTime
 
@@ -204,14 +202,14 @@ boost::posix_time::ptime ConsentrationGraph::getStartTime() const
 
 boost::posix_time::ptime ConsentrationGraph::getEndTime() const
 {
-  ConstGraphIter lastElement = getLastElement();
-  if( lastElement == end() ) return m_t0;
-  return lastElement->m_time;
+  if( empty() ) return m_t0;
+  return getLastElement()->m_time;
 }//getEndTime
+
 
 ConstGraphIter ConsentrationGraph::getLastElement() const
 {
-  if( empty() ) end();
+  if( empty() ) return end();
 
   ConstGraphIter iter = end();
   --iter;
@@ -1551,24 +1549,6 @@ void ConsentrationGraph::serialize( Archive &ar, const unsigned int version )
 
 ConsentrationGraph ConsentrationGraph::loadFromFile( std::string filename )
 {
-
-  if( filename == "" )
-  {
-    ConsentrationGraph *newGraph = NULL;
-    new CreateGraphGui( newGraph, gClient->GetRoot(), gClient->GetDefaultRoot() );
-
-    if( !newGraph )
-    {
-      cout << "Error opening file; Exiting now" << endl;
-      exit(-1);
-    }//if( !newGraph )
-
-    ConsentrationGraph tempGraph( *newGraph );
-    delete newGraph;
-
-    return tempGraph;
-  }//if( you didn't specify a name )
-
   std::ifstream ifs( filename.c_str() );
   if( !ifs.is_open() )
   {
