@@ -7,7 +7,6 @@
 //  programming, I'll do this later (maybe)
 
 //We have to hide anything boost from ROOTS CINT
-#ifndef __CINT__
 #include "ArtificialPancrease.hh"
 #include "boost/program_options.hpp"
 
@@ -17,12 +16,9 @@
 #include <boost/serialization/string.hpp>
 #include <boost/serialization/set.hpp>
 #include <boost/serialization/version.hpp>
-#endif //__CINT__
-
 
 namespace ProgramOptions
 {
-  #ifndef __CINT__ //We have to hide anything boost from ROOTS CINT
   namespace po = boost::program_options;
 
   //I want to make 'ProgramOptions' a class, and the below maps static members
@@ -36,7 +32,6 @@ namespace ProgramOptions
 
   void declareOptions();
   void decodeOptions( int argc, char **argv );
-  #endif //__CINT__
 
   //Below here is variables that may be specified via the command line when
   //  starting the program.  You typically won't need to specify any of them
@@ -54,11 +49,9 @@ namespace ProgramOptions
 
   extern double kCgmsIndivReadingUncert;
 
-  #ifndef __CINT__ //We have to hide anything boost from ROOTS CINT
   extern TimeDuration kDefaultCgmsDelay; //minutes, ('--cgmsdelay=15')
   extern TimeDuration kPredictAhead;     //default how far to predict ahead of cgms
   extern TimeDuration kIntegrationDt;    //Integration tiemstep in minutes ('--dt=1.0')
-  #endif //__CINT__
 
   extern double kLastPredictionWeight;   //for calc. chi2 of model ('--last_pred_weight=0.25')
 
@@ -80,13 +73,9 @@ namespace ProgramOptions
   //
   //If convergence hasn't improvedmore than kGenConvergCriteria in the last
   //  kGenConvergNsteps, then consider minimization complete
-
-
 }//namespace ProgramOptions
 
 
-
- #ifndef __CINT__ //We have to hide anything boost from ROOTS CINT
 class ModelSettings
 {
   public:
@@ -125,9 +114,38 @@ class ModelSettings
     //Will leave serialization funtion in header
     friend class boost::serialization::access;
     template<class Archive>
-    void serialize( Archive &ar, const unsigned int version );
-};//class ModelSettings
-#endif //__CINT__
+    void serialize( Archive &ar, const unsigned int version )
+    {
+      unsigned int ver = version; //keep compiler from complaining
+      ver = ver;
 
+      ar & m_personsWeight;
+      //ar & m_basalGlucConc;
+
+      ar & m_cgmsIndivReadingUncert;
+
+      ar & m_defaultCgmsDelay;
+      ar & m_cgmsDelay;
+      ar & m_predictAhead;
+      ar & m_dt;
+
+      ar & m_endTrainingTime;
+      ar & m_startTrainingTime;
+
+      ar & m_lastPredictionWeight;
+
+      ar & m_targetBG;
+      ar & m_bgLowSigma;
+      ar & m_bgHighSigma;
+
+      //Genetic minimization paramaters
+      ar & m_genPopSize;
+      ar & m_genConvergNsteps;
+      ar & m_genNStepMutate;
+      ar & m_genNStepImprove;
+      ar & m_genSigmaMult;
+      ar & m_genConvergCriteria;
+    }//serialize
+};//class ModelSettings
 
 #endif //PROGRAM_OPTIONS_HH

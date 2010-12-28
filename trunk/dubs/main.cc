@@ -55,7 +55,9 @@ WApplication *createApplication(const WEnvironment& env)
 int main(int argc, char *argv[])
 {
   setStyle();
- // ProgramOptions::decodeOptions( argc, argv );
+  ProgramOptions::declareOptions();
+  //ProgramOptions::decodeOptions( argc, argv );
+  ProgramOptions::decodeOptions( 0, NULL );
   ProgramOptions::ns_defaultModelFileName = "../data/qt_test.dubm";
 
   return WRun(argc, argv, &createApplication);

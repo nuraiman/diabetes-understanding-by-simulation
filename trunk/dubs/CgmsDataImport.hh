@@ -8,6 +8,7 @@
 #include <vector>
 #include <utility>
 #include <iostream>
+#include <stdexcept>
 #include "boost/date_time/posix_time/posix_time.hpp"
 
 #include "ArtificialPancrease.hh"
