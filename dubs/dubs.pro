@@ -23,7 +23,10 @@ SOURCES += main.cc \
     ResponseModel.cc \
     ConsentrationGraph.cc \
     RungeKuttaIntegrater.cc \
-    WtGui.cc
+    WtGui.cc \
+    WtCreateNLSimple.cc \
+    WtUserManagment.cc \
+    WtUtils.cc
 HEADERS += nlsimpleguiwindow.h \
     ArtificialPancrease.hh \
     ProgramOptions.hh \
@@ -32,7 +35,10 @@ HEADERS += nlsimpleguiwindow.h \
     ResponseModel.hh \
     ConsentrationGraph.hh \
     RungeKuttaIntegrater.hh \
-    WtGui.hh
+    WtGui.hh \
+    WtCreateNLSimple.hh \
+    WtUserManagment.hh \
+    WtUtils.hh
 
 # below assumes NLSimpleGui_linkdef containes all the '#pragma link C++ class ClassName;' statments in it
 CREATE_ROOT_DICT_FOR_CLASSES = ConsentrationGraphGui.hh \
@@ -65,7 +71,8 @@ LIBS += /usr/local/lib/libboost_date_time.a \
     -lTreePlayer \
     -L/usr/local/lib/  -lwt -lwtdbo -lwthttp
 
-INCLUDEPATH += /usr/local/include
+INCLUDEPATH += /usr/local/include \
+               $$(ROOTSYS)/include
 
 #mac:QMAKE_INFO_PLIST=Info.plist
 #unix {

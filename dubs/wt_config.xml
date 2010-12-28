@@ -146,7 +146,7 @@
 
                The default value is 1.
 	      -->
-	    <num-threads>1</num-threads>
+	    <num-threads>10</num-threads>
 
 	</connector-fcgi>
 
@@ -228,7 +228,7 @@
            Maximum size of an incoming POST request. This value must be
            increased when the user is allowed to upload files.
          -->
-	<max-request-size>128</max-request-size>
+	<max-request-size>25000</max-request-size>
 
 	<!-- Session id length (number of characters) -->
 	<session-id-length>16</session-id-length>

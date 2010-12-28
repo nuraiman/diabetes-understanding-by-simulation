@@ -107,7 +107,7 @@ void ProgramOptions::declareOptions()
 
 void ProgramOptions::decodeOptions( int argc, char **argv )
 {
-  declareOptions();
+  //declareOptions();
 
   po::store(po::parse_command_line(argc, argv, ns_poDescription), ns_poVariableMap);
   po::store(po::command_line_parser(argc, argv).
@@ -178,40 +178,6 @@ ModelSettings::ModelSettings()
 }//ModelSettings::ModelSettings()
 
 ModelSettings::~ModelSettings(){}
-
-template<class Archive>
-void ModelSettings::serialize( Archive &ar, const unsigned int version )
-{
-  unsigned int ver = version; //keep compiler from complaining
-  ver = ver;
-
-  ar & m_personsWeight;
-  //ar & m_basalGlucConc;
-
-  ar & m_cgmsIndivReadingUncert;
-
-  ar & m_defaultCgmsDelay;
-  ar & m_cgmsDelay;
-  ar & m_predictAhead;
-  ar & m_dt;
-
-  ar & m_endTrainingTime;
-  ar & m_startTrainingTime;
-
-  ar & m_lastPredictionWeight;
-
-  ar & m_targetBG;
-  ar & m_bgLowSigma;
-  ar & m_bgHighSigma;
-
-  //Genetic minimization paramaters
-  ar & m_genPopSize;
-  ar & m_genConvergNsteps;
-  ar & m_genNStepMutate;
-  ar & m_genNStepImprove;
-  ar & m_genSigmaMult;
-  ar & m_genConvergCriteria;
-}//serialize
 
 
 

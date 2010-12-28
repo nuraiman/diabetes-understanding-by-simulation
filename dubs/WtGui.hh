@@ -1,18 +1,19 @@
 #ifndef WTGUI_H
 #define WTGUI_H
+#include <map>
 #include <string>
 #include <vector>
 #include "boost/date_time/posix_time/posix_time.hpp"
 #include <Wt/WApplication>
 #include <Wt/WContainerWidget>
 #include <Wt/WDateTime>
-#include <Wt/Dbo/Dbo>
+#include <Wt/Dbo/ptr>
+#include <Wt/Dbo/Session>
 #include <Wt/Dbo/backend/Sqlite3>
-#include <Wt/Dbo/WtSqlTraits>
 #include <Wt/Chart/WCartesianChart>
 #include <Wt/WLineF>
 #include <Wt/WRectF>
-
+#include "ArtificialPancrease.hh"
 
 //Some forward declarations
 class NLSimple;
@@ -22,9 +23,13 @@ class DubEventEntry;
 
 class DubUser;
 class UsersModel;
+class ModelSettings;
 class ConsentrationGraph;
 
 class ClarkErrorGridGraph;
+class WtModelSettingsGui;
+class MemVariableSpinBox;
+
 
 namespace Wt
 {
@@ -44,15 +49,8 @@ namespace Wt
   class WStandardItemModel;
 };//namespace Wt
 
-/*
-class NLSimple
-{
-public:
-	std::string name;
-	NLSimple( const std::string &n ) { name = n; }
-	~NLSimple(){};
-};
-*/
+
+
 
 class WtGui : public Wt::WApplication
 {
@@ -109,6 +107,7 @@ public:
     virtual ~WtGui(){ /*delete m_model;*/ }
 
     void saveModel( const std::string &fileName );
+    void deleteModelFile( const std::string &fileName );
     void setModel( const std::string &fileName );
     void setModelFileName( const std::string &fileName );
     std::string formFileSystemName( const std::string &internalName );
@@ -126,6 +125,7 @@ public:
 
     void newModel();
     void updateDataRange();
+    void zoomToFullDateRange();
     void syncDisplayToModel();
     void updateClarkAnalysis( const ConsentrationGraph &xGraph,
                               const ConsentrationGraph &yGraph,
@@ -161,81 +161,14 @@ public:
     Wt::WTableView             *m_customEventsView;
     Wt::WStandardItemModel     *m_customEventsModel;
     std::vector<ModelGraphPair> m_customEventGraphs;
+
+    friend class DubEventEntry;
 };//class WtGui
 
 
-class Div : public Wt::WContainerWidget
-{
-  public:
-  Div( const std::string &styleClass = "",
-       Wt::WContainerWidget *parent = NULL );
-  virtual ~Div() {}
-};//class Div : Wt::WContainerWidget
-
-
-class DubsLogin : public Wt::WContainerWidget
-{
-public:
-  static const std::string cookie_name;
-  typedef Wt::Signal<std::string> LoginSignal;
-
-  DubsLogin( Wt::Dbo::Session &dbSession, Wt::WContainerWidget *parent = NULL );
-  LoginSignal &loginSuccessful();
-
-  //The cookie valuesstored in the sqlite3 database
-  //  web_app_login_info.sql3, were created using the command
-  //CREATE TABLE cookie_hashes ( user char(50) primary key, hash char(50) );
-  //  where the has is the MD5 hash of a random float generated at
-  //  cookie creatioin time.  The cookie value is formated like
-  //  <user>_<hash>, so that the cookie retrieved from the client must match
-  //  the information in the database
-
-  static void insertCookie( const std::string &uname,
-                            const int lifetime,
-                            Wt::Dbo::Session &dbSession ); //lifetime in seconds
-  static std::string isLoggedIn( Wt::Dbo::Session &dbSession ); //returns username, or a blank string on not being logged in
-
-
-private:
-  Wt::Dbo::Session &m_dbSession;
-  Wt::WText     *m_introText;
-  Wt::WLineEdit *m_username;
-  Wt::WLineEdit *m_password;
-  LoginSignal    m_loginSuccessfulSignal;
-
-  void addUser();
-  void checkCredentials();
-  bool validLogin( const std::string &user, std::string pass );
-};//class DubsLogin : public Wt::WContainerWidget
 
 
 
-class DateTimeSelect : public Wt::WContainerWidget
-{
-  Wt::WDatePicker *m_datePicker;
-  Wt::WSpinBox    *m_hourSelect;
-  Wt::WSpinBox    *m_minuteSelect;
-  Wt::WDateTime   m_top;
-  Wt::WDateTime   m_bottom;
-  Wt::Signal<>     m_changed;
-
-  void validate( bool emitChanged = false );
-
-public:
-  DateTimeSelect( const std::string &label,
-                  const Wt::WDateTime &initialTime,
-                  Wt::WContainerWidget *parent = NULL );
-  virtual ~DateTimeSelect();
-
-  void set( const Wt::WDateTime &dateTime );
-  Wt::WDateTime dateTime() const;
-  void setTop( const Wt::WDateTime &top );
-  void setBottom( const Wt::WDateTime &bottom );
-  const Wt::WDateTime &top() const;
-  const Wt::WDateTime &bottom() const;
-
-  Wt::Signal<> &changed();
-};//class DateTimeSelect
 
 
 
@@ -246,15 +179,19 @@ class DubEventEntry : public Wt::WContainerWidget
   Wt::WLineEdit     *m_value;
   Wt::WText         *m_units;
   Wt::WPushButton   *m_button;
-
   Wt::Signal<WtGui::EventInformation> m_signal;
+  WtGui             *m_wtgui;
 
   void typeChanged();
   void reset();
   void emitEntered();
 
+  void setTimeToNow();
+  void setTimeToLastData();
+
+
 public:
-  DubEventEntry( Wt::WContainerWidget *parent = NULL );
+  DubEventEntry( WtGui *wtguiparent, Wt::WContainerWidget *parent = NULL );
   virtual ~DubEventEntry();
 
    Wt::Signal<WtGui::EventInformation> &entered();
@@ -276,54 +213,29 @@ private:
 };//class ClarkErrorGridGraph
 
 
-class DubUser
+
+class WtModelSettingsGui: public Wt::WContainerWidget
 {
+  typedef std::vector<MemVariableSpinBox *> SpinBoxes;
+
 public:
-  enum Role
-  {
-    Visitor = 0,
-    FullUser = 1,
-  };//enum Role
+  WtModelSettingsGui( ModelSettings *modelSettings,
+                      Wt::WContainerWidget *parent = NULL  );
+  virtual ~WtModelSettingsGui();
 
-  std::string name;
-  std::string password;
-  Role        role;
-  std::string currentFileName;
-  std::string cookieHash;
-  typedef Wt::Dbo::collection<Wt::Dbo::ptr<UsersModel> > UsersModels;
-  UsersModels models;
+  Wt::Signal<> &changed();
+  Wt::Signal<> &predictionChanged();
 
-  template<class Action>
-  void persist(Action& a)
-  {
-    Wt::Dbo::field(a, name,            "name" );
-    Wt::Dbo::field(a, password,        "password" );
-    Wt::Dbo::field(a, role,            "role" );
-    Wt::Dbo::field(a, currentFileName, "currentFileName" );
-    Wt::Dbo::field(a, cookieHash,      "cookieHash" );
-    Wt::Dbo::hasMany(a, models, Wt::Dbo::ManyToOne, "user");
-  }//presist function
-};//class DubUser
-
-
-class UsersModel
-{
-public:
-  std::string fileName;
-  Wt::WDateTime created;
-  Wt::WDateTime modified;
-
-  Wt::Dbo::ptr<DubUser> user;
-
-  template<class Action>
-  void persist(Action& a)
-  {
-    Wt::Dbo::belongsTo(a, user, "user");
-    Wt::Dbo::field(a, fileName, "fileName" );
-    Wt::Dbo::field(a, created,  "created" );
-    Wt::Dbo::field(a, created,  "modified" );
-  }//presist function
-};//class UsersModel
+private:
+  ModelSettings       *m_settings;
+  SpinBoxes            m_memVarSpinBox;
+  Wt::Signal<>         m_changed;            //emitted when any setting is changed
+  Wt::Signal<>         m_predictionChanged;  //emitted when a setting that effects
+                                             //   the predictions are changed
+  void init();
+  void emitChanged();
+  void emitPredictionChanged();
+};//class WtModelSettingsGui
 
 
 

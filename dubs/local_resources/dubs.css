@@ -1,12 +1,15 @@
 .login_box
 {
+  position:         relative;
   background-color: #ffffff;
-  padding-top: 50px;
-  padding-bottom: 20px;
-  padding-left: 100px;
-  padding-right: 100px;
-  margin: 20px;
-  border: solid 1px #D5D8E2;
+  padding-top:      50px;
+  padding-bottom:   20px;
+  padding-left:     100px;
+  padding-right:    100px;
+  margin-top:       20px;
+  margin-left:      auto;
+  margin-right:     auto;
+  border:           solid 1px #D5D8E2;
 }
 
 .root
@@ -36,6 +39,27 @@
 }
 
 
+.actionMenuButton
+{
+  /*border: none;*/
+  /*border: solid 1px blue;*/
+  margin-bottom: 15px;
+  cursor: pointer;
+}
+
+.logoutButton
+{
+  cursor: pointer;
+  background: none;
+  color: blue;
+  background-color: none;
+  border: none;
+  position: relative;
+  float: right;
+}
+
+
+
 br.Wt-tabs-clear
 {
   display:none;
@@ -54,6 +78,65 @@ br.Wt-tabs-clear
   text-align: left;
   background-color:#F6F6F9;
 }
+
+.DubEventEntry_timeSelectDiv
+{
+  border: solid 1px #D5D8E2;
+}
+
+.dubEventEntryTimeButton
+{
+  border: none;
+  border: solid 1px #D5D8E2;
+}
+
+
+.WtCreateNLSimple
+{
+  width: 99%;
+  height: 99%;
+}
+
+
+.MemVariableSpinBox
+{
+}
+
+
+.WtCreateNLSimple_timeRangeDiv
+{
+  border: solid 1px #D5D8E2;
+  text-align: center;
+}
+
+.WtCreateNLSimple_buttonDiv
+{
+}
+
+.WtCreateNLSimple_inputDiv
+{
+}
+
+.WtCreateNLSimple_fileInputLayout
+{
+}
+
+.WtCreateNLSimple_m_weightInput
+{
+  /*position: relative;*/
+  /*float: right;*/
+}
+
+.WtCreateNLSimple_m_basalInsulin
+{
+  /*position: relative;*/
+  /*float: right;*/
+}
+
+.WtCreateNLSimple_fileInputDiv
+{
+}
+
 
 .viewDiv
 {

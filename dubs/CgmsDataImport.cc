@@ -41,8 +41,9 @@ CgmsDataImport::importSpreadsheet( string filename, InfoType type,
   
   if( !inputFile.is_open() )
   {
-    cout << "Could not open '" << filename << "' please fix this." << endl;
-    exit(1);
+    const string msg = "Could not open '" + filename + "' please fix this.";
+    cout << msg << endl;
+    throw runtime_error( msg );
   }//if( !inputFile.is_open() 
   
   int nThisMinute = 0;
@@ -109,15 +110,15 @@ CgmsDataImport::importSpreadsheet( string filename, InfoType type,
   
   double dt = 5.0;
  
-  if( indMap.empty() && source!=NavigatorTab ) 
+  if( indMap.empty() && source!=NavigatorTab )
   {
-    cout << "Couldn't decode file " << filename << endl;
-    exit(1);  //keep from getting assert below and taking hecka time on my mac
-  }//if( couldn' tdecode this file )
+    const string msg = "Failed to decode file '" + filename + "' as InfoType="
+                       + boost::lexical_cast<string>( int(type) );
+    cerr << msg << endl;
+    throw runtime_error( msg );
+  }//if
   
-  assert( !indMap.empty() || source==NavigatorTab );
-  
-  if( timeValues.empty() ) return  ConsentrationGraph( startTime, dt, graphType );
+  if( timeValues.empty() ) return ConsentrationGraph( startTime, dt, graphType );
 
   //Now create a ConsentrationGraph
   ptime graphStarTime = startTime;
@@ -377,8 +378,9 @@ CgmsDataImport::getEolCharacter( std::string fileName )
   
   if( !inputFile.is_open() )
   {
-    cout << "Could not open '" << fileName << "' please fix this." << endl;
-    exit(1);
+    const string msg = "Could not open '" + fileName + "' please fix this.";
+    cout << msg << endl;
+    throw runtime_error( msg );
   }//if( !inputFile.is_open() )
   
   char *line = new char[4048];
@@ -506,12 +508,14 @@ CgmsDataImport::getInfoFromLine( std::string line,
     returnAnswer.first = time_from_string( dateStr + " " + timeStr );
   }catch(boost::exception &) 
   {
-    cout << "Couldn't reconstruct dates from input fields date='" 
-         << feilds[headerMap[kDateKey]]
-         << "', time='" << feilds[headerMap[kTimeKey]]
-         << "' which sanatized to '" << dateStr + " " + timeStr
-         << "' which is invalid" << endl;
-	  exit(1);
+    ostringstream msg;
+    msg << "Couldn't reconstruct dates from input fields date='"
+        << feilds[headerMap[kDateKey]]
+        << "', time='" << feilds[headerMap[kTimeKey]]
+        << "' which sanatized to '" << dateStr + " " + timeStr
+        << "' which is invalid";
+    cerr << msg.str() << endl;
+    throw runtime_error( msg.str() );
   }//try/catch( date )
   
   // cout << "key=" << key << ", field=" << headerMap[key] 
@@ -530,8 +534,9 @@ CgmsDataImport::getInfoFromLine( std::string line,
   {
     if( valField != "" ) returnAnswer.second = lexical_cast<double>( valField );
   }catch(boost::exception &){
-	  cout << "'" << valField << "' is an invalid reading for " << key << endl;
-	  exit(1);
+    const string msg = "'" + valField + "' is an invalid reading for " + key;
+    cerr << msg << endl;
+    throw runtime_error( msg );
   }//try/catch( BG reading )
   
   return returnAnswer;
@@ -754,21 +759,19 @@ PosixTime CgmsDataImport::getDateFromNavigatorDate( const string &navDate )
   double dayFrac = -1.0;
   
   try{ nDays = lexical_cast<int>(dateField); } 
-  catch( bad_lexical_cast &)
+  catch( bad_lexical_cast error )
   {
     cout << "\"" << navDate << "\" is an invalid date (" << dateField 
          << " not integer)" << endl;
-    exit(-1);
-    return kGenericT0;
+    throw error;
   }//try catch
   
   try{ dayFrac = lexical_cast<double>(timeField); } 
-  catch ( bad_lexical_cast &)
+  catch ( bad_lexical_cast error )
   {
     cout << "\"" << navDate << "\" is an invalid date (" << timeField 
          << " not double)" << endl;
-    exit(-1);
-    return kGenericT0;
+    throw error;
   }//try catch
   
   assert( nDays > 0 );
@@ -845,29 +848,29 @@ NavEvent::NavEvent( const std::string &line ) : m_dateTime(kGenericT0)
   
     
     try{ m_intData[intPos] = lexical_cast<int>(m_data[intPos]); } 
-    catch ( bad_lexical_cast &)
+    catch ( bad_lexical_cast error )
     {
-      cout << "\"" << m_data[intPos] << "\" is an invalid int" << endl;
-      exit(-1);
+      cerr << "\"" << m_data[intPos] << "\" is an invalid int" << endl;
+      throw error;
     }//try catch
   }//for( loop over potential integer 
   
   //the isManual flag
   try{ m_intData[ISMANUAL] = lexical_cast<int>(m_data[ISMANUAL]); } 
-  catch ( bad_lexical_cast &)
+  catch ( bad_lexical_cast error )
   {
-    cout << "\"" << m_data[ISMANUAL] << "\" is an invalid int" << endl;
-    exit(-1);
+    cerr << "\"" << m_data[ISMANUAL] << "\" is an invalid int" << endl;
+    throw error;
   }//try catch
     
     
   for( NavLinePos dPos = D0; dPos <= D4; dPos = NavLinePos(dPos+1) )
   {  
     try{ m_floatData[dPos] = lexical_cast<double>(m_data[dPos]); } 
-    catch ( bad_lexical_cast &)
+    catch ( bad_lexical_cast error )
     {
-      cout << "\"" << m_data[dPos] << "\" is an invalid double" << endl;
-      exit(-1);
+      cerr << "\"" << m_data[dPos] << "\" is an invalid double" << endl;
+      throw error;
     }//try catch
   }//for( loop over potential integer 
   //we're done

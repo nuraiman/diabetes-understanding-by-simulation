@@ -198,9 +198,6 @@ const NLSimple &NLSimple::operator=( const NLSimple &rhs )
 
   m_t0                         = rhs.m_t0;
 
-
-
-
   m_basalInsulinConc           = rhs.m_basalInsulinConc;
   m_basalGlucoseConcentration  = rhs.m_basalGlucoseConcentration;
 
@@ -2453,6 +2450,8 @@ void NLSimple::serialize( Archive &ar, const unsigned int version )
   ar & m_predictedBloodGlucose;
 
   ar & m_startSteadyStateTimes;
+
+  ar & m_settings;
 }//NLSimple::serialize
 
 

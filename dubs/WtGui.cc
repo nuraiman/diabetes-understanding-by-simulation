@@ -1,4 +1,3 @@
-#include <set>
 #include <cstdlib>
 #include <iostream>
 #include <iomanip>
@@ -7,10 +6,6 @@
 #include <stdio.h>
 #include <math.h>
 #include <stdlib.h>
-#include <fstream>
-#include <cmath>
-
-#include <sqlite3.h>
 
 #include "boost/foreach.hpp"
 #include "boost/lexical_cast.hpp"
@@ -49,9 +44,8 @@
 #include <Wt/WItemDelegate>
 #include <Wt/WLineF>
 #include <Wt/WPen>
+#include <Wt/WHBoxLayout>
 #include <Wt/Chart/WChartPalette>
-
-#include "WtGui.hh"
 
 #include "TH1.h"
 #include "TH1F.h"
@@ -61,6 +55,10 @@
 #include "TRandom3.h"
 #include "TSystem.h"
 
+#include "WtGui.hh"
+#include "WtUtils.hh"
+#include "WtUserManagment.hh"
+#include "WtCreateNLSimple.hh"
 #include "ResponseModel.hh"
 #include "ProgramOptions.hh"
 
@@ -71,7 +69,7 @@ using namespace std;
 #define foreach         BOOST_FOREACH
 #define reverse_foreach BOOST_REVERSE_FOREACH
 
-const std::string DubsLogin::cookie_name = "dubsuserid";
+
 
 void temp(){cerr <<"Working" << endl;}
 
@@ -118,7 +116,14 @@ void WtGui::requireLogin()
   }//if( isLoggedIn() )
 
   root()->clear();
-  DubsLogin *login = new DubsLogin( m_dbSession, root() );
+  WGridLayout *layout = new WGridLayout();
+  root()->setLayout( layout );
+  DubsLogin *login = new DubsLogin( m_dbSession );
+  layout->addWidget( login, 0, 0, 1, 1, AlignCenter );
+  layout->setColumnStretch(0, 5);
+  layout->addWidget( new Div(), 1, 0, 1, 1, AlignCenter );
+  layout->setRowStretch( 1, 5 );
+
   login->loginSuccessful().connect( boost::bind( &WtGui::init, this, _1 ) );
   login->loginSuccessful().connect( boost::bind( &DubsLogin::insertCookie, _1, 3024000, boost::ref(m_dbSession) ) );
 }//void WtGui::requireLogin()
@@ -128,7 +133,7 @@ void WtGui::logout()
 {  
   delete m_model;
   m_model = NULL;
-  DubsLogin::insertCookie( DubsLogin::cookie_name, 0, m_dbSession ); //deltes the cookie
+  DubsLogin::insertCookie( m_userDbPtr->name, 0, m_dbSession ); //deltes the cookie
   requireLogin();
 }//void logout()
 
@@ -143,10 +148,12 @@ void WtGui::resetGui()
 
 void WtGui::deleteModel( const string &modelname )
 {
-  Dbo::Transaction transaction(m_dbSession);
-  Dbo::ptr<UsersModel> model = m_userDbPtr.modify()->models.find().where("fileName = ?").bind( modelname );
-  if( model ) m_userDbPtr.modify()->models.erase( model );
-  transaction.commit();
+  {
+    Dbo::Transaction transaction(m_dbSession);
+    Dbo::ptr<UsersModel> model = m_userDbPtr.modify()->models.find().where("fileName = ?").bind( modelname );
+    if( model ) model.remove();
+    transaction.commit();
+  }
 
   if( m_userDbPtr->currentFileName == modelname )
   {
@@ -167,12 +174,19 @@ void WtGui::openModelDialog()
 {
   saveModelConfirmation();
 
-  Dbo::Transaction transaction(m_dbSession);
 
-  if( !m_userDbPtr || !(m_userDbPtr->models.size()) )
+
+  size_t nModels = 0;
+  if( m_userDbPtr )
+  {
+    Dbo::Transaction transaction(m_dbSession);
+    nModels = m_userDbPtr->models.size();
+    transaction.commit();
+  }//if( m_userDbPtr )
+
+  if( nModels == 0 )
   {
     newModel();
-    transaction.commit();
     return;
   }//if( no models owned by user )
 
@@ -225,7 +239,6 @@ void WtGui::openModelDialog()
     {
       //user hit 'Create New Model' button
       newModel();
-      transaction.commit();
       return;
     }//if( selected.empty() )
 
@@ -237,11 +250,9 @@ void WtGui::openModelDialog()
     }catch(...)
     { cerr << endl << "Any Cast Failed in openModelDialog()" << endl; }
 
-    transaction.commit();
     return;
   }//if( code == WDialog::Accepted )
 
-  transaction.commit();
   newModel();
 }//void openModelDialog()
 
@@ -278,6 +289,7 @@ void WtGui::init( const string username )
 
   if( m_model == NULL )
   {
+    setModelFileName( "" );
     init( m_userDbPtr->name );
     return;
   }
@@ -285,6 +297,7 @@ void WtGui::init( const string username )
   m_upperEqnDiv = new Div( "m_upperEqnDiv" );
   m_actionMenuPopup = new WPopupMenu();
   WPushButton *actionMenuButton = new WPushButton( "Actions", m_upperEqnDiv );
+  actionMenuButton->setStyleClass( "actionMenuButton" );
   actionMenuButton->clicked().connect( boost::bind( &WPopupMenu::exec, m_actionMenuPopup, actionMenuButton, Wt::Vertical) );
   actionMenuButton->clicked().connect( boost::bind( &WPushButton::disable, actionMenuButton ) );
 
@@ -297,8 +310,14 @@ void WtGui::init( const string username )
   item->triggered().connect( boost::bind( &WtGui::openModelDialog, this ) );
   item = m_actionMenuPopup->addItem( "New Model" );
   item->triggered().connect( boost::bind( &WtGui::newModel, this ) );
+  item->triggered().connect( boost::bind( &WPopupMenu::setHidden, m_actionMenuPopup, true ) );
 
   layout->addWidget( m_upperEqnDiv, WBorderLayout::North );
+
+  WPushButton *logout = new WPushButton( "logout", m_upperEqnDiv );
+  logout->setStyleClass( "logoutButton" );
+  logout->clicked().connect( boost::bind( &WtGui::logout, this) );
+
 
   m_tabs = new WTabWidget();
   m_tabs->setStyleClass( "m_tabs" );
@@ -325,6 +344,11 @@ void WtGui::init( const string username )
   m_bsGraph->axis(Chart::XAxis).setScale(Chart::DateTimeScale);
   m_bsGraph->axis(Chart::XAxis).setLabelAngle(45.0);
   m_bsGraph->axis(Chart::Y2Axis).setVisible(true);
+  m_bsGraph->axis(Chart::Y2Axis).setTitle( "Consumed Carbs" );
+  const WPen &y2Pen = m_bsGraph->palette()->strokePen(kMealData-2);
+  m_bsGraph->axis(Chart::Y2Axis).setPen( y2Pen );
+  m_bsGraph->axis(Chart::YAxis).setTitle( "mg/dL" );
+
 
   Chart::WDataSeries cgmsSeries(kCgmsData, Chart::LineSeries);
   cgmsSeries.setShadow(WShadow(3, 3, WColor(0, 0, 0, 127), 3));
@@ -337,7 +361,6 @@ void WtGui::init( const string username )
   m_bsGraph->addSeries( mealSeries );
   Chart::WDataSeries predictSeries( kPredictedBloodGlucose, Chart::LineSeries );
   m_bsGraph->addSeries( predictSeries );
-
 
 
   m_errorGridModel = new WStandardItemModel(  this );
@@ -379,6 +402,8 @@ void WtGui::init( const string username )
                                              now, datePickingDiv );
   m_bsEndTimePicker    = new DateTimeSelect( "&nbsp;&nbsp;&nbsp;&nbsp;End Date/Time:&nbsp;",
                                              now, datePickingDiv );
+  WPushButton *zoomOut = new WPushButton( "Full Date Range", datePickingDiv );
+  zoomOut->clicked().connect( this, &WtGui::zoomToFullDateRange );
   m_bsBeginTimePicker->changed().connect( boost::bind( &WtGui::updateDisplayedDateRange, this ) );
   m_bsEndTimePicker->changed().connect( boost::bind( &WtGui::updateDisplayedDateRange, this ) );
 
@@ -414,7 +439,7 @@ void WtGui::init( const string username )
 
   syncDisplayToModel();
 
-  DubEventEntry *dataEntry = new DubEventEntry();
+  DubEventEntry *dataEntry = new DubEventEntry( this );
   layout->addWidget( dataEntry, WBorderLayout::South );
   dataEntry->entered().connect( boost::bind(&WtGui::addData, this, _1) );
 
@@ -447,6 +472,13 @@ void WtGui::saveModelAsDialog()
   //delete dialog;  //crashes for some reason even when non modal
 }//void saveModelAsDialog()
 
+
+void WtGui::zoomToFullDateRange()
+{
+  m_bsEndTimePicker->set( m_bsEndTimePicker->top() );
+  m_bsBeginTimePicker->set( m_bsBeginTimePicker->top() );
+  updateDisplayedDateRange();
+}//void zoomToFullDateRange();
 
 
 void WtGui::updateDataRange()
@@ -493,6 +525,8 @@ void WtGui::updateDataRange()
 
   if( isTopped ) m_bsEndTimePicker->set( end );
   if( isBottomed ) m_bsBeginTimePicker->set( start );
+
+  updateDisplayedDateRange();
 }//void WtGui::updateDataRange()
 
 
@@ -607,6 +641,7 @@ void WtGui::syncDisplayToModel()
     m_bsModel->setData( row++, kPredictedInsulinX, element.m_value );
   }//
 
+  updateDataRange();
 }//void syncDisplayToModel()
 
 
@@ -744,8 +779,8 @@ void WtGui::saveModelConfirmation()
   new WText("Would you like to save the current model first?", dialog.contents() );
   new WBreak( dialog.contents() );
 
-  WPushButton *ok = new WPushButton( "Ok", dialog.contents() );
-  WPushButton *cancel = new WPushButton( "Cancel", dialog.contents() );
+  WPushButton *ok = new WPushButton( "Yes", dialog.contents() );
+  WPushButton *cancel = new WPushButton( "No", dialog.contents() );
   ok->enterPressed().connect( &dialog, &WDialog::accept );
   cancel->enterPressed().connect( &dialog, &WDialog::reject );
   ok->clicked().connect( &dialog, &WDialog::accept );
@@ -759,17 +794,29 @@ void WtGui::saveModelConfirmation()
 void WtGui::newModel()
 {
   saveModelConfirmation();
-  delete m_model;
-  setModelFileName( "" );
-  m_model = new NLSimple( m_userDbPtr->name + " Model", 1.0 );
-  //saveModel( "" );
-  init( m_userDbPtr->name );
+
+  NLSimple *new_model = NULL;
+  WDialog dialog( "Upload Data To Create A New Model From:" );
+  dialog.resize( WLength(95.0, WLength::Percentage), WLength(95.0, WLength::Percentage) );
+  //dialog.setAttributeValue(  "style", "border: solid 3px black;");
+  WtCreateNLSimple *creater = new WtCreateNLSimple( new_model, dialog.contents() );
+  creater->created().connect(       &dialog, &WDialog::accept );
+  creater->canceled().connect(   &dialog, &WDialog::reject );
+  WDialog::DialogCode code = dialog.exec();
+
+  if( (code==WDialog::Accepted) && new_model)
+  {
+    delete m_model;
+    m_model = new_model;
+    setModelFileName( "" );
+    init( m_userDbPtr->name );
+  }//if( accepted )
 }//void newModel()
 
 
 void WtGui::saveModel( const std::string &fileName )
 {
-  if( fileName.empty() )
+  if( fileName == "" )
   {
     saveModelAsDialog();
     return;
@@ -777,23 +824,54 @@ void WtGui::saveModel( const std::string &fileName )
 
   m_model->saveToFile( formFileSystemName(fileName) );
 
-  Dbo::Transaction transaction(m_dbSession);
-  const DubUser::UsersModels &models = m_userDbPtr->models;
-  Dbo::ptr<UsersModel> model = models.find().where( "fileName = ?" ).bind( fileName );
-  if( !model )
   {
-    UsersModel *newModel = new UsersModel();
-    newModel->user     = m_userDbPtr;
-    newModel->fileName = fileName;
-    newModel->created  = WDateTime::fromPosixTime( boost::posix_time::second_clock::local_time() );
-    newModel->modified = newModel->created;
-    m_dbSession.add( newModel );
-  }//if( !model )
+    Dbo::Transaction transaction(m_dbSession);
+    const DubUser::UsersModels &models = m_userDbPtr->models;
+    Dbo::ptr<UsersModel> model = models.find().where( "fileName = ?" ).bind( fileName );
+    transaction.commit();
+    if( model ) return;
+  }
+
+  Dbo::Transaction transaction(m_dbSession);
+  UsersModel *newModel = new UsersModel();
+  newModel->user     = m_userDbPtr;
+  newModel->fileName = fileName;
+  newModel->created  = WDateTime::fromPosixTime( boost::posix_time::second_clock::local_time() );
+  newModel->modified = newModel->created;
+  Dbo::ptr<UsersModel> newModelPtr = m_dbSession.add( newModel );
+  if( newModelPtr )
+    cerr << "Added new model:\n  "
+         << "newModel->user->name='" << newModel->user->name
+         << "', newModel->fileName='" << newModel->fileName
+         << "', newModel->created='" << newModel->created.toPosixTime() << endl;
 
   transaction.commit();
 
   setModelFileName( fileName );
 }//void saveModel( const std::string &fileName )
+
+
+void WtGui::deleteModelFile( const std::string &fileName )
+{
+  if( fileName.empty() ) return;
+
+  Dbo::ptr<UsersModel> model;
+
+  {
+    Dbo::Transaction transaction(m_dbSession);
+    const DubUser::UsersModels &models = m_userDbPtr->models;
+    model = models.find().where( "fileName = ?" ).bind( fileName );
+    if( model ) model.remove();
+    transaction.commit();
+  }
+
+  if( m_userDbPtr->currentFileName == fileName )
+  {
+    setModelFileName( "" );
+    openModelDialog();
+  }//if( we need to open another model file )
+}//void deleteModelFile( const std::string &fileName );
+
 
 
 void WtGui::setModel( const std::string &fileName )
@@ -805,376 +883,56 @@ void WtGui::setModel( const std::string &fileName )
     if( original ) delete original;
   }catch(...){
     cerr << "Failed to open NLSimple named " << fileName << endl;
-    wApp->doJavaScript( "Failed to open NLSimple named " + fileName, true );
+    wApp->doJavaScript( "alert( \"Failed to open NLSimple named " + fileName + "\" )", true );
+    deleteModelFile( fileName );
   }//try/catch
 }//void setModel( const std::string &fileName )
 
 
 void WtGui::setModelFileName( const std::string &fileName )
 {
+  if( m_userDbPtr->currentFileName == fileName ) return;
+
   Dbo::Transaction transaction(m_dbSession);
   m_userDbPtr.modify()->currentFileName = fileName;
-  transaction.commit();
+  if( !transaction.commit() ) cerr << "setModelFileName( const string & ) failed commit" << endl;
 }//void setModelFileName( const std::string &fileName )
 
 
-Div::Div( const std::string &styleClass, Wt::WContainerWidget *parent )
-  : Wt::WContainerWidget( parent )
-{
-  setInline( false );
-  if( styleClass != "" ) WContainerWidget::setStyleClass( styleClass );
-}//Div Constructor
 
 
 
-DubsLogin::DubsLogin(  Wt::Dbo::Session &dbSession, WContainerWidget *parent ):
-   WContainerWidget( parent ),
-   m_dbSession( dbSession ),
-   m_introText( NULL ),
-   m_username( NULL ),
-   m_password( NULL )
-{
-   setStyleClass( "login_box" );
 
-   //if( WServer::httpPort() != .... ) then don't serve the page, redirect to a static error page
 
-   WText *title = new WText("Login", this);
-   title->decorationStyle().font().setSize(WFont::XLarge);
 
-   m_introText = new WText("<p>Welcome to Diabetes Understanding by Simulation</p>", this);
-
-   WTable *layout = new WTable(this);
-   WLabel *usernameLabel = new WLabel("User name: ", layout->elementAt(0, 0));
-   layout->elementAt(0, 0)->resize(WLength(14, WLength::FontEx), WLength::Auto);
-   m_username = new WLineEdit( layout->elementAt(0, 1) );
-   usernameLabel->setBuddy(m_username);
-
-   WLabel *passwordLabel = new WLabel("Password: ", layout->elementAt(1, 0));
-   m_password = new WLineEdit(layout->elementAt(1, 1));
-   m_password->setEchoMode(WLineEdit::Password);
-   passwordLabel->setBuddy(m_password);
-
-   new WBreak(this);
-
-   WPushButton *loginButton = new WPushButton("Login", this);
-   WPushButton *addUserButton = new WPushButton("New User", this);
-   m_username->setFocus();
-
-   WApplication::instance()->globalEnterPressed().connect( SLOT( this, DubsLogin::checkCredentials) );
-   m_username->enterPressed().connect( SLOT( this, DubsLogin::checkCredentials) );
-   m_password->enterPressed().connect( SLOT( this, DubsLogin::checkCredentials) );
-   loginButton->clicked().connect(SLOT( this, DubsLogin::checkCredentials) );
-   addUserButton->clicked().connect( this, &DubsLogin::addUser );
-}//DubsLogin( initializer )
-
-
-
-std::string DubsLogin::isLoggedIn( Wt::Dbo::Session &dbSession )
-{
-  string value = "";
-  try{ value = wApp->environment().getCookie( cookie_name ); }
-  catch(...) { return ""; }
-
-  const size_t pos = value.find( '_' );
-  if( pos == string::npos ) return "";
-
-  const string name = value.substr( 0, pos );
-  const string hash = value.substr( pos+1, string::npos );
-
-  string found_hash = "";
-
-  Dbo::Transaction transaction(dbSession);
-  Dbo::ptr<DubUser> user = dbSession.find<DubUser>().where("name = ?").bind( name );
-  if( user ) found_hash = user->cookieHash;
-  transaction.commit();
-
-  if( (found_hash==hash) && (hash!="") ) return name;
-  return "";
-}//bool DubsLogin::checkForCookie()
-
-
-void DubsLogin::insertCookie( const std::string &uname,
-                              const int lifetime,
-                              Wt::Dbo::Session &dbSession )
-{
-  static TRandom3 tr3(0);
-  const string random_str = boost::lexical_cast<string>( tr3.Rndm() );
-  TMD5 md5obj;
-  md5obj.Update( (UChar_t *)random_str.c_str(), random_str.length() );
-  md5obj.Final();
-  string hash = md5obj.AsString();
-
-  const string cookie_value = (lifetime > 0) ? (uname + "_" + hash) : string("");
-
-  Dbo::Transaction transaction(dbSession);
-  Dbo::ptr<DubUser> user = dbSession.find<DubUser>().where("name = ?").bind(uname);
-
-  if( !user )
-  {
-    wApp->doJavaScript( "alert( \"Couldn\'t find user" + uname + " in database to set cookie for\" )", true );
-  }else
-  {
-    user.modify()->cookieHash = hash;
-    wApp->setCookie( cookie_name, cookie_value, lifetime ); //keep cookie for 25 days
-  }//if( found the user ) / else
-  transaction.commit();
-}//void DubsLogin::insertCookie()
-
-
-
-void DubsLogin::addUser()
-{
-  WDialog *dialog = new WDialog( "Add User" );
-  //dialog->setModal( false );
-  new WText( "User Name: ", dialog->contents() );
-  WLineEdit *userNameEdit = new WLineEdit( dialog->contents() );
-  userNameEdit->setText( "" );
-  WLengthValidator *val = new WLengthValidator( 3, 50 );
-  userNameEdit->setValidator( val );
-  new WText( " Password: ", dialog->contents() );
-  WLineEdit *passwordEdit = new WLineEdit( dialog->contents() );
-  passwordEdit->setText( "" );
-  val = new WLengthValidator( 3, 50 );
-  passwordEdit->setValidator( val );
-
-  new Wt::WBreak( dialog->contents() );
-  WPushButton *ok = new WPushButton( "Ok", dialog->contents() );
-  WPushButton *cancel = new WPushButton( "Cancel", dialog->contents() );
-
-  userNameEdit->enterPressed().connect( dialog, &WDialog::accept );
-  passwordEdit->enterPressed().connect( dialog, &WDialog::accept );
-  ok->clicked().connect( dialog, &WDialog::accept );
-  cancel->clicked().connect( dialog, &WDialog::reject );
-  userNameEdit->escapePressed().connect( dialog, &WDialog::reject );
-  passwordEdit->escapePressed().connect( dialog, &WDialog::reject );
-  userNameEdit->setFocus();
-  dialog->exec();
-
-  if( dialog->result() == WDialog::Rejected )
-  {
-    //delete dialog;
-    return;
-  }//if user canceled
-
-  const string name = userNameEdit->text().narrow();
-  const string pword = passwordEdit->text().narrow();
-
-  Dbo::ptr<DubUser> user;
-  {
-    Dbo::Transaction transaction(m_dbSession);
-    user = m_dbSession.find<DubUser>().where("name = ?").bind( name );
-    transaction.commit();
-  }
-
-  if( user || name.empty() || pword.empty() )
-  {
-    wApp->doJavaScript( "alert( \"User '" + name + "'' exists or invalid\" )", true );
-    //delete dialog;
-    //dialog = NULL;
-    addUser();
-  }else
-  {
-    TMD5 md5obj;
-    md5obj.Update( (UChar_t *)pword.c_str(), pword.length() );
-    md5obj.Final();
-    const string pwordhash = md5obj.AsString();
-
-    Dbo::Transaction transaction(m_dbSession);
-    DubUser *user = new DubUser();
-    user->name = name;
-    user->password = pwordhash;
-    user->currentFileName = "example";//ProgramOptions::ns_defaultModelFileName;
-    const string example_file_name = "../data/" + name + "_example.dubm";
-    gSystem->CopyFile( "../data/example.dubm", example_file_name.c_str(), kFALSE );
-    user->cookieHash = "";
-    using boost::algorithm::ends_with;
-    if( ends_with( name, "guest" ) ) user->role = DubUser::Visitor;
-    else                             user->role = DubUser::FullUser;
-
-    Dbo::ptr<DubUser> userptr = m_dbSession.add( user );
-    UsersModel *defaultModel  = new UsersModel();
-    defaultModel->user        = userptr;
-    defaultModel->fileName    = user->currentFileName;
-    defaultModel->created     = WDateTime::fromPosixTime( kGenericT0 );
-    defaultModel->modified    = WDateTime::fromPosixTime( kGenericT0 );
-    Dbo::ptr<UsersModel> usermodelptr = m_dbSession.add( defaultModel );
-    const bool wasCommitted = transaction.commit();
-
-    if( !wasCommitted ) cerr << "\nDid not commit adding the user\n" << endl;
-  }//if( user exists ) / else
-
-  //delete dialog;
-  m_username->setText( name );
-}//void addUser()
-
-
-void DubsLogin::checkCredentials()
-{
-   const std::string user = m_username->text().narrow();
-   const std::string pass = m_password->text().narrow();
-
-   if( validLogin( user, pass ) )
-   {
-     insertCookie( user, 25*24*3600, m_dbSession );
-     m_loginSuccessfulSignal.emit( user );
-   } else
-   {
-      m_introText->setText("<p>You entered an invalid password or username."
-                           "</p><p>Please try again.</p>" );
-      m_introText->decorationStyle().setForegroundColor( Wt::WColor( 186, 17, 17 ) );
-      m_username->setText("");
-      m_password->setText("");
-      WWidget *p = m_introText->parent();
-      if( p ) p->decorationStyle().setBackgroundColor( Wt::WColor( 242, 206, 206 ) );
-   }//if( username / password ) / else failure
-}//void DubsLogin::checkCredentials()
-
-
-
-bool DubsLogin::validLogin( const std::string &user, std::string pass )
-{
-  TMD5 md5obj;
-  md5obj.Update( (UChar_t *)pass.c_str(), pass.length() );
-  md5obj.Final();
-  pass = md5obj.AsString();
-
-  Dbo::Transaction transaction(m_dbSession);
-  Dbo::ptr<DubUser> userptr = m_dbSession.find<DubUser>().where("name = ?").bind( user );
-  transaction.commit();
-
-  return (userptr && (userptr->password == pass));
-}//bool validLogin( const std::string &user, std::string &pass );
-
-
-Wt::Signal<std::string> &DubsLogin::loginSuccessful()
-{
-  return m_loginSuccessfulSignal;
-}//loginSuccessful()
-
-
-DateTimeSelect::DateTimeSelect( const std::string &labelText,
-                                const Wt::WDateTime &initialTime,
-                                Wt::WContainerWidget *parent )
-  : WContainerWidget(parent),
-  m_datePicker( new WDatePicker() ),
-  m_hourSelect( new WSpinBox() ),
-  m_minuteSelect( new WSpinBox() ),
-  m_top( WDate(3000,1,1), WTime(0,0,0) ),
-  m_bottom( WDate(1901,1,1), WTime(0,0,0) )
-{
-  setInline(true);
-  setStyleClass( "DateTimeSelect" );
-
-  m_hourSelect->setSingleStep( 1.0 );
-  m_hourSelect->setMinimum(0);
-  m_hourSelect->setMaximum(23);
-  m_hourSelect->setMaxLength(2);
-  m_hourSelect->setTextSize(2);
-
-  m_minuteSelect->setSingleStep( 1.0 );
-  m_minuteSelect->setMinimum(0);
-  m_minuteSelect->setMaximum(59);
-  m_minuteSelect->setMaxLength(2);
-  m_minuteSelect->setTextSize(2);
-
-  m_datePicker->setGlobalPopup( true );
-  m_datePicker->changed().connect(  boost::bind( &WDatePicker::setPopupVisible, m_datePicker, false ) );
-  m_datePicker->changed().connect(   boost::bind( &DateTimeSelect::validate, this, true ) );
-  m_hourSelect->changed().connect(   boost::bind( &DateTimeSelect::validate, this, true ) );
-  m_minuteSelect->changed().connect( boost::bind( &DateTimeSelect::validate, this, true ) );
-
-  if( labelText != "" )
-  {
-    WLabel *label = new WLabel( labelText, this );
-    label->setBuddy( m_datePicker->lineEdit() );
-  }//if( labelText != "" )
-
-  addWidget( m_datePicker );
-  addWidget( new WText("&nbsp;&nbsp;") );
-  addWidget( m_hourSelect );
-  addWidget( new WText(":") );
-  addWidget( m_minuteSelect );
-
-  set( initialTime );
-}//DateTimeSelect constructor
-
-DateTimeSelect::~DateTimeSelect(){}
-
-void DateTimeSelect::set( const Wt::WDateTime &dt )
-{
-  if( !dt.isValid() ) return;
-  if( (dt > m_top) || (dt < m_bottom) ) return;
-  m_datePicker->setDate( dt.date() );
-
-  const int hour = dt.time().hour();
-  const int minute = dt.time().minute();
-  m_hourSelect->setText( boost::lexical_cast<string>(hour) );
-  m_minuteSelect->setText( boost::lexical_cast<string>(minute) );
-}//void set( const Wt::WDateTime *dateTime )
-
-
-Wt::WDateTime DateTimeSelect::dateTime() const
-{
-  const int hour = floor( m_hourSelect->value() + 0.5 );
-  const int minute = floor( m_minuteSelect->value() + 0.5 );
-  return WDateTime( m_datePicker->date(), WTime( hour, minute ) );
-}//Wt::WDateTime DateTimeSelect::dateTime() const
-
-void DateTimeSelect::setTop( const Wt::WDateTime &top )
-{
-  m_top = top;
-  validate();
-}//setTop( const Wt::WDateTime &top )
-
-void DateTimeSelect::setBottom( const Wt::WDateTime &bottom )
-{
-  m_bottom = bottom;
-  validate();
-}//setBottom( const Wt::WDateTime &bottom )
-
-void DateTimeSelect::validate( bool emitChanged )
-{
-  const WDateTime currentDT = dateTime();
-  if( currentDT < m_bottom )   set( m_bottom );
-  else if( currentDT > m_top ) set( m_top );
-
-  if( emitChanged ) m_changed.emit();
-}//void notify()
-
-Wt::Signal<> &DateTimeSelect::changed()
-{
-  return m_changed;
-}//Wt::Signal<> changed()
-
-
-
-
-const Wt::WDateTime &DateTimeSelect::top() const
-{
-  return m_top;
-}
-
-const Wt::WDateTime &DateTimeSelect::bottom() const
-{
-  return m_bottom;
-}
-
-
-DubEventEntry::DubEventEntry( WContainerWidget *parent )
+DubEventEntry::DubEventEntry( WtGui *wtguiparent, WContainerWidget *parent )
   : WContainerWidget( parent ),
-  m_time( new DateTimeSelect( "Date/Time&nbsp;",
+  m_time( new DateTimeSelect( "&nbsp;&nbsp;Date/Time:&nbsp;",
                               WDateTime::fromPosixTime(boost::posix_time::second_clock::local_time())
                             ) ),
   m_type( new WComboBox() ),
   m_value( new WLineEdit() ),
   m_units( new WText() ),
-  m_button( new WPushButton("submit") )
+  m_button( new WPushButton("submit") ),
+  m_wtgui( wtguiparent )
 {
   setStyleClass( "DubEventEntry" );
   setInline(false);
 
-  addWidget( new WText( "<b>Enter New Event</b>&nbsp;:&nbsp;" ) );
-  addWidget( m_time );
+  addWidget( new WText( "<b>Enter New Event:</b>&nbsp;&nbsp;" ) );
+
+  Div *timeSelectDiv = new Div( "DubEventEntry_timeSelectDiv", this );
+  timeSelectDiv->setInline(true);
+  addWidget( timeSelectDiv );
+
+  timeSelectDiv->addWidget( m_time );
+  WPushButton *nowB = new WPushButton( "now", timeSelectDiv );
+  WPushButton *lastTimeB = new WPushButton( "data end", timeSelectDiv );
+  nowB->setStyleClass( "dubEventEntryTimeButton" );
+  lastTimeB->setStyleClass( "dubEventEntryTimeButton" );
+  nowB->clicked().connect( this, &DubEventEntry::setTimeToNow );
+  lastTimeB->clicked().connect( this, &DubEventEntry::setTimeToLastData );
+
   addWidget( m_type );
   addWidget( m_value );
   addWidget( m_units );
@@ -1196,9 +954,8 @@ DubEventEntry::DubEventEntry( WContainerWidget *parent )
       case WtGui::kNumEntryType:     /*m_type->addItem( "" );*/             break;
     };//switch( et )
   };//enum EntryType
-  m_type->setCurrentIndex( WtGui::kNotSelected );
 
-  m_value->setTextSize(4);
+  m_type->setCurrentIndex( WtGui::kNotSelected );
   m_value->enterPressed().connect( boost::bind( &DubEventEntry::emitEntered, this ) );
   m_type->changed().connect( boost::bind( &DubEventEntry::typeChanged, this ) );
   m_button->clicked().connect( boost::bind( &DubEventEntry::emitEntered, this ) );
@@ -1234,13 +991,28 @@ void DubEventEntry::emitEntered()
 void DubEventEntry::reset()
 {
   using namespace boost::posix_time;
-  m_time->set( WDateTime::fromPosixTime(second_clock::local_time()) );
+  WDateTime now = WDateTime::fromPosixTime(second_clock::local_time());
+  if( (m_time->dateTime().addSecs(30*60)) < now ) m_time->set( now );
   m_type->setCurrentIndex( WtGui::kNotSelected );
   m_units->setText("");
   m_value->setText( "" );
   m_value->setEnabled(false);
   m_button->setEnabled(false);
 }//void DubEventEntry::reset()
+
+
+void DubEventEntry::setTimeToNow()
+{
+  m_time->set( WDateTime::fromPosixTime(boost::posix_time::second_clock::local_time()) );
+}//void setTimeToNow()
+
+
+void DubEventEntry::setTimeToLastData()
+{
+  if( !m_wtgui ) return;
+  m_time->set( m_wtgui->m_bsEndTimePicker->top() );
+}//void setTimeToLastData()
+
 
 void DubEventEntry::typeChanged()
 {
@@ -1367,5 +1139,63 @@ void ClarkErrorGridGraph::paint( WPainter &painter,
 }//void paintEvent(Wt::WPaintDevice *paintDevice)
 
 
+WtModelSettingsGui::WtModelSettingsGui( ModelSettings *modelSettings,
+                                        WContainerWidget *parent )
+  : WContainerWidget( parent ),
+    m_settings( modelSettings )
+{
+  init();
+}
+
+WtModelSettingsGui::~WtModelSettingsGui() {}
+Signal<> &WtModelSettingsGui::changed() { return m_changed; }
+Signal<> &WtModelSettingsGui::predictionChanged() { return m_predictionChanged; }
+void WtModelSettingsGui::emitChanged() { m_changed.emit(); }
+void WtModelSettingsGui::emitPredictionChanged() { m_predictionChanged.emit(); }
+
+void WtModelSettingsGui::init()
+{
+  clear();
+  if( !m_settings ) return;
+
+  WGridLayout *layout = new WGridLayout();
+
+  const int maxRows = 8;
+  int row = 0, column = 0;
 
 
+  row    = (row<maxRows) ? row + 1 : 0;
+  column = (row==0) ? column + 2: column;
+
+/*
+  IntSpinBox;
+  DoubleSpinBox;
+  TimeDurationSpinBox;
+
+  double m_personsWeight;          //ProgramOptions::kPersonsWeight
+  double m_cgmsIndivReadingUncert; //ProgramOptions::kCgmsIndivReadingUncert
+
+  TimeDuration m_defaultCgmsDelay; //ProgramOptions::kDefaultCgmsDelay
+  TimeDuration m_cgmsDelay;        //what is actually used for the delay
+  TimeDuration m_predictAhead;     //ProgramOptions::kPredictAhead
+  TimeDuration m_dt;               //ProgramOptions::kIntegrationDt
+
+  PosixTime m_endTrainingTime;
+  PosixTime m_startTrainingTime;
+
+
+  double m_lastPredictionWeight;   //ProgramOptions::kLastPredictionWeight
+
+  double m_targetBG;               //ProgramOptions::kTargetBG
+  double m_bgLowSigma;             //ProgramOptions::kBGLowSigma
+  double m_bgHighSigma;            //ProgramOptions::kBGHighSigma
+
+//Genetic minimization paramaters
+  int m_genPopSize;                //ProgramOptions::kGenPopSize
+  int m_genConvergNsteps;          //ProgramOptions::kGenConvergNsteps
+  int m_genNStepMutate;            //ProgramOptions::kGenNStepMutate
+  int m_genNStepImprove;           //ProgramOptions::kGenNStepImprove
+  double m_genSigmaMult;           //ProgramOptions::kGenSigmaMult
+  double m_genConvergCriteria;     //ProgramOptions::kGenConvergCriteria
+  */
+}//void init()
