@@ -4,6 +4,9 @@
 #include <string>
 #include <vector>
 #include "boost/date_time/posix_time/posix_time.hpp"
+#include <boost/thread/recursive_mutex.hpp>
+#include <boost/thread/mutex.hpp>
+#include <boost/shared_ptr.hpp>
 #include <Wt/WApplication>
 #include <Wt/WContainerWidget>
 #include <Wt/WDateTime>
@@ -17,6 +20,7 @@
 
 //Some forward declarations
 class NLSimple;
+class WtGui;
 class Div;
 class DateTimeSelect;
 class DubEventEntry;
@@ -30,6 +34,7 @@ class ClarkErrorGridGraph;
 class WtModelSettingsGui;
 class MemVariableSpinBox;
 
+class NLSimplePtr;
 
 namespace Wt
 {
@@ -48,6 +53,27 @@ namespace Wt
   class WBorderLayout;
   class WStandardItemModel;
 };//namespace Wt
+
+
+
+//Since the gui is multithreaded, but NLSimple is not designed to be multithreaded
+//  we'll use a shared pointer that also contains a mutex, so whenever we need to
+//  access the NLSimple model of a gui, we can safely do it through this
+//  shared pointer / mutex.  This implmenetation asumes the parent WtGui is
+//  longer lived than the NLSimplePtr object.
+typedef boost::shared_ptr<NLSimple> NLSimpleShrdPtr;
+typedef boost::recursive_mutex::scoped_lock RecursiveScopedLock;
+class NLSimplePtr : public NLSimpleShrdPtr
+{
+  WtGui *m_parent;
+  boost::shared_ptr<RecursiveScopedLock> m_lock;
+
+public:
+  NLSimplePtr( WtGui *gui );
+  NLSimplePtr( NLSimplePtr &rhs );
+  NLSimplePtr &operator=( const NLSimplePtr &rhs );
+  virtual ~NLSimplePtr(){}
+};//class NLSimplePtr
 
 
 
@@ -104,7 +130,7 @@ public:
 
   public:
     WtGui( const Wt::WEnvironment& env );
-    virtual ~WtGui(){ /*delete m_model;*/ }
+    virtual ~WtGui(){}
 
     void saveModel( const std::string &fileName );
     void deleteModelFile( const std::string &fileName );
@@ -127,6 +153,7 @@ public:
     void updateDataRange();
     void zoomToFullDateRange();
     void syncDisplayToModel();
+    void updateClarkAnalysis();
     void updateClarkAnalysis( const ConsentrationGraph &xGraph,
                               const ConsentrationGraph &yGraph,
                               bool isCgmsVMeter );
@@ -136,8 +163,16 @@ public:
 
     void addData( EventInformation info );
 
+    boost::recursive_mutex &modelMutex() { return m_modelMutex; }
+    DateTimeSelect *getBeginTimePicker() { return m_bsBeginTimePicker; }
+    DateTimeSelect *getEndTimePicker() { return m_bsEndTimePicker; }
+
   private:
-    NLSimple *m_model;
+    //m_model should never be accessed in any situation where multithreaded
+    //  access is any possibility, instead, a NLSimplePtr object should be
+    //  instatiated and used for thread safety
+    NLSimpleShrdPtr m_model;
+    boost::recursive_mutex  m_modelMutex;
 
     Wt::Dbo::ptr<DubUser> m_userDbPtr;
 
@@ -162,9 +197,10 @@ public:
     Wt::WStandardItemModel     *m_customEventsModel;
     std::vector<ModelGraphPair> m_customEventGraphs;
 
-    friend class DubEventEntry;
+    friend class NLSimplePtr;
+    //friend class DubEventEntry;
+    //friend class WtGeneticallyOptimize;
 };//class WtGui
-
 
 
 
@@ -237,6 +273,33 @@ private:
   void emitPredictionChanged();
 };//class WtModelSettingsGui
 
+
+
+class WtGeneticallyOptimize: public Wt::WContainerWidget
+{
+  WtGui *m_parentWtGui;
+
+  boost::mutex m_continueMutex;
+  bool m_continueOptimizing;
+
+  boost::mutex m_beingOptimizedMutex;
+  std::vector<double> m_bestChi2;
+
+public:
+  WtGeneticallyOptimize( WtGui *wtGuiParent,
+                         Wt::WContainerWidget *parent = NULL  );
+  virtual ~WtGeneticallyOptimize();
+
+
+  //below is meant to be called after each new generation of potential models
+  //  has been evaluated, the continueOptimizing() fcn will return false if the
+  //  user would like to stop the optimization process
+  void optimizationUpdateFcn( double bestChi2 );
+  bool continueOptimizing();
+  void setContinueOptimizing( const bool doContinue );
+  void startOptimization(); //call this to start the optimization
+  void doGeneticOptimization();  //lanuched as a thread by startOptimization()
+};//class WtGeneticallyOptimize
 
 
 #endif // WTGUI_H

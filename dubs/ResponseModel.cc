@@ -50,6 +50,7 @@
 #include "boost/foreach.hpp"
 #include "boost/bind.hpp"
 #include "boost/ref.hpp"
+#include "boost/function.hpp"
 #include "boost/assign/list_of.hpp" //for 'list_of()'
 #include "boost/assign/list_inserter.hpp"
 #include <boost/serialization/set.hpp>
@@ -1742,9 +1743,13 @@ double NLSimple::getDerivativeChi2( const ConsentrationGraph &modelDerivData,
 
 
 double NLSimple::geneticallyOptimizeModel( double endPredChi2Weight,
-                                           vector<TimeRange> timeRanges )
+                                           vector<TimeRange> timeRanges,
+                                           NLSimple::Chi2CalbackFcn genBestCallBackFcn,
+                                           NLSimple::ContinueFcn continueFcn )
 {
   using namespace TMVA;
+
+  std::vector<Double_t> gvec = m_paramaters;
 
   m_paramaters.clear();
   resetPredictions();
@@ -1804,9 +1809,13 @@ double NLSimple::geneticallyOptimizeModel( double endPredChi2Weight,
 
   GeneticAlgorithm ga( fittnesFunc, fPopSize, ranges );
 
-
+  bool wasCanceled = false;
   int generation = 0;
   do{
+    //
+    wasCanceled = ( continueFcn!=NULL && !continueFcn() );
+    if( wasCanceled ) break;
+
     generation++;
     ga.Init();              // prepares the new generation and does evolution
     ga.CalculateFitness();  // assess the quality of the individuals
@@ -1817,27 +1826,13 @@ double NLSimple::geneticallyOptimizeModel( double endPredChi2Weight,
     cout << "Parameters: ";
     foreach( Double_t p, currentPars ) cout << p << "  ";
     cout << endl;
-    double currFitness = fittnesFunc.testParamaters( currentPars, false/*(m_gui != NULL)*/ );
+
+    const bool updateModel = !(genBestCallBackFcn == NULL);
+    assert( updateModel ); //just to make sure above comparison actually works
+    double currFitness = fittnesFunc.testParamaters( currentPars, updateModel );
     cout << "Current fitness is " << currFitness << " fitness" << endl << endl << endl;
 
-    /*
-    if( m_gui )
-    {
-      m_gui->drawEquations();
-      m_gui->drawModel();
-
-      TCanvas *can = m_gui->getModelCanvas();
-      //The NLSimpleGui will delete the below pave text on it's next draw
-      TPaveText *pt = new TPaveText(0.15, 0.8, 0.28, 0.89, "NDC");
-      pt->SetBorderSize(0);
-      pt->SetTextAlign(12);
-      stringstream ss;
-      ss << "#chi^{2}=" << currFitness;
-      pt->AddText( ss.str().c_str() );
-      pt->Draw();
-      can->Update();
-    }//if( m_gui )
-*/
+    genBestCallBackFcn( currFitness );
 
     fConvCrit = 0.008 * currFitness;
 
@@ -1849,28 +1844,19 @@ double NLSimple::geneticallyOptimizeModel( double endPredChi2Weight,
   }while ( !ga.HasConverged( fNsteps, fConvCrit ) );
   // converged if: fitness-improvement < CONVCRIT within the last CONVSTEPS loops
 
-  GeneticGenes* genes = ga.GetGeneticPopulation().GetGenes( 0 );
-  std::vector<Double_t> gvec;
-  gvec = genes->GetFactors();
+  if( !wasCanceled )
+  {
+    GeneticGenes* genes = ga.GetGeneticPopulation().GetGenes( 0 );
+    gvec = genes->GetFactors();
+  }//if( !wasCanceled )
 
   cout << "Final paramaters are: ";
   foreach( Double_t d, gvec ) cout << d << "  ";
   cout << endl;
 
   setModelParameters(gvec);
-
-  /*
-  if( m_gui )
-  {
-    m_gui->drawEquations();
-    m_gui->drawModel();
-    m_gui->refreshClarkAnalysis();
-    m_gui->updateCustomEventTab();
-  }//if( m_gui )
-*/
-
-  double chi2 = fittnesFunc.testParamaters( gvec, true );
-
+  const double chi2 = fittnesFunc.testParamaters( gvec, true );
+  genBestCallBackFcn( chi2 );
 
   return chi2;
 }//geneticallyOptimizeModel

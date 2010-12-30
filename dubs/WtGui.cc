@@ -11,6 +11,8 @@
 #include "boost/lexical_cast.hpp"
 #include "boost/date_time/posix_time/posix_time.hpp"
 #include "boost/algorithm/string.hpp"
+#include <boost/thread/thread.hpp>
+#include <boost/thread/mutex.hpp>
 
 #include <Wt/Dbo/backend/Sqlite3>
 #include <Wt/WApplication>
@@ -69,13 +71,32 @@ using namespace std;
 #define foreach         BOOST_FOREACH
 #define reverse_foreach BOOST_REVERSE_FOREACH
 
+WtGui *m_parent;
+boost::shared_ptr<boost::recursive_mutex::scoped_lock> m_lock;
 
+NLSimplePtr::NLSimplePtr( NLSimplePtr &rhs )
+  : NLSimpleShrdPtr(rhs),
+    m_parent( rhs.m_parent ),
+    m_lock( new RecursiveScopedLock( m_parent->m_modelMutex ) )
+{}
 
-void temp(){cerr <<"Working" << endl;}
+NLSimplePtr::NLSimplePtr( WtGui *gui )
+  : NLSimpleShrdPtr(gui->m_model),
+  m_parent( gui ),
+  m_lock( new RecursiveScopedLock( m_parent->m_modelMutex ) )
+{}
+
+NLSimplePtr &NLSimplePtr::operator=( const NLSimplePtr &rhs )
+{
+  m_parent = rhs.m_parent;
+  m_lock = boost::shared_ptr<RecursiveScopedLock>( new RecursiveScopedLock( m_parent->m_modelMutex ) );
+  return *this;
+}
+
 
 WtGui::WtGui( const Wt::WEnvironment& env )
   : WApplication( env ),
-  m_model( NULL ),
+  m_model(),
   m_dbBackend( "user_information.db" ),
   m_dbSession(),
   m_upperEqnDiv( NULL ),
@@ -91,6 +112,7 @@ WtGui::WtGui( const Wt::WEnvironment& env )
   m_customEventsModel( NULL ),
   m_customEventGraphs( 0 )
 {
+  enableUpdates(true);
   setTitle( "dubs" );
   useStyleSheet( "/local_resources/dubs.css" );
 
@@ -130,9 +152,9 @@ void WtGui::requireLogin()
 
 
 void WtGui::logout()
-{  
-  delete m_model;
-  m_model = NULL;
+{
+  boost::recursive_mutex::scoped_lock lock( m_modelMutex );
+  m_model = NLSimpleShrdPtr();
   DubsLogin::insertCookie( m_userDbPtr->name, 0, m_dbSession ); //deltes the cookie
   requireLogin();
 }//void logout()
@@ -140,8 +162,17 @@ void WtGui::logout()
 
 void WtGui::resetGui()
 {
-  delete m_model;
-  m_model = NULL;
+  boost::recursive_mutex::scoped_lock lock( m_modelMutex, boost::try_to_lock );
+
+  if( !lock.owns_lock() )
+  {
+    const string msg = "Another operation (thread) is currently working, sorry I cant do this operation of resetGui()";
+    wApp->doJavaScript( "alert( \"" + msg + "\" )", true );
+    cerr << msg << endl;
+    return;
+  }//if( couldn't get the lock )
+
+  m_model = NLSimpleShrdPtr();
   init( m_userDbPtr->name );
 }//void resetGui()
 
@@ -259,6 +290,8 @@ void WtGui::openModelDialog()
 
 void WtGui::init( const string username )
 {
+  boost::recursive_mutex::scoped_lock lock( m_modelMutex );
+
   {
     Dbo::Transaction transaction(m_dbSession);
     m_userDbPtr = m_dbSession.find<DubUser>().where("name = ?").bind( username );
@@ -275,19 +308,21 @@ void WtGui::init( const string username )
   root()->clear();
   root()->setStyleClass( "root" );
   WBorderLayout *layout = new WBorderLayout();
+  //layout->setSpacing(0);
+  layout->setContentsMargins( 0, 0, 0, 0 );
   root()->setLayout( layout );
 
-  if( m_userDbPtr->currentFileName.empty() && !m_model )
+  if( m_userDbPtr->currentFileName.empty() && !m_model.get() )
   {
     openModelDialog();
     return;
   }else if( !m_userDbPtr->currentFileName.empty() )
   {
-    assert( !m_model );
+    assert( !m_model.get() );
     setModel( m_userDbPtr->currentFileName );
   }
 
-  if( m_model == NULL )
+  if( m_model.get() == NULL )
   {
     setModelFileName( "" );
     init( m_userDbPtr->name );
@@ -382,7 +417,8 @@ void WtGui::init( const string username )
     Chart::WDataSeries series(reg, Chart::PointSeries);
     m_errorGridGraph->addSeries( series );
   }
-  updateClarkAnalysis( m_model->m_fingerMeterData, m_model->m_cgmsData, true );
+
+  updateClarkAnalysis();
 
   m_customEventsView = new WTableView();
   m_customEventsModel = new WStandardItemModel( this );
@@ -390,8 +426,10 @@ void WtGui::init( const string username )
   m_customEventGraphs.clear();
 
 
+  NLSimplePtr modelPtr( this );
+
   /*
-  foreach( NLSimple::EventDefMap::value_type &t, m_model->m_customEventDefs )
+  foreach( NLSimple::EventDefMap::value_type &t, modelPtr->m_customEventDefs )
   {
   }
   */
@@ -409,8 +447,8 @@ void WtGui::init( const string username )
 
   updateDataRange();
   WDateTime start, end;
-  end.setPosixTime( m_model->m_cgmsData.getEndTime() );
-  start.setPosixTime( m_model->m_cgmsData.getStartTime() );
+  end.setPosixTime( modelPtr->m_cgmsData.getEndTime() );
+  start.setPosixTime( modelPtr->m_cgmsData.getStartTime() );
   m_bsEndTimePicker->set( end );
   m_bsBeginTimePicker->set( start );
 
@@ -437,13 +475,18 @@ void WtGui::init( const string username )
   m_errorGridGraph->setMinimumSize( 400, 400 );
   m_tabs->addTab( errorGridTabDiv, "Error Grid" );
 
+
+  WtModelSettingsGui *settings = new WtModelSettingsGui( &(modelPtr->m_settings) );
+  m_tabs->addTab( settings, "Settings" );
+
   syncDisplayToModel();
 
   DubEventEntry *dataEntry = new DubEventEntry( this );
   layout->addWidget( dataEntry, WBorderLayout::South );
   dataEntry->entered().connect( boost::bind(&WtGui::addData, this, _1) );
-
 }//WtGui::init()
+
+
 
 
 void WtGui::saveModelAsDialog()
@@ -483,33 +526,34 @@ void WtGui::zoomToFullDateRange()
 
 void WtGui::updateDataRange()
 {
-  if( !m_model ) return;
+  NLSimplePtr modelPtr( this );
+  if( !modelPtr.get() ) return;
 
   PosixTime ptimeStart = boost::posix_time::second_clock::local_time();
   PosixTime ptimeEnd   = boost::posix_time::second_clock::local_time();
-  if( !m_model->m_cgmsData.empty() ) ptimeStart = m_model->m_cgmsData.getStartTime();
-  if( !m_model->m_cgmsData.empty() ) ptimeEnd = m_model->m_cgmsData.getEndTime();
+  if( !modelPtr->m_cgmsData.empty() ) ptimeStart = modelPtr->m_cgmsData.getStartTime();
+  if( !modelPtr->m_cgmsData.empty() ) ptimeEnd = modelPtr->m_cgmsData.getEndTime();
 
-  if( !m_model->m_fingerMeterData.empty() )
-    ptimeStart = min( ptimeStart, m_model->m_fingerMeterData.getStartTime() );
-  if( !m_model->m_fingerMeterData.empty() )
-    ptimeEnd = max( ptimeEnd, m_model->m_fingerMeterData.getEndTime() );
-  if( !m_model->m_mealData.empty() )
-    ptimeStart = min( ptimeStart, m_model->m_mealData.getStartTime() );
-  if( !m_model->m_mealData.empty() )
-    ptimeEnd = max( ptimeEnd, m_model->m_mealData.getEndTime() );
-  if( !m_model->m_predictedBloodGlucose.empty() )
-    ptimeStart = min( ptimeStart, m_model->m_predictedBloodGlucose.getStartTime() );
-  if( !m_model->m_predictedBloodGlucose.empty() )
-    ptimeEnd = max( ptimeEnd, m_model->m_predictedBloodGlucose.getEndTime() );
-  if( !m_model->m_customEvents.empty() )
-    ptimeStart = min( ptimeStart, m_model->m_customEvents.getStartTime() );
-  if( !m_model->m_customEvents.empty() )
-    ptimeEnd = max( ptimeEnd, m_model->m_customEvents.getEndTime() );
-  if( !m_model->m_predictedInsulinX.empty() )
-    ptimeStart = min( ptimeStart, m_model->m_predictedInsulinX.getStartTime() );
-  if( !m_model->m_predictedInsulinX.empty() )
-    ptimeEnd = max( ptimeEnd, m_model->m_predictedInsulinX.getEndTime() );
+  if( !modelPtr->m_fingerMeterData.empty() )
+    ptimeStart = min( ptimeStart, modelPtr->m_fingerMeterData.getStartTime() );
+  if( !modelPtr->m_fingerMeterData.empty() )
+    ptimeEnd = max( ptimeEnd, modelPtr->m_fingerMeterData.getEndTime() );
+  if( !modelPtr->m_mealData.empty() )
+    ptimeStart = min( ptimeStart, modelPtr->m_mealData.getStartTime() );
+  if( !modelPtr->m_mealData.empty() )
+    ptimeEnd = max( ptimeEnd, modelPtr->m_mealData.getEndTime() );
+  if( !modelPtr->m_predictedBloodGlucose.empty() )
+    ptimeStart = min( ptimeStart, modelPtr->m_predictedBloodGlucose.getStartTime() );
+  if( !modelPtr->m_predictedBloodGlucose.empty() )
+    ptimeEnd = max( ptimeEnd, modelPtr->m_predictedBloodGlucose.getEndTime() );
+  if( !modelPtr->m_customEvents.empty() )
+    ptimeStart = min( ptimeStart, modelPtr->m_customEvents.getStartTime() );
+  if( !modelPtr->m_customEvents.empty() )
+    ptimeEnd = max( ptimeEnd, modelPtr->m_customEvents.getEndTime() );
+  if( !modelPtr->m_predictedInsulinX.empty() )
+    ptimeStart = min( ptimeStart, modelPtr->m_predictedInsulinX.getStartTime() );
+  if( !modelPtr->m_predictedInsulinX.empty() )
+    ptimeEnd = max( ptimeEnd, modelPtr->m_predictedInsulinX.getEndTime() );
 
   WDateTime start, end;
   end.setPosixTime( ptimeEnd );
@@ -540,26 +584,27 @@ void WtGui::updateDisplayedDateRange()
 
 void WtGui::addData( WtGui::EventInformation info )
 {
+  NLSimplePtr modelPtr( this );
   switch( info.type )
   {
     case WtGui::kNotSelected: break;
     case WtGui::kCgmsReading:
-      m_model->addCgmsData( info.dateTime.toPosixTime(), info.value );
+      modelPtr->addCgmsData( info.dateTime.toPosixTime(), info.value );
     break;
     case WtGui::kMeterReading:
-      m_model->addFingerStickData( info.dateTime.toPosixTime(), info.value );
+      modelPtr->addFingerStickData( info.dateTime.toPosixTime(), info.value );
     break;
     case WtGui::kMeterCalibration:
-      m_model->addFingerStickData( info.dateTime.toPosixTime(), info.value );
+      modelPtr->addFingerStickData( info.dateTime.toPosixTime(), info.value );
     break;
     case WtGui::kGlucoseEaten:
-      m_model->addConsumedGlucose( info.dateTime.toPosixTime(), info.value );
+      modelPtr->addConsumedGlucose( info.dateTime.toPosixTime(), info.value );
     break;
     case WtGui::kBolusTaken:
-      m_model->addBolusData( info.dateTime.toPosixTime(), info.value );
+      modelPtr->addBolusData( info.dateTime.toPosixTime(), info.value );
     break;
     case WtGui::kGenericEvent:
-      //m_model->addCustomEvent( const PosixTime &time, int eventType );
+      //modelPtr->addCustomEvent( const PosixTime &time, int eventType );
     break;
     case WtGui::kNumEntryType: break;
   };//switch( et )
@@ -569,23 +614,26 @@ void WtGui::addData( WtGui::EventInformation info )
 }//void addData( EventInformation info );
 
 
+
 void WtGui::syncDisplayToModel()
 {
   typedef ConsentrationGraph::value_type cg_type;
 
-  const int nNeededRow = m_model->m_cgmsData.size()
-                         + m_model->m_fingerMeterData.size()
-                         + m_model->m_mealData.size()
-                         + m_model->m_predictedBloodGlucose.size()
-                         + m_model->m_glucoseAbsorbtionRate.size()
-                         + m_model->m_customEvents.size()
-                         + m_model->m_predictedInsulinX.size();
+  NLSimplePtr modelPtr( this );
+
+  const int nNeededRow = modelPtr->m_cgmsData.size()
+                         + modelPtr->m_fingerMeterData.size()
+                         + modelPtr->m_mealData.size()
+                         + modelPtr->m_predictedBloodGlucose.size()
+                         + modelPtr->m_glucoseAbsorbtionRate.size()
+                         + modelPtr->m_customEvents.size()
+                         + modelPtr->m_predictedInsulinX.size();
 
   m_bsModel->removeRows( 0, m_bsModel->rowCount() );
   m_bsModel->insertRows( 0, nNeededRow );
 
   int row = 0;
-  foreach( const cg_type &element, m_model->m_cgmsData )
+  foreach( const cg_type &element, modelPtr->m_cgmsData )
   {
     WDateTime x;
     x.setPosixTime( element.m_time );
@@ -593,7 +641,7 @@ void WtGui::syncDisplayToModel()
     m_bsModel->setData( row++, kCgmsData, element.m_value );
   }//
 
-  foreach( const cg_type &element, m_model->m_fingerMeterData )
+  foreach( const cg_type &element, modelPtr->m_fingerMeterData )
   {
     WDateTime x;
     x.setPosixTime( element.m_time );
@@ -601,7 +649,7 @@ void WtGui::syncDisplayToModel()
     m_bsModel->setData( row++, kFingerStickData, element.m_value );
   }//
 
-  foreach( const cg_type &element, m_model->m_mealData )
+  foreach( const cg_type &element, modelPtr->m_mealData )
   {
     WDateTime x;
     x.setPosixTime( element.m_time );
@@ -609,7 +657,7 @@ void WtGui::syncDisplayToModel()
     m_bsModel->setData( row++, kMealData, element.m_value );
   }//
 
-  foreach( const cg_type &element, m_model->m_predictedBloodGlucose )
+  foreach( const cg_type &element, modelPtr->m_predictedBloodGlucose )
   {
     WDateTime x;
     x.setPosixTime( element.m_time );
@@ -617,7 +665,7 @@ void WtGui::syncDisplayToModel()
     m_bsModel->setData( row++, kPredictedBloodGlucose, element.m_value );
   }//
 
-  foreach( const cg_type &element, m_model->m_glucoseAbsorbtionRate )
+  foreach( const cg_type &element, modelPtr->m_glucoseAbsorbtionRate )
   {
     WDateTime x;
     x.setPosixTime( element.m_time );
@@ -625,7 +673,7 @@ void WtGui::syncDisplayToModel()
     m_bsModel->setData( row++, kGlucoseAbsRate, element.m_value );
   }//
 
-  foreach( const cg_type &element, m_model->m_customEvents )
+  foreach( const cg_type &element, modelPtr->m_customEvents )
   {
     WDateTime x;
     x.setPosixTime( element.m_time );
@@ -633,7 +681,7 @@ void WtGui::syncDisplayToModel()
     m_bsModel->setData( row++, kCustomEventData, element.m_value );
   }//
 
-  foreach( const cg_type &element, m_model->m_predictedInsulinX )
+  foreach( const cg_type &element, modelPtr->m_predictedInsulinX )
   {
     WDateTime x;
     x.setPosixTime( element.m_time );
@@ -646,13 +694,19 @@ void WtGui::syncDisplayToModel()
 
 
 
-
+void WtGui::updateClarkAnalysis()
+{
+  NLSimplePtr modelPtr( this );
+  updateClarkAnalysis( modelPtr->m_fingerMeterData, modelPtr->m_cgmsData, true );
+}//void updateClarkAnalysis()
 
 void WtGui::updateClarkAnalysis( const ConsentrationGraph &xGraph,
                                  const ConsentrationGraph &yGraph,
                                  bool isCgmsVMeter )
 {
   typedef ConsentrationGraph::value_type cg_type;
+
+  NLSimplePtr modelPtr( this );
 
   m_errorGridModel->removeRows( 0, m_errorGridModel->rowCount() );
   m_errorGridModel->insertRows( 0, xGraph.size() );
@@ -662,8 +716,8 @@ void WtGui::updateClarkAnalysis( const ConsentrationGraph &xGraph,
   string delayStr = "", uncertStr = "";
   if( isCgmsVMeter )
   {
-    cmgsDelay = m_model->findCgmsDelayFromFingerStick();
-    double sigma = 1000.0 * m_model->findCgmsErrorFromFingerStick(cmgsDelay);
+    cmgsDelay = modelPtr->findCgmsDelayFromFingerStick();
+    double sigma = 1000.0 * modelPtr->findCgmsErrorFromFingerStick(cmgsDelay);
     sigma = static_cast<int>(sigma + 0.5) / 10.0; //nearest tenth of a percent
 
     delayStr = "Delay=";
@@ -793,7 +847,19 @@ void WtGui::saveModelConfirmation()
 
 void WtGui::newModel()
 {
+  boost::recursive_mutex::scoped_lock lock( m_modelMutex, boost::try_to_lock );
+
+  if( !lock.owns_lock() )
+  {
+    const string msg = "Another operation (thread) is currently working, sorry I cant do this operation";
+    wApp->doJavaScript( "alert( \"" + msg + "\" )", true );
+    cerr << msg << endl;
+    return;
+  }//if( couldn't get the lock )
+
   saveModelConfirmation();
+
+  NLSimplePtr modelPtr( this );  //just for the mutex
 
   NLSimple *new_model = NULL;
   WDialog dialog( "Upload Data To Create A New Model From:" );
@@ -806,8 +872,7 @@ void WtGui::newModel()
 
   if( (code==WDialog::Accepted) && new_model)
   {
-    delete m_model;
-    m_model = new_model;
+    m_model = NLSimpleShrdPtr( new_model );
     setModelFileName( "" );
     init( m_userDbPtr->name );
   }//if( accepted )
@@ -822,7 +887,9 @@ void WtGui::saveModel( const std::string &fileName )
     return;
   }//if( fileName.empty() )
 
-  m_model->saveToFile( formFileSystemName(fileName) );
+  NLSimplePtr modelPtr( this );
+
+  modelPtr->saveToFile( formFileSystemName(fileName) );
 
   {
     Dbo::Transaction transaction(m_dbSession);
@@ -855,13 +922,13 @@ void WtGui::deleteModelFile( const std::string &fileName )
 {
   if( fileName.empty() ) return;
 
-  Dbo::ptr<UsersModel> model;
+  Dbo::ptr<UsersModel> usrmodel;
 
   {
     Dbo::Transaction transaction(m_dbSession);
     const DubUser::UsersModels &models = m_userDbPtr->models;
-    model = models.find().where( "fileName = ?" ).bind( fileName );
-    if( model ) model.remove();
+    usrmodel = models.find().where( "fileName = ?" ).bind( fileName );
+    if( usrmodel ) usrmodel.remove();
     transaction.commit();
   }
 
@@ -876,11 +943,19 @@ void WtGui::deleteModelFile( const std::string &fileName )
 
 void WtGui::setModel( const std::string &fileName )
 {
+  boost::recursive_mutex::scoped_lock lock( m_modelMutex, boost::try_to_lock );
+
+  if( !lock.owns_lock() )
+  {
+    const string msg = "Another operation (thread) is currently working, sorry I cant do this operation of setModel( string )";
+    wApp->doJavaScript( "alert( \"" + msg + "\" )", true );
+    cerr << msg << endl;
+    return;
+  }//if( couldn't get the lock )
+
   try{
-    NLSimple *original = m_model;
-    m_model = new NLSimple( formFileSystemName(fileName) );
+    m_model = NLSimpleShrdPtr( new NLSimple( formFileSystemName(fileName) ) );
     setModelFileName( fileName );
-    if( original ) delete original;
   }catch(...){
     cerr << "Failed to open NLSimple named " << fileName << endl;
     wApp->doJavaScript( "alert( \"Failed to open NLSimple named " + fileName + "\" )", true );
@@ -1010,7 +1085,8 @@ void DubEventEntry::setTimeToNow()
 void DubEventEntry::setTimeToLastData()
 {
   if( !m_wtgui ) return;
-  m_time->set( m_wtgui->m_bsEndTimePicker->top() );
+  m_time->set( m_wtgui->getEndTimePicker()->top() );
+
 }//void setTimeToLastData()
 
 
@@ -1144,6 +1220,7 @@ WtModelSettingsGui::WtModelSettingsGui( ModelSettings *modelSettings,
   : WContainerWidget( parent ),
     m_settings( modelSettings )
 {
+  setStyleClass( "WtModelSettingsGui" );
   init();
 }
 
@@ -1159,43 +1236,235 @@ void WtModelSettingsGui::init()
   if( !m_settings ) return;
 
   WGridLayout *layout = new WGridLayout();
+  setLayout( layout );
 
   const int maxRows = 8;
   int row = 0, column = 0;
 
+  MemVariableSpinBox *sb = new DoubleSpinBox( &(m_settings->m_personsWeight), "", "kg", 0, 250 );
+  layout->addWidget( new WText("Your Weight"), row, column, 1, 1, AlignRight );
+  layout->addWidget( sb, row, column+1, 1, 1, AlignLeft );
+  m_memVarSpinBox.push_back( sb );
+  sb->valueChanged().connect( this, &WtModelSettingsGui::emitChanged );
+  sb->valueChanged().connect( this, &WtModelSettingsGui::emitPredictionChanged );
+  row    = (row<maxRows) ? row + 1 : 0;
+  column = (row==0) ? column + 2: column;
 
+  sb = new DoubleSpinBox( &(m_settings->m_cgmsIndivReadingUncert), "", "", 0, 1 );
+  layout->addWidget( new WText("Ind. CGMS Uncert."), row, column, 1, 1, AlignRight );
+  layout->addWidget( sb, row, column+1, 1, 1, AlignLeft );
+  m_memVarSpinBox.push_back( sb );
+  sb->valueChanged().connect( this, &WtModelSettingsGui::emitChanged );
+  //sb->valueChanged().connect( this, &WtModelSettingsGui::emitPredictionChanged );
+  row    = (row<maxRows) ? row + 1 : 0;
+  column = (row==0) ? column + 2: column;
+
+  sb = new TimeDurationSpinBox( &(m_settings->m_defaultCgmsDelay), "", -15, 35 );
+  layout->addWidget( new WText("Default CGMS Delay"), row, column, 1, 1, AlignRight );
+  layout->addWidget( sb, row, column+1, 1, 1, AlignLeft );
+  m_memVarSpinBox.push_back( sb );
+  sb->valueChanged().connect( this, &WtModelSettingsGui::emitChanged );
+  //sb->valueChanged().connect( this, &WtModelSettingsGui::emitPredictionChanged );
+  row    = (row<maxRows) ? row + 1 : 0;
+  column = (row==0) ? column + 2: column;
+
+  sb = new TimeDurationSpinBox( &(m_settings->m_cgmsDelay), "", -15, 35 );
+  layout->addWidget( new WText("Actual CGMS Delay"), row, column, 1, 1, AlignRight );
+  layout->addWidget( sb, row, column+1, 1, 1, AlignLeft );
+  m_memVarSpinBox.push_back( sb );
+  sb->valueChanged().connect( this, &WtModelSettingsGui::emitChanged );
+  sb->valueChanged().connect( this, &WtModelSettingsGui::emitPredictionChanged );
+  row    = (row<maxRows) ? row + 1 : 0;
+  column = (row==0) ? column + 2: column;
+
+  sb = new TimeDurationSpinBox( &(m_settings->m_predictAhead), "", 0, 180 );
+  layout->addWidget( new WText("Amount to Predict Ahead"), row, column, 1, 1, AlignRight );
+  layout->addWidget( sb, row, column+1, 1, 1, AlignLeft );
+  m_memVarSpinBox.push_back( sb );
+  sb->valueChanged().connect( this, &WtModelSettingsGui::emitChanged );
+  sb->valueChanged().connect( this, &WtModelSettingsGui::emitPredictionChanged );
+  row    = (row<maxRows) ? row + 1 : 0;
+  column = (row==0) ? column + 2: column;
+
+  sb = new TimeDurationSpinBox( &(m_settings->m_dt), "", 1.0/60.0, 30 );
+  layout->addWidget( new WText("Integration delta"), row, column, 1, 1, AlignRight );
+  layout->addWidget( sb, row, column+1, 1, 1, AlignLeft );
+  m_memVarSpinBox.push_back( sb );
+  sb->valueChanged().connect( this, &WtModelSettingsGui::emitChanged );
+  sb->valueChanged().connect( this, &WtModelSettingsGui::emitPredictionChanged );
+  row    = (row<maxRows) ? row + 1 : 0;
+  column = (row==0) ? column + 2: column;
+
+  sb = new DoubleSpinBox( &(m_settings->m_lastPredictionWeight), "", "", 0, 1 );
+  layout->addWidget( new WText("Last Prediction Weight"), row, column, 1, 1, AlignRight );
+  layout->addWidget( sb, row, column+1, 1, 1, AlignLeft );
+  m_memVarSpinBox.push_back( sb );
+  sb->valueChanged().connect( this, &WtModelSettingsGui::emitChanged );
+  sb->valueChanged().connect( this, &WtModelSettingsGui::emitPredictionChanged );
+  row    = (row<maxRows) ? row + 1 : 0;
+  column = (row==0) ? column + 2: column;
+
+  sb = new DoubleSpinBox( &(m_settings->m_targetBG), "", "mg/dL", 20, 250 );
+  layout->addWidget( new WText("Target Blood Glucose"), row, column, 1, 1, AlignRight );
+  layout->addWidget( sb, row, column+1, 1, 1, AlignLeft );
+  m_memVarSpinBox.push_back( sb );
+  sb->valueChanged().connect( this, &WtModelSettingsGui::emitChanged );
+  //sb->valueChanged().connect( this, &WtModelSettingsGui::emitPredictionChanged );
+  row    = (row<maxRows) ? row + 1 : 0;
+  column = (row==0) ? column + 2: column;
+
+  sb = new DoubleSpinBox( &(m_settings->m_bgLowSigma), "", "mg/dL", 0, 50 );
+  layout->addWidget( new WText("Low BG 1&sigma; Tolerance", XHTMLUnsafeText), row, column, 1, 1, AlignRight );
+  layout->addWidget( sb, row, column+1, 1, 1, AlignLeft );
+  m_memVarSpinBox.push_back( sb );
+  sb->valueChanged().connect( this, &WtModelSettingsGui::emitChanged );
+  //sb->valueChanged().connect( this, &WtModelSettingsGui::emitPredictionChanged );
+  row    = (row<maxRows) ? row + 1 : 0;
+  column = (row==0) ? column + 2: column;
+
+  sb = new DoubleSpinBox( &(m_settings->m_bgHighSigma), "", "mg/dL", 0, 100 );
+  layout->addWidget( new WText("High BG 1&sigma; Tolerance", XHTMLUnsafeText), row, column, 1, 1, AlignRight );
+  layout->addWidget( sb, row, column+1, 1, 1, AlignLeft );
+  m_memVarSpinBox.push_back( sb );
+  sb->valueChanged().connect( this, &WtModelSettingsGui::emitChanged );
+  //sb->valueChanged().connect( this, &WtModelSettingsGui::emitPredictionChanged );
+  row    = (row<maxRows) ? row + 1 : 0;
+  column = (row==0) ? column + 2: column;
+
+  sb = new IntSpinBox( &(m_settings->m_genPopSize), "", "Indivuduals", 2, 5000 );
+  layout->addWidget( new WText("Gen. Pop. Size"), row, column, 1, 1, AlignRight );
+  layout->addWidget( sb, row, column+1, 1, 1, AlignLeft );
+  m_memVarSpinBox.push_back( sb );
+  sb->valueChanged().connect( this, &WtModelSettingsGui::emitChanged );
+  //sb->valueChanged().connect( this, &WtModelSettingsGui::emitPredictionChanged );
+  row    = (row<maxRows) ? row + 1 : 0;
+  column = (row==0) ? column + 2: column;
+
+  sb = new IntSpinBox( &(m_settings->m_genConvergNsteps), "", "steps", 1, 200 );
+  layout->addWidget( new WText("Gen. Conv. N-steps"), row, column, 1, 1, AlignRight );
+  layout->addWidget( sb, row, column+1, 1, 1, AlignLeft );
+  m_memVarSpinBox.push_back( sb );
+  sb->valueChanged().connect( this, &WtModelSettingsGui::emitChanged );
+  //sb->valueChanged().connect( this, &WtModelSettingsGui::emitPredictionChanged );
+  row    = (row<maxRows) ? row + 1 : 0;
+  column = (row==0) ? column + 2: column;
+
+  sb = new IntSpinBox( &(m_settings->m_genNStepMutate), "", "steps", 1, 50 );
+  layout->addWidget( new WText("Gen. N-step Mutate"), row, column, 1, 1, AlignRight );
+  layout->addWidget( sb, row, column+1, 1, 1, AlignLeft );
+  m_memVarSpinBox.push_back( sb );
+  sb->valueChanged().connect( this, &WtModelSettingsGui::emitChanged );
+  //sb->valueChanged().connect( this, &WtModelSettingsGui::emitPredictionChanged );
+  row    = (row<maxRows) ? row + 1 : 0;
+  column = (row==0) ? column + 2: column;
+
+  sb = new IntSpinBox( &(m_settings->m_genNStepImprove), "", "steps", 1, 50 );
+  layout->addWidget( new WText("Gen. N-step Improve"), row, column, 1, 1, AlignRight );
+  layout->addWidget( sb, row, column+1, 1, 1, AlignLeft );
+  m_memVarSpinBox.push_back( sb );
+  sb->valueChanged().connect( this, &WtModelSettingsGui::emitChanged );
+  //sb->valueChanged().connect( this, &WtModelSettingsGui::emitPredictionChanged );
+  row    = (row<maxRows) ? row + 1 : 0;
+  column = (row==0) ? column + 2: column;
+
+
+  sb = new DoubleSpinBox( &(m_settings->m_genSigmaMult), "", "", 0.0, 20 );
+  layout->addWidget( new WText("Gen. Mutate Sigma"), row, column, 1, 1, AlignRight );
+  layout->addWidget( sb, row, column+1, 1, 1, AlignLeft );
+  m_memVarSpinBox.push_back( sb );
+  sb->valueChanged().connect( this, &WtModelSettingsGui::emitChanged );
+  //sb->valueChanged().connect( this, &WtModelSettingsGui::emitPredictionChanged );
+  row    = (row<maxRows) ? row + 1 : 0;
+  column = (row==0) ? column + 2: column;
+
+
+  sb = new DoubleSpinBox( &(m_settings->m_genConvergCriteria), "", "", 0.0, 20 );
+  layout->addWidget( new WText("Gen. Conv. Criteria"), row, column, 1, 1, AlignRight );
+  layout->addWidget( sb, row, column+1, 1, 1, AlignLeft );
+  m_memVarSpinBox.push_back( sb );
+  sb->valueChanged().connect( this, &WtModelSettingsGui::emitChanged );
+  //sb->valueChanged().connect( this, &WtModelSettingsGui::emitPredictionChanged );
   row    = (row<maxRows) ? row + 1 : 0;
   column = (row==0) ? column + 2: column;
 
 /*
-  IntSpinBox;
-  DoubleSpinBox;
-  TimeDurationSpinBox;
-
-  double m_personsWeight;          //ProgramOptions::kPersonsWeight
-  double m_cgmsIndivReadingUncert; //ProgramOptions::kCgmsIndivReadingUncert
-
-  TimeDuration m_defaultCgmsDelay; //ProgramOptions::kDefaultCgmsDelay
-  TimeDuration m_cgmsDelay;        //what is actually used for the delay
-  TimeDuration m_predictAhead;     //ProgramOptions::kPredictAhead
-  TimeDuration m_dt;               //ProgramOptions::kIntegrationDt
-
   PosixTime m_endTrainingTime;
   PosixTime m_startTrainingTime;
-
-
-  double m_lastPredictionWeight;   //ProgramOptions::kLastPredictionWeight
-
-  double m_targetBG;               //ProgramOptions::kTargetBG
-  double m_bgLowSigma;             //ProgramOptions::kBGLowSigma
-  double m_bgHighSigma;            //ProgramOptions::kBGHighSigma
-
-//Genetic minimization paramaters
-  int m_genPopSize;                //ProgramOptions::kGenPopSize
-  int m_genConvergNsteps;          //ProgramOptions::kGenConvergNsteps
-  int m_genNStepMutate;            //ProgramOptions::kGenNStepMutate
-  int m_genNStepImprove;           //ProgramOptions::kGenNStepImprove
-  double m_genSigmaMult;           //ProgramOptions::kGenSigmaMult
-  double m_genConvergCriteria;     //ProgramOptions::kGenConvergCriteria
-  */
+*/
 }//void init()
+
+
+
+void WtGeneticallyOptimize::startOptimization()
+{
+  new boost::thread( boost::bind( &WtGeneticallyOptimize::doGeneticOptimization, this ) );
+}//void WtGeneticallyOptimize::startOptimization()
+
+
+void WtGeneticallyOptimize::doGeneticOptimization()
+{
+  //std::vector<Wt::WWidget *> m_disableWhenBusyItems;
+  //foreach( WWidget *w, m_disableWhenBusyItems ) w->setDisabled(true);
+  setContinueOptimizing( true );
+
+  boost::recursive_mutex::scoped_lock lock( m_parentWtGui->modelMutex(), boost::try_to_lock );
+
+  if( !lock )
+  {
+    const string msg = "Failed to get thread lock for genetic minimization. "
+                       "Are you trying to optimize the same model twice at the "
+                       "same time?";
+    wApp->doJavaScript( "alert( \"" + msg + "\" )", true );
+    cerr << endl << msg << endl;
+    return;
+  }//if( !lock )
+
+  m_bestChi2.clear();
+
+  NLSimple::Chi2CalbackFcn chi2Calback = boost::bind( &WtGeneticallyOptimize::optimizationUpdateFcn, this, _1);
+  NLSimple::ContinueFcn continueFcn = boost::bind( &WtGeneticallyOptimize::continueOptimizing, this);
+
+  NLSimplePtr model( m_parentWtGui );
+  model->geneticallyOptimizeModel( model->m_settings.m_lastPredictionWeight,
+                                     TimeRangeVec(), chi2Calback, continueFcn );
+
+  m_parentWtGui->syncDisplayToModel();
+  m_parentWtGui->updateClarkAnalysis();
+
+  //foreach( WWidget *w, m_disableWhenBusyItems ) w->setDisabled(false);
+}//void doGeneticOptimization()
+
+
+void WtGeneticallyOptimize::setContinueOptimizing( const bool doContinue )
+{
+  boost::mutex::scoped_lock lock( m_continueMutex );
+  m_continueOptimizing = doContinue;
+}//void setContinueOptimizing( const bool doContinue )
+
+
+bool WtGeneticallyOptimize::continueOptimizing()
+{
+  boost::mutex::scoped_lock lock( m_continueMutex );
+  return m_continueOptimizing;
+}//bool continueOptimizing()
+
+
+void WtGeneticallyOptimize::optimizationUpdateFcn( double chi2 )
+{
+  WApplication::UpdateLock lock( wApp );
+  if( !lock )
+  {
+    cerr << "Couldn't get WApplication lock!!!" << endl;
+    wApp->doJavaScript( "alert( \"Failed to get WApplication lock!!!\" )", true );
+    return;
+  }//if( !lock )
+
+
+  // Push the changes to the browser
+  wApp->triggerUpdate();
+}//void optimizationUpdateFcn( double chi2 )
+
+
+
+
+

@@ -13,6 +13,8 @@
 #include "boost/algorithm/string.hpp"
 #include "boost/date_time/gregorian/gregorian.hpp"
 #include "boost/date_time/time_duration.hpp"
+#include <boost/thread/recursive_mutex.hpp>
+#include <boost/thread/mutex.hpp>
 
 #include <Wt/WApplication>
 #include <Wt/WEnvironment>
@@ -32,6 +34,7 @@
 #include <Wt/WDialog>
 #include <Wt/WLengthValidator>
 
+#include "WtGui.hh"
 #include "WtUtils.hh"
 #include "ArtificialPancrease.hh"
 
@@ -175,8 +178,33 @@ MemVariableSpinBox::MemVariableSpinBox( const string &label,
   if( units != "" ) new WLabel( units, this );
 
   m_spinBox->setRange( lower, upper );
-  m_spinBox->setTextSize( 5 );
+  m_spinBox->setTextSize( 6 );
+  m_spinBox->setMaxLength( 5 );
+  //m_spinBox->setMaximumSize(  );
 }//MemVariableSpinBox
+
+MemVariableSpinBox::LockShrdPtr MemVariableSpinBox::getLock()
+{
+  WtGui *gui = dynamic_cast<WtGui *>(wApp);
+  if( !gui ) return LockShrdPtr();
+
+  typedef boost::recursive_mutex::scoped_lock Lock;
+  typedef boost::shared_ptr<Lock> LockShrdPtr;
+
+  LockShrdPtr lock( new Lock(gui->modelMutex(), boost::try_to_lock ) );
+
+  if( !(*lock) )
+  {
+    const string msg = "Sorry, you can't change this value while your computing model parameters";
+    wApp->doJavaScript( "alert( \"" + msg + "\" )", true );
+    cerr << endl << msg << endl;
+    updateGuiFromMemmory();
+    return LockShrdPtr();
+  }//if( !lock )
+
+  return lock;
+}//LockShrdPtr getLock()
+
 
 Wt::Signal<double> &MemVariableSpinBox::valueChanged() { return m_spinBox->valueChanged(); }
 double MemVariableSpinBox::value() { return m_spinBox->value(); }
@@ -212,10 +240,10 @@ TimeDurationSpinBox::TimeDurationSpinBox( TimeDuration *memVariable,
                      const double &lower,
                      const double &upper,
                      Wt::WContainerWidget *parent )
-  : MemVariableSpinBox( label, "minutes", lower, upper, parent),
+  : MemVariableSpinBox( label, "min", lower, upper, parent),
     m_memVariable(memVariable)
 {
-  m_spinBox->setSingleStep( 1.0 );
+  m_spinBox->setSingleStep( 1.0/60.0 );
   updateGuiFromMemmory();
 }
 
@@ -241,16 +269,25 @@ void TimeDurationSpinBox::updateGuiFromMemmory()
 
 void IntSpinBox::updateMemmoryFromGui()
 {
+  LockShrdPtr lock = getLock();
+  assert( !lock.get() );
+  if( !(*lock) ) return;
   (*m_memVariable) = floor( m_spinBox->value() + 0.5 );
 }//
 
 void DoubleSpinBox::updateMemmoryFromGui()
 {
+  LockShrdPtr lock = getLock();
+  assert( !lock.get() );
+  if( !(*lock) ) return;
   (*m_memVariable) = m_spinBox->value();
 }//
 
 void TimeDurationSpinBox::updateMemmoryFromGui()
 {
+  LockShrdPtr lock = getLock();
+  assert( !lock.get() );
+  if( !(*lock) ) return;
   const int nMinutes = floor( m_spinBox->value() );
   const int nSeconds = floor( (m_spinBox->value()-nMinutes)*0.6 );
   (*m_memVariable) = TimeDuration( 0, nMinutes, nSeconds );
