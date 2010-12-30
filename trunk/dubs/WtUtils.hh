@@ -3,6 +3,7 @@
 #include <string>
 #include <vector>
 #include "boost/date_time/posix_time/posix_time.hpp"
+#include <boost/thread/recursive_mutex.hpp>
 #include <Wt/WApplication>
 #include <Wt/WContainerWidget>
 #include <Wt/WDateTime>
@@ -69,7 +70,12 @@ public:
 class MemVariableSpinBox : public Wt::WContainerWidget
 {
 protected:
+  typedef boost::recursive_mutex::scoped_lock Lock;
+  typedef boost::shared_ptr<Lock> LockShrdPtr;
+
   Wt::WSpinBox *m_spinBox;
+
+  LockShrdPtr getLock();
 
 public:
   MemVariableSpinBox( const std::string &label = "",

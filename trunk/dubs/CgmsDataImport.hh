@@ -60,6 +60,12 @@ namespace CgmsDataImport
   const std::string kGlucoseKeyMM     = "BWZ Carb Input (grams)";
   const std::string kCgmsValueKeyMM   = "Sensor Glucose (mg/dL)";
 
+  const std::string kMeterBgKeyDex = "MeterValue";
+  const std::string kCalibrationKeyDex = "MeterValue";
+  const std::string kBolusKeyDex       = "";
+  const std::string kGlucoseKeyDex     = "";
+  const std::string kCgmsValueKeyDex   = "";
+
 
   //Navigator imports gets special attential since they have wonderful documentation
   //https://www.abbottdiabetescare.com/en_US/content/document/DOC14109_Rev-A.pdf

@@ -230,7 +230,6 @@ CgmsDataImport::getHeaderMap( std::string line )
   if( source == NavigatorTab ) return properKeyedMap;
   if( source == NumSpreadSheetSource ) return properKeyedMap;
   
-  
   algorithm::trim(line);
   
   vector<string> feilds;

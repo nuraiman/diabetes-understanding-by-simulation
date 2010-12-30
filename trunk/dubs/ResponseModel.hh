@@ -307,8 +307,12 @@ class NLSimple
     //For model fiting, specifying nMinutesPredict<=0.0 means don't use cgms
     //  data tomake predictions, in which case endPredChi2Weight is predicted
     //  as what weight to give to the derivative based chi2
+    typedef boost::function<bool (void)> ContinueFcn;
+    typedef boost::function<void (double bestChi2)> Chi2CalbackFcn;
     double geneticallyOptimizeModel( double endPredChi2Weight,
-                                     TimeRangeVec timeRanges = TimeRangeVec(0) );
+                                     TimeRangeVec timeRanges = TimeRangeVec(0),
+                                     Chi2CalbackFcn genBestCallBackFcn = Chi2CalbackFcn(),
+                                     ContinueFcn continueFcn = ContinueFcn() );
 
     double fitModelToDataViaMinuit2( double endPredChi2Weight,
                                      TimeRangeVec timeRanges = TimeRangeVec(0) );

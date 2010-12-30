@@ -23,7 +23,12 @@
 
 .m_upperEqnDiv
 {
+  /*background-color: silver;*/
+  background-color:#F6F6F9;
+  margin-bottom: 15px;
+  border-bottom: solid 1px grey;
 }
+
 
 .datePickingDiv
 {
@@ -41,10 +46,10 @@
 
 .actionMenuButton
 {
-  /*border: none;*/
-  /*border: solid 1px blue;*/
-  margin-bottom: 15px;
+  border: none;
+  border: solid 1px silver;
   cursor: pointer;
+  background-color: none;
 }
 
 .logoutButton
@@ -97,6 +102,10 @@ br.Wt-tabs-clear
   height: 99%;
 }
 
+.WtModelSettingsGui
+{
+  border: solid 1px #D5D8E2;
+}
 
 .MemVariableSpinBox
 {
