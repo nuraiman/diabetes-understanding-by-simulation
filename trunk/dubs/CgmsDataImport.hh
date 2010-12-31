@@ -21,7 +21,8 @@ namespace CgmsDataImport
   enum SpreadSheetSource
   {
     MiniMedCsv,
-    Dexcom7Csv,  //I don't claim this works, actually is space or tab seperated
+    Dexcom7Dm2Tab,  //actually space or tab delimited
+    Dexcom7Dm3Tab,
     NavigatorTab,
     GenericCsv,  //header must contain kDateKey and kTimeKey, and no Minimed, Dexcom, or Navigator specific keys
     NumSpreadSheetSource
@@ -59,12 +60,6 @@ namespace CgmsDataImport
   const std::string kBolusKeyMM       = "Bolus Volume Delivered (U)";
   const std::string kGlucoseKeyMM     = "BWZ Carb Input (grams)";
   const std::string kCgmsValueKeyMM   = "Sensor Glucose (mg/dL)";
-
-  const std::string kMeterBgKeyDex = "MeterValue";
-  const std::string kCalibrationKeyDex = "MeterValue";
-  const std::string kBolusKeyDex       = "";
-  const std::string kGlucoseKeyDex     = "";
-  const std::string kCgmsValueKeyDex   = "";
 
 
   //Navigator imports gets special attential since they have wonderful documentation
@@ -106,6 +101,9 @@ namespace CgmsDataImport
   };//enum NavEVENTTYPE
   
   TimeValuePair getNavigatorInfo( std::string line, InfoType type );
+  TimeValuePair getDexcomDm3Info( std::string &line,
+                                  const IndexMap &headerMap,
+                                  InfoType infoWanted );
 
   const PosixTime kNavigatorT0( boost::gregorian::date(1899, 
                                 boost::gregorian::Dec, 30), 
@@ -185,7 +183,7 @@ namespace CgmsDataImport
   //Spreadsheets saved on a apple have a '\r' at end of line, instead of '\n'
   char getEolCharacter( std::string fileName );
   
-  TimeValuePair getInfoFromLine( std::string line, 
+  TimeValuePair getInfoFromLine( std::string &line,
                                  IndexMap headerMap, 
                                  InfoType infoWanted,
                                  SpreadSheetSource source );

@@ -378,6 +378,14 @@ void WtCreateNLSimple::addData( WtCreateNLSimple::DataType type )
     if( m_datas[type]  ) m_datas[type]->addNewDataPoints( importedData );
     else                 m_datas[type] = new ConsentrationGraph( importedData );
 
+  }catch( exception &e )
+  {
+    string msg = "Warning: failed try/catch in WtCreateNLSimple::"
+                 "addData( WtCreateNLSimple::DataType type ):\n";
+    msg += e.what();
+    wApp->doJavaScript( "alert( \"" + msg + "\" )", false );
+    cerr << msg << endl;
+    return;
   }catch(...)
   {
     const string msg = "Warning: failed try/catch in WtCreateNLSimple::"
