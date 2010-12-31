@@ -54,7 +54,7 @@ CgmsDataImport::importSpreadsheet( string filename, InfoType type,
   while( !inputFile.eof() )
   {
     getline( inputFile, currentLine, eolChar );
-    algorithm::trim(currentLine);
+
     if( currentLine.size() == 0 ) continue;
     if( currentLine[0] == '#' ) continue;
     if( currentLine.find_first_not_of(", ") == string::npos ) continue;
@@ -161,7 +161,7 @@ double CgmsDataImport::getMostCommonDt( const TimeValueVec &timeValues )
 
 TimeDuration CgmsDataImport::getMostCommonPosixDt( const TimeValueVec &timeValues )
 {
-  if( timeValues.empty() ) return TimeDuration(0,5,0,0);
+  if( timeValues.size() < 2 ) return TimeDuration(0,5,0,0);
   
   double dt = 0.0;
   
@@ -224,8 +224,8 @@ CgmsDataImport::getHeaderMap( std::string line )
   IndexMap csvIndexMap;
   IndexMap properKeyedMap;
   
-  SpreadSheetSource source = getSpreadsheetTypeFromHeader( line );
-  
+  const SpreadSheetSource source = getSpreadsheetTypeFromHeader( line );
+
   //if( this wasn't a header line of text )
   if( source == NavigatorTab ) return properKeyedMap;
   if( source == NumSpreadSheetSource ) return properKeyedMap;
@@ -233,16 +233,13 @@ CgmsDataImport::getHeaderMap( std::string line )
   algorithm::trim(line);
   
   vector<string> feilds;
-  algorithm::split( feilds, line, algorithm::is_any_of(",") );
+  string delimiter = ",";
+  if( source == Dexcom7Dm2Tab ) delimiter = " \t";
+  else if( source == Dexcom7Dm3Tab ) delimiter = "\t";
+  algorithm::split( feilds, line, algorithm::is_any_of(delimiter) );
   
-  if( feilds.size() < 2 ) //It was a dexcom file
-  {
-    boost::algorithm::split( feilds, line, boost::algorithm::is_any_of(" \t") );
-    if( feilds.size() > 1 ) assert( source == Dexcom7Csv );
-    else                    return csvIndexMap; //didn't find anything useful
-  }//if( feilds.size() < 2 ) 
-  
-  
+  if( feilds.empty() ) return csvIndexMap; //didn't find anything useful
+
   int fieldNumber = 0;
   foreach( string thisField, feilds )
   {
@@ -250,6 +247,8 @@ CgmsDataImport::getHeaderMap( std::string line )
 	  csvIndexMap[thisField] = fieldNumber++;
   }//foeach( field )
   
+  if( source == Dexcom7Dm3Tab ) return csvIndexMap;
+
   switch( source )
   {
     case MiniMedCsv: case NumSpreadSheetSource:
@@ -284,7 +283,7 @@ CgmsDataImport::getHeaderMap( std::string line )
         properKeyedMap[kIsigKey]        = csvIndexMap[kIsigKey];
     break;
     
-    case Dexcom7Csv:  
+    case Dexcom7Dm2Tab:
       if( csvIndexMap.find( "MeterValue" ) != csvIndexMap.end() )
         properKeyedMap[kMeterBgKey] = 4;
       
@@ -298,7 +297,12 @@ CgmsDataImport::getHeaderMap( std::string line )
         properKeyedMap[kTimeKey] = 3;
       }//if( has DisplayTime )
     break;
-    
+
+    case Dexcom7Dm3Tab:
+      assert(0);
+    break;
+
+
     case GenericCsv:
      //lets make sure we don't have any unidentified headers
       properKeyedMap = csvIndexMap;
@@ -345,8 +349,12 @@ CgmsDataImport::getHeaderMap( std::string line )
 CgmsDataImport::SpreadSheetSource 
 CgmsDataImport::getSpreadsheetTypeFromHeader( std::string header )
 {
-  if( header.find("DisplayTime") != string::npos ) return Dexcom7Csv;
-  
+  if( header.find("PatientInfoField") != string::npos ) return Dexcom7Dm3Tab;
+  //"DisplayTime" is in both Dexcom7Dm2Tab and Dexcom7Dm3Tab files
+  if( header.find("DisplayTime") != string::npos ) return Dexcom7Dm2Tab;
+
+
+  //"PatientInfoField"
   //We'll give minimed a couple tries
   if( header.find(kMeterBgKeyMM) != string::npos )            return MiniMedCsv;
   if( header.find(kCalibrationKeyMM) != string::npos )        return MiniMedCsv;
@@ -407,6 +415,8 @@ CgmsDataImport::getEolCharacter( std::string fileName )
 CgmsDataImport::TimeValuePair 
 CgmsDataImport::getNavigatorInfo( string line, InfoType type )
 {
+  algorithm::trim(line);
+
   TimeValuePair returnInfo( kGenericT0, kFailValue );
   
   NavEVENTTYPE navEventTypeWanted = NumNavEVENTTYPE;
@@ -441,17 +451,139 @@ CgmsDataImport::getNavigatorInfo( string line, InfoType type )
 }//getNavigatorInfo(...)
 
 
+CgmsDataImport::TimeValuePair
+CgmsDataImport::getDexcomDm3Info( std::string &line,
+                                  const IndexMap &headerMap,
+                                  InfoType infoWanted )
+{
+  TimeValuePair answer(kGenericT0, kFailValue);
 
+  vector<string> feilds;
+  algorithm::split( feilds, line, algorithm::is_any_of( "\t" ) );
+  foreach( string &thisField, feilds ) algorithm::trim( thisField );
+
+  // cerr << "working on line: '" << line << "'" << endl;
+  // cerr << "Found " << feilds.size() << " fields:\n   ";
+  // foreach( const string &f, feilds ) cerr << "'" << f << "',  ";
+  // cerr << endl;
+
+  if( feilds.size() < 2 ) return answer;
+
+  //Either the dateIter and valueIter or dateField and valueField can be removed below
+  IndexMap::const_iterator dateIter = headerMap.end();
+  IndexMap::const_iterator valueIter = headerMap.end();
+
+  int dateField = -1, valueField = -1;
+  const int eventTypeField = headerMap.find("EventType")->second;
+  // cerr << "const int eventTypeField=" << eventTypeField << endl;
+
+  assert( eventTypeField < static_cast<int>(feilds.size()) );
+  if( eventTypeField >= static_cast<int>(feilds.size()) )
+    throw runtime_error( "Not a valid dexcom file!" );
+
+  switch( infoWanted )
+  {
+    case CgmsReading:
+      dateIter = headerMap.find("SensorDisplayTime");
+      valueIter = headerMap.find("SensorValue");
+      dateField = dateIter->second;
+      valueField = valueIter->second;
+    break;
+
+    case MeterReading: case MeterCalibration:
+      dateIter = headerMap.find("MeterDisplayTime");
+      valueIter = headerMap.find("MeterValue");
+      dateField = dateIter->second;
+      valueField = valueIter->second;
+    break;
+
+    case GlucoseEaten:
+      dateIter = headerMap.find("EventDisplayTime");
+      valueIter = headerMap.find("EventDecription");
+      dateField = dateIter->second;
+      valueField = valueIter->second;
+      if( feilds.at(eventTypeField) != "Carbs" ) valueField = -1;
+    break;
+
+    case BolusTaken:
+      dateIter = headerMap.find("EventDisplayTime");
+      valueIter = headerMap.find("EventDecription");
+      dateField = dateIter->second;
+      valueField = valueIter->second;
+      if( feilds.at(eventTypeField) != "Insulin" ) valueField = -1;
+    break;
+
+    case GenericEvent:
+      dateIter = headerMap.find("EventDisplayTime");
+      valueIter = headerMap.find("EventDecription");
+      dateField = dateIter->second;
+      valueField = valueIter->second;
+      //if( feilds.at(eventTypeField) != "" ) valueField = -1;
+      valueField = -1;
+      //Possible types of custom events are "Exercise Light", "Exercise Medium", "Exercise Hard", "Health Illness", "Health Stress", "Health HighSymptoms", "Health LowSymptoms", "Health Cycle", "Health Alcohol"
+    break;
+
+    case ISig: break;
+  };//switch( infoWanted )
+
+  assert( (dateIter!=headerMap.end()) && (valueIter!=headerMap.end()) );
+    //throw out_of_range( "Invalid Header Map passed into CgmsDataImport::getDexcomDm3Info()" );
+
+  // cerr << "   dateFieldInd=" << dateField << ", valueFieldInd=" << valueField << endl;
+
+  if( valueField < 0 ) return answer;
+
+  const string &rawValueStr = feilds.at( valueField );
+  if( rawValueStr.empty() ) return answer;
+
+  const string &rawDateTime = feilds.at(dateField);
+  const string dateTimeStr = sanitizeDateAndTimeInput( rawDateTime, Dexcom7Dm3Tab );
+
+  // cerr << " rawValueStr='" << rawValueStr << "', rawDateTime='" << rawDateTime << "'" << endl;
+
+  try
+  {
+    answer.first = time_from_string( dateTimeStr );
+  }catch(boost::exception &)
+  {
+    ostringstream msg;
+    msg << "Couldn't reconstruct dates from input fields date/time='"
+        << rawDateTime << "', which sanatized to '" << dateTimeStr
+        << "' which is invalid";
+    cerr << msg.str() << endl;
+    throw runtime_error( msg.str() );
+  }//try/catch( date )
+
+  try
+  {
+    answer.second = lexical_cast<double>( rawValueStr );
+    if( infoWanted == BolusTaken ) answer.second /= 100.0;
+  }catch(boost::exception &)
+  {
+    const string msg = "'" + rawValueStr
+                       + "' is an invalid reading for infoWanted="
+                       + boost::lexical_cast<string>( static_cast<int>(infoWanted) );
+    cerr << msg << endl;
+    throw runtime_error( msg );
+  }//try/catch( BG reading )
+
+  //cerr << "  returning '" << answer.first << "' = " << answer.second << endl << endl << endl;
+
+  return answer;
+}//getDexcomDm3Info(...)
 
 
 CgmsDataImport::TimeValuePair 
-CgmsDataImport::getInfoFromLine( std::string line, 
+CgmsDataImport::getInfoFromLine( std::string &line,
                                  IndexMap headerMap, 
                                  InfoType infoWanted,
                                  SpreadSheetSource source )
 {
   if( source == NavigatorTab ) return getNavigatorInfo( line, infoWanted );
-  
+  if( source == Dexcom7Dm3Tab ) return getDexcomDm3Info( line, headerMap, infoWanted );
+
+  algorithm::trim(line);
+
   string key = "";
 
   switch( infoWanted )
@@ -484,7 +616,7 @@ CgmsDataImport::getInfoFromLine( std::string line,
   assert( headerMap.find(kTimeKey) != headerMap.end() );
   
   string delim = ",";
-  if( source == Dexcom7Csv ) delim = " \t";
+  if( source == Dexcom7Dm2Tab ) delim = " \t";
 
   vector<string> feilds;
   algorithm::split( feilds, line, algorithm::is_any_of( delim ) );
@@ -556,7 +688,7 @@ CgmsDataImport::sanitizeDateAndTimeInput( std::string time, SpreadSheetSource so
   timeOfDay = sanitizeTimeInput( timeOfDay, source );
   time = monthDay + " " + timeOfDay;
 
-  cout << "formatted time=" << time << endl;
+  // cout << "formatted time=" << time << endl;
   
   return time;
 }//sanitizeDateAndTimeInput
@@ -576,7 +708,7 @@ CgmsDataImport::sanitizeTimeInput( std::string time,
   assert(time.find(":") != string::npos );
   boost::algorithm::trim(time);
 
-  if( source == Dexcom7Csv ) 
+  if( (source == Dexcom7Dm2Tab) || (source == Dexcom7Dm3Tab) )
   {
     size_t pos = time.find(".");
     time = time.substr( 0, pos );
@@ -638,7 +770,7 @@ CgmsDataImport::sanatizeSpreadsheetDate( const std::string input,
   algorithm::trim( originalInput );
   
   if( source == GenericCsv ) return originalInput;
-  if( source == Dexcom7Csv ) return originalInput;
+  if( source == Dexcom7Dm2Tab ) return originalInput;
   
   vector<string> dateParts;
   algorithm::split( dateParts, originalInput, boost::algorithm::is_any_of("/-") );
