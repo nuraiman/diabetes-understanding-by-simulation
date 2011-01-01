@@ -92,11 +92,6 @@ private:
 
     void addData( DataType type );
 
-    void addCgmsData();
-    void addBolusData();
-    void addCarbData();
-    void addMeterData();
-    void addCustomData();
     void constructModel();
     void handleTimeLimitButton();
     void enableCreateButton();

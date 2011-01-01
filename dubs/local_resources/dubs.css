@@ -44,7 +44,7 @@
 }
 
 
-.actionMenuButton
+.dataMenuButton, .fileMenuButton
 {
   border: none;
   border: solid 1px silver;
@@ -151,7 +151,7 @@ br.Wt-tabs-clear
 {
 	border: solid 1px #D5D8E2;
 	/*height: 200px;*/
-	/*width: 400px;*/
+	/*width: 400px;*/a
 }
 
 .m_errorGridLegend
@@ -160,5 +160,11 @@ br.Wt-tabs-clear
   border: solid 1px #D5D8E2;
   padding: 5px;
   padding-top: 15px;
+}
+
+
+.buttonDivCentered
+{
+  text-align: center ;
 }
 

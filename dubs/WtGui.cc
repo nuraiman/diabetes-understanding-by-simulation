@@ -48,6 +48,10 @@
 #include <Wt/WPen>
 #include <Wt/WHBoxLayout>
 #include <Wt/Chart/WChartPalette>
+#include <Wt/WFileUpload>
+#include <Wt/WRadioButton>
+#include <Wt/WButtonGroup>
+#include <Wt/WGroupBox>
 
 #include "TH1.h"
 #include "TH1F.h"
@@ -63,6 +67,7 @@
 #include "WtCreateNLSimple.hh"
 #include "ResponseModel.hh"
 #include "ProgramOptions.hh"
+#include "CgmsDataImport.hh"
 
 using namespace Wt;
 using namespace std;
@@ -100,7 +105,7 @@ WtGui::WtGui( const Wt::WEnvironment& env )
   m_dbBackend( "user_information.db" ),
   m_dbSession(),
   m_upperEqnDiv( NULL ),
-  m_actionMenuPopup( NULL ),
+  m_fileMenuPopup( NULL ),
   m_tabs( NULL ),
   m_bsModel( NULL ),
   m_bsGraph( NULL ),
@@ -330,22 +335,36 @@ void WtGui::init( const string username )
   }
 
   m_upperEqnDiv = new Div( "m_upperEqnDiv" );
-  m_actionMenuPopup = new WPopupMenu();
-  WPushButton *actionMenuButton = new WPushButton( "Actions", m_upperEqnDiv );
-  actionMenuButton->setStyleClass( "actionMenuButton" );
-  actionMenuButton->clicked().connect( boost::bind( &WPopupMenu::exec, m_actionMenuPopup, actionMenuButton, Wt::Vertical) );
-  actionMenuButton->clicked().connect( boost::bind( &WPushButton::disable, actionMenuButton ) );
+  m_fileMenuPopup = new WPopupMenu();
+  WPushButton *fileMenuButton = new WPushButton( "File", m_upperEqnDiv );
+  fileMenuButton->setStyleClass( "fileMenuButton" );
+  fileMenuButton->clicked().connect( boost::bind( &WPopupMenu::exec, m_fileMenuPopup, fileMenuButton, Wt::Vertical) );
+  fileMenuButton->clicked().connect( boost::bind( &WPushButton::disable, fileMenuButton ) );
 
-  m_actionMenuPopup->aboutToHide().connect( boost::bind( &WPushButton::enable, actionMenuButton ) );
-  WPopupMenuItem *item = m_actionMenuPopup->addItem( "Save Model" );
+  m_fileMenuPopup->aboutToHide().connect( boost::bind( &WPushButton::enable, fileMenuButton ) );
+  WPopupMenuItem *item = m_fileMenuPopup->addItem( "Save Model" );
   item->triggered().connect( boost::bind( &WtGui::saveModel, this, boost::ref(m_userDbPtr->currentFileName) ) );
-  item = m_actionMenuPopup->addItem( "Save As" );
+  item = m_fileMenuPopup->addItem( "Save As" );
   item->triggered().connect( boost::bind( &WtGui::saveModelAsDialog, this ) );
-  item = m_actionMenuPopup->addItem( "Open Model" );
+  item = m_fileMenuPopup->addItem( "Open Model" );
   item->triggered().connect( boost::bind( &WtGui::openModelDialog, this ) );
-  item = m_actionMenuPopup->addItem( "New Model" );
+  item = m_fileMenuPopup->addItem( "New Model" );
   item->triggered().connect( boost::bind( &WtGui::newModel, this ) );
-  item->triggered().connect( boost::bind( &WPopupMenu::setHidden, m_actionMenuPopup, true ) );
+  item->triggered().connect( boost::bind( &WPopupMenu::setHidden, m_fileMenuPopup, true ) );
+
+
+  WPopupMenu *dataMenuPopup = new WPopupMenu();
+  WPushButton *dataMenuButton = new WPushButton( "Data", m_upperEqnDiv );
+  dataMenuButton->setStyleClass( "dataMenuButton" );
+  dataMenuButton->clicked().connect( boost::bind( &WPopupMenu::exec, dataMenuPopup, dataMenuButton, Wt::Vertical) );
+  dataMenuButton->clicked().connect( boost::bind( &WPushButton::disable, dataMenuButton ) );
+  dataMenuPopup->aboutToHide().connect( boost::bind( &WPushButton::enable, dataMenuButton ) );
+
+  item = dataMenuPopup->addItem( "Add Data" );
+  item->triggered().connect( boost::bind( &WtGui::addDataDialog, this ) );
+  item->triggered().connect( boost::bind( &WPopupMenu::setHidden, dataMenuPopup, true ) );
+
+
 
   layout->addWidget( m_upperEqnDiv, WBorderLayout::North );
 
@@ -479,13 +498,131 @@ void WtGui::init( const string username )
   WtModelSettingsGui *settings = new WtModelSettingsGui( &(modelPtr->m_settings) );
   m_tabs->addTab( settings, "Settings" );
 
+
+
   syncDisplayToModel();
+
+
+  Div *cgmsDataTableDiv = new Div( "cgmsDataTableDiv" );
+  WBorderLayout *cgmsDataTableLayout = new WBorderLayout();
+  cgmsDataTableDiv->setLayout( cgmsDataTableLayout );
+  WTableView *view = new WTableView();
+  cgmsDataTableLayout->addWidget( view, WBorderLayout::Center );
+
+  view->setModel( m_bsModel );
+
+  view->setSortingEnabled(true);
+  view->setColumnResizeEnabled(true);
+  view->setAlternatingRowColors(true);
+  //view->setSelectionBehavior( SelectRows );
+  //view->setSelectionMode( SingleSelection );
+  view->setRowHeight(22);
+  view->setColumnWidth( 0, 150 );
+  view->setColumnWidth( 1, 150 );
+  view->setColumnWidth( 2, 150 );
+  view->setMinimumSize( 200, 200 );
+
+/*
+ //As of Wt 3.1.7a calling the setColumnHidden(...) function before the
+ //  WTableView widget renders causes the program to crash
+  view->refresh(); //without this statment the setColumnHidden(...) statments below will cause the app to crash
+
+  for( int i = 0; i < m_bsModel->columnCount(); ++i )
+    view->setColumnHidden( i, true );
+
+  view->setColumnHidden( kTimeData, false );
+  view->setColumnHidden( kCgmsData, false );
+  view->setColumnHidden( kMealData, false );
+  view->setColumnHidden( kFingerStickData, false );
+  view->setColumnHidden( kCustomEventData, false );
+
+
+  // view->setColumnHidden( kFreePlasmaInsulin, true );
+  // view->setColumnHidden( kGlucoseAbsRate, true );
+  // view->setColumnHidden( kPredictedBloodGlucose, true );
+  // view->setColumnHidden( kPredictedInsulinX, true );
+*/
+
+
+  Div *bottomRawDataDiv = new Div();
+  cgmsDataTableLayout->addWidget( bottomRawDataDiv, WBorderLayout::South );
+
+  WPushButton *addDataButton = new WPushButton( "Add Data", bottomRawDataDiv );
+  addDataButton->clicked().connect( this, &WtGui::addDataDialog );
+
+
+  m_tabs->addTab( cgmsDataTableDiv, "Raw Data" );
+
 
   DubEventEntry *dataEntry = new DubEventEntry( this );
   layout->addWidget( dataEntry, WBorderLayout::South );
   dataEntry->entered().connect( boost::bind(&WtGui::addData, this, _1) );
 }//WtGui::init()
 
+
+
+void WtGui::addDataDialog()
+{
+  WDialog dialog( "Upload data from file:" );
+
+  Wt::WGroupBox *container = new Wt::WGroupBox("Select the type of data you would like to upload", dialog.contents() );
+
+  Wt::WButtonGroup *group = new Wt::WButtonGroup( dialog.contents() );
+
+  Wt::WRadioButton *button;
+  button = new Wt::WRadioButton("Bolus", container);
+  new Wt::WBreak(container);
+  group->addButton(button, kBolusTaken);
+
+  button = new Wt::WRadioButton("Meal", container);
+  new Wt::WBreak(container);
+  group->addButton(button, kGlucoseEaten);
+
+  button = new Wt::WRadioButton("Fingerstick", container);
+  new Wt::WBreak(container);
+  group->addButton(button, kMeterReading);
+
+  button = new Wt::WRadioButton("Calibration Fingerstick", container);
+  new Wt::WBreak(container);
+  group->addButton(button, kMeterCalibration);
+
+  button = new Wt::WRadioButton("CGMS data", container);
+  new Wt::WBreak(container);
+  group->addButton(button, kCgmsReading);
+
+  //button = new Wt::WRadioButton("I didn't vote", container);
+  //new Wt::WBreak(container);
+  //group->addButton(button, kGenericEvent);
+
+  group->setCheckedButton(group->button(kBolusTaken));
+  new WBreak( dialog.contents() );
+  WFileUpload *upload = new WFileUpload( dialog.contents() );
+  new WBreak( dialog.contents() );
+  Div *buttonDiv = new Div( "buttonDivCentered", dialog.contents() );
+  buttonDiv->setMargin( WLength::Auto, Wt::Left | Wt::Right );
+  WPushButton *ok = new WPushButton( "Add Data", buttonDiv );
+  ok->disable();
+  WPushButton *cancel = new WPushButton( "Cancel", buttonDiv );
+
+  upload->changed().connect( upload, &WFileUpload::upload);
+  upload->uploaded().connect( boost::bind( &WPushButton::enable, ok ) );
+  upload->fileTooLarge().connect( boost::bind( &WApplication::doJavaScript,
+                                  wApp,
+                                  string("Sorry, the file was too large, please email wcjohnson@ucdavis.edu to fix this."),
+                                  false ) );
+  ok->clicked().connect( &dialog, &WDialog::accept );
+  cancel->clicked().connect( &dialog, &WDialog::reject );
+
+  const WDialog::DialogCode return_code = dialog.exec();
+
+  if( return_code == WDialog::Accepted )
+  {
+    const EntryType dataType = EntryType( group->checkedId() );
+    addData( dataType, upload );
+    zoomToFullDateRange();
+  }//if( return_code == WDialog::Accepted )
+
+}//void addDataDialog()
 
 
 
@@ -519,7 +656,7 @@ void WtGui::saveModelAsDialog()
 void WtGui::zoomToFullDateRange()
 {
   m_bsEndTimePicker->set( m_bsEndTimePicker->top() );
-  m_bsBeginTimePicker->set( m_bsBeginTimePicker->top() );
+  m_bsBeginTimePicker->set( m_bsBeginTimePicker->bottom() );
   updateDisplayedDateRange();
 }//void zoomToFullDateRange();
 
@@ -585,6 +722,7 @@ void WtGui::updateDisplayedDateRange()
 void WtGui::addData( WtGui::EventInformation info )
 {
   NLSimplePtr modelPtr( this );
+
   switch( info.type )
   {
     case WtGui::kNotSelected: break;
@@ -613,6 +751,92 @@ void WtGui::addData( WtGui::EventInformation info )
                         //all data to the model
 }//void addData( EventInformation info );
 
+
+
+
+void WtGui::addData( WtGui::EntryType type, Wt::WFileUpload *fileUpload )
+{
+  NLSimplePtr modelPtr( this );
+
+  const string fileName = fileUpload->spoolFileName();
+  const string clientFileName = fileUpload->clientFileName().narrow();
+
+  CgmsDataImport::InfoType infoType = CgmsDataImport::ISig;
+
+  switch( type )
+  {
+    case kCgmsReading:      infoType = CgmsDataImport::CgmsReading;     break;
+    case kBolusTaken:       infoType = CgmsDataImport::BolusTaken;      break;
+    case kGlucoseEaten:     infoType = CgmsDataImport::GlucoseEaten;    break;
+    case kMeterReading:     infoType = CgmsDataImport::MeterReading;    break;
+    case kMeterCalibration: infoType = CgmsDataImport::MeterCalibration;break;
+    case kGenericEvent:     break;
+    case kNotSelected:      break;
+    case kNumEntryType:     break;
+  };//switch( det )
+
+  assert( infoType != CgmsDataImport::ISig );
+
+  typedef boost::shared_ptr<ConsentrationGraph> ShrdGraphPtr;
+
+  ShrdGraphPtr newData;
+
+  try
+  {
+    ConsentrationGraph importedData = importSpreadsheet( fileName, infoType );
+    newData = ShrdGraphPtr( new ConsentrationGraph(importedData) );
+  }catch( exception &e )
+  {
+    string msg = "Warning: failed file decoding in WtGui::"
+                 "addData( EntryType, WFileUpload * ):\n";
+    msg += e.what();
+    msg += "\nFile name=" + clientFileName;
+    msg += "\nEntryType=" + boost::lexical_cast<string>( int(type) );
+    wApp->doJavaScript( "alert( \"" + msg + "\" )", false );
+    cerr << msg << endl;
+    return;
+  }catch(...)
+  {
+    string msg = "Warning: failed file decoding in WtGui::"
+                 "( EntryType, WFileUpload * )";
+    msg += "\nFile name=" + clientFileName;
+    msg += "\nEntryType=" + boost::lexical_cast<string>( int(type) );
+    wApp->doJavaScript( "alert( \"" + msg + "\" )", false );
+    cerr << msg << endl;
+    return;
+  }//try / catch
+
+  assert( newData.get() );
+
+  const bool findNewSteadyState = false;
+
+  switch( type )
+  {
+    case WtGui::kCgmsReading:
+      modelPtr->addCgmsData( *newData, findNewSteadyState );
+    break;
+    case WtGui::kMeterReading:
+      modelPtr->addFingerStickData( *newData );
+    break;
+    case WtGui::kMeterCalibration:
+      modelPtr->addFingerStickData( *newData );
+    break;
+    case WtGui::kGlucoseEaten:
+      modelPtr->addGlucoseAbsorption( *newData );
+    break;
+    case WtGui::kBolusTaken:
+      modelPtr->addBolusData( *newData, findNewSteadyState );
+    break;
+    case WtGui::kGenericEvent:
+      //modelPtr->addCustomEvent( *newData, findNewSteadyState );
+    break;
+    case WtGui::kNumEntryType: break;
+    case WtGui::kNotSelected: break;
+  };//switch( et )
+
+  syncDisplayToModel(); //taking the lazy way out and just reloading
+                        //all data to the model
+}//void addData( EntryType type, const string file )
 
 
 void WtGui::syncDisplayToModel()
