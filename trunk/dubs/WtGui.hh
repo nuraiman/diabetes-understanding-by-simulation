@@ -49,6 +49,7 @@ namespace Wt
   class WPopupMenu;
   class WTableView;
   class WTabWidget;
+  class WFileUpload;
   class WDatePicker;
   class WBorderLayout;
   class WStandardItemModel;
@@ -161,7 +162,10 @@ public:
     void saveModelAsDialog();
     void saveModelConfirmation();
 
+    void addDataDialog();
     void addData( EventInformation info );
+    void addData( EntryType type, Wt::WFileUpload *fileUpload );
+
 
     boost::recursive_mutex &modelMutex() { return m_modelMutex; }
     DateTimeSelect *getBeginTimePicker() { return m_bsBeginTimePicker; }
@@ -181,7 +185,7 @@ public:
     Wt::Dbo::Session m_dbSession;
 
     Div  *m_upperEqnDiv;
-    Wt::WPopupMenu *m_actionMenuPopup;
+    Wt::WPopupMenu *m_fileMenuPopup;
     Wt::WTabWidget *m_tabs;
 
     Wt::WStandardItemModel     *m_bsModel;
