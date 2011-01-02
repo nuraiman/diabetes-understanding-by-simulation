@@ -63,18 +63,31 @@ namespace Wt
 //  access the NLSimple model of a gui, we can safely do it through this
 //  shared pointer / mutex.  This implmenetation asumes the parent WtGui is
 //  longer lived than the NLSimplePtr object.
+//
+//The count(WtGui *) functions can also be used to determine if the model
+//  has been accessed (and hence potentially modified) since
+//  resetCount(WtGui *) has last been called.
+//  I haven't cleaned the code up to really take advantage of this yet
 typedef boost::shared_ptr<NLSimple> NLSimpleShrdPtr;
 typedef boost::recursive_mutex::scoped_lock RecursiveScopedLock;
+
 class NLSimplePtr : public NLSimpleShrdPtr
 {
   WtGui *m_parent;
   boost::shared_ptr<RecursiveScopedLock> m_lock;
+  static boost::recursive_mutex  sm_nLockMapMutex;
+  static std::map<WtGui *, int> sm_nLocksMap;
 
 public:
-  NLSimplePtr( WtGui *gui );
-  NLSimplePtr( NLSimplePtr &rhs );
-  NLSimplePtr &operator=( const NLSimplePtr &rhs );
+  NLSimplePtr( WtGui *gui,
+               const bool waite = true,
+               const std::string &failureMessage = "" );
   virtual ~NLSimplePtr(){}
+  bool has_lock() const;
+  bool operator!() const;
+
+  static int count( WtGui *gui );
+  static void resetCount( WtGui *gui );
 };//class NLSimplePtr
 
 
@@ -301,6 +314,8 @@ class WtGeneticallyOptimize: public Wt::WContainerWidget
   Wt::WPushButton *m_startOptimization;
   Wt::WPushButton *m_stopOptimization;
   Wt::WPushButton *m_minuit2Optimization;
+
+  Wt::WCheckBox   *m_saveAfterEachGeneration;
 
   boost::mutex m_continueMutex;
   bool m_continueOptimizing;

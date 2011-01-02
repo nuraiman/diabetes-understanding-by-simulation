@@ -79,24 +79,62 @@ using namespace std;
 WtGui *m_parent;
 boost::shared_ptr<boost::recursive_mutex::scoped_lock> m_lock;
 
-NLSimplePtr::NLSimplePtr( NLSimplePtr &rhs )
-  : NLSimpleShrdPtr(rhs),
-    m_parent( rhs.m_parent ),
-    m_lock( new RecursiveScopedLock( m_parent->m_modelMutex ) )
-{}
+boost::recursive_mutex NLSimplePtr::sm_nLockMapMutex;
+std::map<WtGui *, int> NLSimplePtr::sm_nLocksMap;
 
-NLSimplePtr::NLSimplePtr( WtGui *gui )
-  : NLSimpleShrdPtr(gui->m_model),
+
+NLSimplePtr::NLSimplePtr( WtGui *gui, const bool waite, const std::string &failureMessage  )
+  : NLSimpleShrdPtr(  ((gui!=NULL) ? gui->m_model : NLSimpleShrdPtr()) ),
   m_parent( gui ),
-  m_lock( new RecursiveScopedLock( m_parent->m_modelMutex ) )
-{}
-
-NLSimplePtr &NLSimplePtr::operator=( const NLSimplePtr &rhs )
+  m_lock()
 {
-  m_parent = rhs.m_parent;
-  m_lock = boost::shared_ptr<RecursiveScopedLock>( new RecursiveScopedLock( m_parent->m_modelMutex ) );
-  return *this;
-}
+  if( m_parent )
+  {
+    if( waite ) m_lock.reset( new RecursiveScopedLock( m_parent->m_modelMutex ) );
+    else m_lock.reset( new RecursiveScopedLock( m_parent->m_modelMutex, boost::try_to_lock ) );
+  }//if( gui )
+
+  if( !m_parent || !m_lock->owns_lock() )
+  {
+    const string msg = "Warning; failed to get the NLSimplePtr thread lock\n"
+                       + failureMessage;
+    cerr << msg << endl;
+    if( gui && (failureMessage!="") )
+      gui->doJavaScript( "alert( \"" + msg + "\" )" );
+    (*static_cast<NLSimpleShrdPtr *>(this)) = NLSimpleShrdPtr();
+    return;
+  }//if( couldn't get the lock )
+
+  RecursiveScopedLock lock( sm_nLockMapMutex );
+  if( sm_nLocksMap.find( m_parent ) == sm_nLocksMap.end() )
+    sm_nLocksMap[m_parent] = 1;
+  else
+    sm_nLocksMap[m_parent] = sm_nLocksMap[m_parent] + 1;
+}//NLSimplePtr constructor
+
+
+bool NLSimplePtr::has_lock() const
+{
+  return ( m_lock.get() && m_lock->owns_lock() );
+}//bool NLSimplePtr::has_lock() const
+
+bool NLSimplePtr::operator!() const{ return !has_lock(); }
+
+
+int NLSimplePtr::count( WtGui *gui )
+{
+  RecursiveScopedLock lock( sm_nLockMapMutex );
+
+  if( sm_nLocksMap.find( gui ) == sm_nLocksMap.end() ) return 0;
+  return sm_nLocksMap[gui];
+}//count
+
+void NLSimplePtr::resetCount( WtGui *gui )
+{
+  RecursiveScopedLock lock( sm_nLockMapMutex );
+  sm_nLocksMap.erase( gui );
+}//resetCount
+
 
 
 WtGui::WtGui( const Wt::WEnvironment& env )
@@ -171,7 +209,8 @@ void WtGui::resetGui()
 
   if( !lock.owns_lock() )
   {
-    const string msg = "Another operation (thread) is currently working, sorry I cant do this operation of resetGui()";
+    const string msg = "Another operation (thread) is currently working, sorry I cant do this operation of resetGui()"
+                       + string(SRC_LOCATION);
     wApp->doJavaScript( "alert( \"" + msg + "\" )", true );
     cerr << msg << endl;
     return;
@@ -209,8 +248,6 @@ void WtGui::enableOpenModelDialogOkayButton( WPushButton *button, WTableView *vi
 void WtGui::openModelDialog()
 {
   saveModelConfirmation();
-
-
 
   size_t nModels = 0;
   if( m_userDbPtr )
@@ -289,7 +326,7 @@ void WtGui::openModelDialog()
     return;
   }//if( code == WDialog::Accepted )
 
-  newModel();
+  if( currentFileName() == "" ) newModel();
 }//void openModelDialog()
 
 
@@ -561,6 +598,8 @@ void WtGui::init( const string username )
   DubEventEntry *dataEntry = new DubEventEntry( this );
   layout->addWidget( dataEntry, WBorderLayout::South );
   dataEntry->entered().connect( boost::bind(&WtGui::addData, this, _1) );
+
+  NLSimplePtr::resetCount( this );
 }//WtGui::init()
 
 
@@ -668,7 +707,7 @@ void WtGui::zoomToFullDateRange()
 void WtGui::updateDataRange()
 {
   NLSimplePtr modelPtr( this );
-  if( !modelPtr.get() ) return;
+  if( !modelPtr ) return;
 
   PosixTime ptimeStart = boost::posix_time::second_clock::local_time();
   PosixTime ptimeEnd   = boost::posix_time::second_clock::local_time();
@@ -725,7 +764,8 @@ void WtGui::updateDisplayedDateRange()
 
 void WtGui::addData( WtGui::EventInformation info )
 {
-  NLSimplePtr modelPtr( this );
+  NLSimplePtr modelPtr( this, false, SRC_LOCATION );
+  if( !modelPtr ) return;
 
   switch( info.type )
   {
@@ -760,7 +800,8 @@ void WtGui::addData( WtGui::EventInformation info )
 
 void WtGui::addData( WtGui::EntryType type, Wt::WFileUpload *fileUpload )
 {
-  NLSimplePtr modelPtr( this );
+  NLSimplePtr modelPtr( this, false, SRC_LOCATION );
+  if( !modelPtr ) return;
 
   const string fileName = fileUpload->spoolFileName();
   const string clientFileName = fileUpload->clientFileName().narrow();
@@ -848,7 +889,9 @@ void WtGui::syncDisplayToModel()
   const TimeDuration plasmaInsulinDt( 0, 5, 0 );  //5 minutes
   typedef ConsentrationGraph::value_type cg_type;
 
-  NLSimplePtr modelPtr( this );
+  NLSimplePtr modelPtr( this, false, string(SRC_LOCATION) );
+  if( !modelPtr ) return;
+
 
   int nNeededRow = modelPtr->m_cgmsData.size()
                          + modelPtr->m_fingerMeterData.size()
@@ -950,7 +993,9 @@ void WtGui::syncDisplayToModel()
 
 void WtGui::updateClarkAnalysis()
 {
-  NLSimplePtr modelPtr( this );
+  NLSimplePtr modelPtr( this, false, SRC_LOCATION );
+  if( !modelPtr ) return;
+
   updateClarkAnalysis( modelPtr->m_fingerMeterData, modelPtr->m_cgmsData, true );
 }//void updateClarkAnalysis()
 
@@ -960,7 +1005,9 @@ void WtGui::updateClarkAnalysis( const ConsentrationGraph &xGraph,
 {
   typedef ConsentrationGraph::value_type cg_type;
 
-  NLSimplePtr modelPtr( this );
+  NLSimplePtr modelPtr( this, false, SRC_LOCATION );
+  if( !modelPtr ) return;
+
 
   m_errorGridModel->removeRows( 0, m_errorGridModel->rowCount() );
   m_errorGridModel->insertRows( 0, xGraph.size() );
@@ -1082,6 +1129,7 @@ std::string WtGui::formFileSystemName( const std::string &internalName )
 void WtGui::saveModelConfirmation()
 {
   if( m_userDbPtr->currentFileName == "" ) return;
+  if( NLSimplePtr::count(this) == 0 ) return;
 
   WDialog dialog( "Confirm" );
   new WText("Would you like to save the current model first?", dialog.contents() );
@@ -1101,19 +1149,10 @@ void WtGui::saveModelConfirmation()
 
 void WtGui::newModel()
 {
-  boost::recursive_mutex::scoped_lock lock( m_modelMutex, boost::try_to_lock );
-
-  if( !lock.owns_lock() )
-  {
-    const string msg = "Another operation (thread) is currently working, sorry I cant do this operation";
-    wApp->doJavaScript( "alert( \"" + msg + "\" )", true );
-    cerr << msg << endl;
-    return;
-  }//if( couldn't get the lock )
-
   saveModelConfirmation();
 
-  NLSimplePtr modelPtr( this );  //just for the mutex
+  NLSimplePtr modelPtr( this, false, SRC_LOCATION );  //just for the mutex
+  if( !modelPtr ) return;
 
   NLSimple *new_model = NULL;
   WDialog dialog( "Upload Data To Create A New Model From:" );
@@ -1151,9 +1190,14 @@ void WtGui::saveModel( const std::string &fileName )
     return;
   }//if( fileName.empty() )
 
-  NLSimplePtr modelPtr( this );
+  {
+    NLSimplePtr modelPtr( this, false, SRC_LOCATION );
+    if( !modelPtr ) return;
 
-  modelPtr->saveToFile( formFileSystemName(fileName) );
+    modelPtr->saveToFile( formFileSystemName(fileName) );
+    NLSimplePtr::resetCount( this );
+  }
+
 
   {
     Dbo::Transaction transaction(m_dbSession);
@@ -1211,7 +1255,8 @@ void WtGui::setModel( const std::string &fileName )
 
   if( !lock.owns_lock() )
   {
-    const string msg = "Another operation (thread) is currently working, sorry I cant do this operation of setModel( string )";
+    const string msg = "Another operation (thread) is currently working, sorry I cant do this operation of setModel( string ): "
+                       + string( SRC_LOCATION );
     wApp->doJavaScript( "alert( \"" + msg + "\" )", true );
     cerr << msg << endl;
     return;
@@ -1773,8 +1818,9 @@ WtGeneticallyOptimize::WtGeneticallyOptimize( WtGui *wtGuiParent, Wt::WContainer
   m_startTrainingTimeSelect->changed().connect( this, &WtGeneticallyOptimize::syncGraphDataToNLSimple );
   m_endTrainingTimeSelect->changed().connect( this, &WtGeneticallyOptimize::syncGraphDataToNLSimple );
 
-  timeSelectDiv->addWidget( m_startTrainingTimeSelect );
-  timeSelectDiv->addWidget( m_endTrainingTimeSelect );
+  new WText( "&nbsp;&nbsp;&nbsp;&nbsp;", timeSelectDiv );
+  m_saveAfterEachGeneration = new WCheckBox( "Save model after each generation", timeSelectDiv );
+  m_saveAfterEachGeneration->setChecked();
 
   new WText( "Model Parameter training will only use the data"
              " in the selected range.  To modify the settings"
@@ -1822,17 +1868,12 @@ void WtGeneticallyOptimize::doMinuit2Optimization()
 {
   //m_parentWtGui->attachThread();
 
-  boost::recursive_mutex::scoped_lock lock( m_parentWtGui->modelMutex(), boost::try_to_lock );
-
-  if( !lock )
-  {
-    const string msg = "Failed to get thread lock for Minuit2 minimization. "
-                       "Are you trying to optimize the same model twice at the "
-                       "same time?";
-    m_parentWtGui->doJavaScript( "alert( \"" + msg + "\" )", true );
-    cerr << endl << msg << endl;
-    return;
-  }//if( !lock )
+  NLSimplePtr model( m_parentWtGui, false,
+                     "Failed to get thread lock for Minuit2 minimization. "
+                     "Are you trying to optimize the same model twice at the "
+                     "same time?"
+                     + string(SRC_LOCATION) );
+  if( !model ) return;
 
   WText *text = NULL;
 
@@ -1845,7 +1886,7 @@ void WtGeneticallyOptimize::doMinuit2Optimization()
   }//
 
 
-  NLSimplePtr model( m_parentWtGui );
+
   model->fitModelToDataViaMinuit2( model->m_settings.m_lastPredictionWeight );
 
 
@@ -1873,17 +1914,12 @@ void WtGeneticallyOptimize::doGeneticOptimization()
 
   setContinueOptimizing( true );
 
-  boost::recursive_mutex::scoped_lock lock( m_parentWtGui->modelMutex(), boost::try_to_lock );
-
-  if( !lock )
-  {
-    const string msg = "Failed to get thread lock for genetic minimization. "
-                       "Are you trying to optimize the same model twice at the "
-                       "same time?";
-    m_parentWtGui->doJavaScript( "alert( \"" + msg + "\" )", true );
-    cerr << endl << msg << endl;
-    return;
-  }//if( !lock )
+  NLSimplePtr model( m_parentWtGui, false,
+                     "Failed to get thread lock for genetic minimization. "
+                     "Are you trying to optimize the same model twice at the "
+                     "same time?"
+                     + string( SRC_LOCATION ) );
+  if( !model ) return;
 
   WText *text = NULL;
 
@@ -1902,7 +1938,7 @@ void WtGeneticallyOptimize::doGeneticOptimization()
   NLSimple::Chi2CalbackFcn chi2Calback = boost::bind( &WtGeneticallyOptimize::optimizationUpdateFcn, this, _1);
   NLSimple::ContinueFcn continueFcn = boost::bind( &WtGeneticallyOptimize::continueOptimizing, this);
 
-  NLSimplePtr model( m_parentWtGui );
+
   cerr << "about to do the workptr" << endl;
   try
   {
@@ -1921,7 +1957,6 @@ void WtGeneticallyOptimize::doGeneticOptimization()
     cerr << msg << endl;
   }//try / catch
 
-  cerr << "done doing the work" << endl;
   m_parentWtGui->syncDisplayToModel();
   m_parentWtGui->updateClarkAnalysis();
 
@@ -1961,12 +1996,18 @@ void WtGeneticallyOptimize::optimizationUpdateFcn( double chi2 )
   if( !lock )
   {
     cerr << "Couldn't get WApplication lock!!!" << endl;
-    wApp->doJavaScript( "alert( \"Failed to get WApplication lock in WtGeneticallyOptimize::optimizationUpdateFcn(double)\" )" );
+    m_parentWtGui->doJavaScript( "alert( \"Failed to get WApplication lock in WtGeneticallyOptimize::optimizationUpdateFcn(double)\" )" );
     return;
   }//if( !lock )
 
   m_bestChi2.push_back( chi2 );
   syncGraphDataToNLSimple();
+
+  if( m_saveAfterEachGeneration->isChecked() )
+  {
+   const std::string &fileName = m_parentWtGui->currentFileName();
+   if( fileName != "" ) m_parentWtGui->saveCurrentModel();
+  }//if( we want to save the model )
 
   // Push the changes to the browser
   wApp->triggerUpdate();
@@ -1983,25 +2024,18 @@ void WtGeneticallyOptimize::syncGraphDataToNLSimple()
   m_chi2Model->insertRows( 0, m_bestChi2.size() );
   for( size_t i = 0; i < m_bestChi2.size(); ++i )
   {
-    m_chi2Model->setData( i, 0, 1 );
+    m_chi2Model->setData( i, 0, i );
     m_chi2Model->setData( i, 1, m_bestChi2[i] );
   }//for( add chi data to the model )
 
+  const string error_msg = "Failed to get thread lock for syncGraphDataToNLSimple."
+                     " Are you optimizing in another thread?: "
+                     + string( SRC_LOCATION );
 
-  boost::recursive_mutex::scoped_lock lock( m_parentWtGui->modelMutex(), boost::try_to_lock );
-
-  if( !lock )
-  {
-    const string msg = "Failed to get thread lock for syncGraphDataToNLSimple."
-                       " Are you optimizing in another thread?";
-    m_parentWtGui->doJavaScript( "alert( \"" + msg + "\" )", true );
-    cerr << endl << msg << endl;
-    return;
-  }//if( !lock )
+  NLSimplePtr modelPtr( m_parentWtGui, false, error_msg );
+  if( !modelPtr ) return;
 
 
-
-  NLSimplePtr modelPtr( m_parentWtGui );
 
   const WDateTime start = m_startTrainingTimeSelect->dateTime();
   const WDateTime end = m_endTrainingTimeSelect->dateTime();
