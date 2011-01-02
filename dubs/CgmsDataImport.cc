@@ -806,15 +806,19 @@ CgmsDataImport::bolusGraphToInsulinGraph( const ConsentrationGraph &bolusGraph,
 {
   assert( bolusGraph.getGraphType() == BolusGraph );
   
-  const PosixTime t0 = bolusGraph.getT0();
+  const PosixTime t0 = bolusGraph.getStartTime();
   const double dt = 1.0;
   ConsentrationGraph insConcen( t0, dt, InsulinGraph );
   foreach( const GraphElement &el, bolusGraph )
   {
+    //cerr << "CgmsDataImport::bolusGraphToInsulinGraph(...): adding point of "
+      //  << el.m_value  << " / " << weight << " at time " << el.m_time << endl;
     if( el.m_value > 0.0 ) insConcen.add( el.m_value / weight, el.m_time, NovologAbsorbtion );
+    //cerr << " insConcen.size=" << insConcen.size() << endl;
   }//foreach bolus
- 
+
   insConcen.removeNonInfoAddingPoints();
+
   return insConcen;
 }//bolusGraphToInsulinGraph
 

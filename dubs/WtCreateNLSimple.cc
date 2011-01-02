@@ -431,13 +431,19 @@ void WtCreateNLSimple::constructModel()
                           insPerHour,
                           ProgramOptions::kBasalGlucConc,
                           m_datas[kBOLUS_ENTRY]->getStartTime() );
+
+  m_model->m_settings.m_personsWeight = weight;
+
   m_model->addBolusData( *(m_datas[kBOLUS_ENTRY]) );
+
+  cerr << "Added " << m_datas[kBOLUS_ENTRY]->size() << " bolusses to give "
+      << m_model->m_freePlasmaInsulin.size() << " insulin infos" << endl;
+
   m_model->addCgmsData( *(m_datas[kCGMS_ENTRY]) );
   m_model->addGlucoseAbsorption( *(m_datas[kCARB_ENTRY]) );
   if( m_datas[kMETER_ENTRY] ) m_model->addFingerStickData( *(m_datas[kMETER_ENTRY]) );
   //if( m_datas[kCustom_ENTRY] ) m_model->addCustomEvents( *(m_datas[kCustom_ENTRY]) );
 
-  m_model->m_settings.m_personsWeight = weight;
 }//void WtCreateNLSimple::constructModel()
 
 

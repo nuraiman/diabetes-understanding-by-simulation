@@ -462,7 +462,7 @@ void NLSimple::addBolusData( const ConsentrationGraph &newData,
     cout << "void NLSimple::addBolusData( ConsentrationGraph graph ): "
          << " graph must be of type InsulinGraph or BolusGraph" << endl;
 
-    exit(1);
+    throw runtime_error( "You tried to add the wrong type of data as bolus data" );
   }//if( check which type of data was passed in ) /else
 
   if(finNewSteadyStates) findSteadyStateBeginings();
@@ -800,6 +800,14 @@ void NLSimple::findSteadyStateBeginings( double nHoursNoInsulin )
   // const double endRelTime = getOffset(endTime);
   // const double startRelTime = getOffset(startTime);
 
+  cerr << "insulinStartTime=" << insulinStartTime
+       << ", cgmsStartTime=" << cgmsStartTime
+       << ", noInsulinDur=" << noInsulinDur
+       << ", cgmsEndTime=" << cgmsEndTime
+       << ", insulinEndTime=" << insulinEndTime
+       << ", endTime=" << endTime
+       << ", startTime=" << startTime << endl;
+
   const time_duration dt(0, 1, 0, 0);
 
   double X_max = 0.0;
@@ -809,6 +817,9 @@ void NLSimple::findSteadyStateBeginings( double nHoursNoInsulin )
   //If we haven't set model parameters yet, then will use nHoursNoInsulin
   //  to find steady state.
   bool justUseInsulinInfo = ( m_paramaters.empty() || (m_paramaters[0] == kFailValue) );
+
+  if( justUseInsulinInfo ) cerr << "Just using insuling info" << endl;
+  else cerr << "Using all Info" << endl;
 
   if( justUseInsulinInfo )
   {
@@ -901,10 +912,11 @@ ptime NLSimple::findSteadyStateStartTime( ptime t_start, ptime t_end )
 
   if( m_startSteadyStateTimes.empty() )
   {
-    cout << "double NLSimple::findSteadyStateStartTime( t0, tEnd ):"
-         << " I was unable to find any approproate steady state start times,"
-         << endl;
-    exit(1);
+    ostringstream msg;
+    msg  << "double NLSimple::findSteadyStateStartTime( t0, tEnd ):"
+         << " I got zero approproate steady state start times";
+    cerr << msg.str() << endl;
+    throw runtime_error( msg.str() );
   }//if( m_startSteadyStateTimes.empty() )
 
 
@@ -921,10 +933,12 @@ ptime NLSimple::findSteadyStateStartTime( ptime t_start, ptime t_end )
     if( okayTime ) return t;
   }//foreach(...)
 
-  cout << "double NLSimple::findSteadyStateTime( t0, tEnd ):"
+  ostringstream msg;
+  msg << "double NLSimple::findSteadyStateTime( t0, tEnd ):"
        << " I was unable to find any approproate steady state start times,"
-       << " between " << t_start << " and " << t_end << endl;
-  exit(1);
+       << " between " << t_start << " and " << t_end;
+  cerr << msg.str() << endl;
+  throw runtime_error( msg.str() );
 
   return kGenericT0;
 }//findSteadyStateTime
@@ -1654,8 +1668,10 @@ double NLSimple::getBgValueChi2( const ConsentrationGraph &modelData,
 
   if( !nPoints && (t_start < t_end) )
   {
-    cout << "getBgValueChi2(...): Warning asked to get chi2 for 0 points ("
-         << t_start << " to " << t_end << ")" << endl;
+    static int nTimesCalled = 0;
+    if( nTimesCalled++ < 10 )
+      cout << "getBgValueChi2(...): Warning asked to get chi2 for 0 points ("
+           << t_start << " to " << t_end << ")" << endl;
   }//if( !nPoints )
 
   //make sure we don't a divide by zero problem
@@ -1749,11 +1765,15 @@ double NLSimple::geneticallyOptimizeModel( double endPredChi2Weight,
 {
   using namespace TMVA;
 
+  cerr << "Performing genetic optiiztion" << endl;
+
   std::vector<Double_t> gvec = m_paramaters;
 
   m_paramaters.clear();
   resetPredictions();
   findSteadyStateBeginings(3);
+
+  cerr << "There are " << m_startSteadyStateTimes.size() << " Steady state starting times" << endl;
 
   Int_t fPopSize      = m_settings.m_genPopSize;
   Int_t fNsteps       = m_settings.m_genConvergNsteps;
@@ -1817,6 +1837,9 @@ double NLSimple::geneticallyOptimizeModel( double endPredChi2Weight,
     if( wasCanceled ) break;
 
     generation++;
+
+    cerr << "Starting generation " << generation << endl;
+
     ga.Init();              // prepares the new generation and does evolution
     ga.CalculateFitness();  // assess the quality of the individuals
 
