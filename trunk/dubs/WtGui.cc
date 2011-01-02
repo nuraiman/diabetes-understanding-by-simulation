@@ -845,17 +845,35 @@ void WtGui::addData( WtGui::EntryType type, Wt::WFileUpload *fileUpload )
 
 void WtGui::syncDisplayToModel()
 {
+  const TimeDuration plasmaInsulinDt( 0, 5, 0 );  //5 minutes
   typedef ConsentrationGraph::value_type cg_type;
 
   NLSimplePtr modelPtr( this );
 
-  const int nNeededRow = modelPtr->m_cgmsData.size()
+  int nNeededRow = modelPtr->m_cgmsData.size()
                          + modelPtr->m_fingerMeterData.size()
                          + modelPtr->m_mealData.size()
                          + modelPtr->m_predictedBloodGlucose.size()
                          + modelPtr->m_glucoseAbsorbtionRate.size()
                          + modelPtr->m_customEvents.size()
                          + modelPtr->m_predictedInsulinX.size();
+
+  //m_freePlasmaInsulin has a ton of points, so we'll only cound every 5
+  //  minutes of them, make sure this is consisten with actually putting
+  //  the data into the model
+  if( modelPtr->m_freePlasmaInsulin.size() )
+  {
+    PosixTime lastInsulin = modelPtr->m_freePlasmaInsulin.getStartTime();
+    foreach( const cg_type &element, modelPtr->m_freePlasmaInsulin )
+    {
+      if( (element.m_time-lastInsulin) >= plasmaInsulinDt )
+      {
+        lastInsulin = element.m_time;
+        ++nNeededRow;
+      }//if( its been long enough, count this point )
+    }//foreach point
+  }//if( modelPtr->m_freePlasmaInsulin.size() )
+
 
   m_bsModel->removeRows( 0, m_bsModel->rowCount() );
   m_bsModel->insertRows( 0, nNeededRow );
@@ -895,6 +913,21 @@ void WtGui::syncDisplayToModel()
     m_bsModel->setData( row, kTimeData, x );
     m_bsModel->setData( row++, kGlucoseAbsRate, element.m_value );
   }//
+
+
+  if( modelPtr->m_freePlasmaInsulin.size() )
+  {
+    PosixTime lastInsulin = modelPtr->m_freePlasmaInsulin.getStartTime();
+    foreach( const cg_type &element, modelPtr->m_freePlasmaInsulin )
+    {
+      if( (element.m_time-lastInsulin) < plasmaInsulinDt ) continue;
+      lastInsulin = element.m_time;
+      const WDateTime x = WDateTime::fromPosixTime( element.m_time );
+      m_bsModel->setData( row, kTimeData, x );
+      m_bsModel->setData( row++, kFreePlasmaInsulin, element.m_value );
+    }//
+  }//if( modelPtr->m_freePlasmaInsulin.size() )
+
 
   foreach( const cg_type &element, modelPtr->m_customEvents )
   {
@@ -1689,16 +1722,11 @@ WtGeneticallyOptimize::WtGeneticallyOptimize( WtGui *wtGuiParent, Wt::WContainer
   m_chi2Graph->setModel( m_chi2Model );
   m_chi2Graph->setXSeriesColumn(0);
   m_chi2Graph->setLegendEnabled(false);
-  //m_chi2Graph->setPlotAreaPadding( 200, Wt::Right );
   m_chi2Graph->setPlotAreaPadding( 70, Wt::Bottom );
-  //m_chi2Graph->axis(Chart::XAxis).setScale(Chart::DateTimeScale);
-  //m_chi2Graph->axis(Chart::XAxis).setLabelAngle(45.0);
   m_chi2Graph->axis(Chart::YAxis).setTitle( "Best &chi;2" );
   m_chi2Graph->setMinimumSize( 200, 200 );
   m_chi2Graph->axis(Chart::XAxis).setTitle( "Generation Number" );
-
-  Chart::WDataSeries chi2Series( WtGui::kCustomEventData, Chart::LineSeries );
-  m_chi2Graph->addSeries( chi2Series );
+  m_chi2Graph->addSeries( Chart::WDataSeries( 1, Chart::LineSeries ) );
 
 
   Div *graphsDiv = new Div();
@@ -1792,6 +1820,8 @@ void WtGeneticallyOptimize::startMinuit2Optimization()
 
 void WtGeneticallyOptimize::doMinuit2Optimization()
 {
+  //m_parentWtGui->attachThread();
+
   boost::recursive_mutex::scoped_lock lock( m_parentWtGui->modelMutex(), boost::try_to_lock );
 
   if( !lock )
@@ -1839,6 +1869,7 @@ void WtGeneticallyOptimize::doGeneticOptimization()
 {
   //std::vector<Wt::WWidget *> m_disableWhenBusyItems;
   //foreach( WWidget *w, m_disableWhenBusyItems ) w->setDisabled(true);
+  //m_parentWtGui->attachThread();
 
   setContinueOptimizing( true );
 
@@ -1926,13 +1957,11 @@ bool WtGeneticallyOptimize::continueOptimizing()
 
 void WtGeneticallyOptimize::optimizationUpdateFcn( double chi2 )
 {
-  cerr << "optimizationUpdateFcn( chi2=" << chi2 << ") called" << endl;
-
   WApplication::UpdateLock lock( m_parentWtGui );
   if( !lock )
   {
     cerr << "Couldn't get WApplication lock!!!" << endl;
-    wApp->doJavaScript( "alert( \"Failed to get WApplication lock!!!\" )", true );
+    wApp->doJavaScript( "alert( \"Failed to get WApplication lock in WtGeneticallyOptimize::optimizationUpdateFcn(double)\" )" );
     return;
   }//if( !lock )
 
@@ -1957,6 +1986,19 @@ void WtGeneticallyOptimize::syncGraphDataToNLSimple()
     m_chi2Model->setData( i, 0, 1 );
     m_chi2Model->setData( i, 1, m_bestChi2[i] );
   }//for( add chi data to the model )
+
+
+  boost::recursive_mutex::scoped_lock lock( m_parentWtGui->modelMutex(), boost::try_to_lock );
+
+  if( !lock )
+  {
+    const string msg = "Failed to get thread lock for syncGraphDataToNLSimple."
+                       " Are you optimizing in another thread?";
+    m_parentWtGui->doJavaScript( "alert( \"" + msg + "\" )", true );
+    cerr << endl << msg << endl;
+    return;
+  }//if( !lock )
+
 
 
   NLSimplePtr modelPtr( m_parentWtGui );
