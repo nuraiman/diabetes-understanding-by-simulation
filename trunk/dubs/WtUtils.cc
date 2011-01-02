@@ -129,12 +129,14 @@ void DateTimeSelect::setTop( const Wt::WDateTime &top )
 {
   m_top = top;
   validate();
+  m_topBottomChanged.emit();
 }//setTop( const Wt::WDateTime &top )
 
 void DateTimeSelect::setBottom( const Wt::WDateTime &bottom )
 {
   m_bottom = bottom;
   validate();
+  m_topBottomChanged.emit();
 }//setBottom( const Wt::WDateTime &bottom )
 
 void DateTimeSelect::validate( bool emitChanged )
@@ -151,6 +153,10 @@ Wt::Signal<> &DateTimeSelect::changed()
   return m_changed;
 }//Wt::Signal<> changed()
 
+Wt::Signal<> &DateTimeSelect::topBottomUpdated()
+{
+  return m_topBottomChanged;
+}
 
 const Wt::WDateTime &DateTimeSelect::top() const
 {
@@ -187,9 +193,6 @@ MemVariableSpinBox::LockShrdPtr MemVariableSpinBox::getLock()
 {
   WtGui *gui = dynamic_cast<WtGui *>(wApp);
   if( !gui ) return LockShrdPtr();
-
-  typedef boost::recursive_mutex::scoped_lock Lock;
-  typedef boost::shared_ptr<Lock> LockShrdPtr;
 
   LockShrdPtr lock( new Lock(gui->modelMutex(), boost::try_to_lock ) );
 
@@ -291,5 +294,55 @@ void TimeDurationSpinBox::updateMemmoryFromGui()
   const int nMinutes = floor( m_spinBox->value() );
   const int nSeconds = floor( (m_spinBox->value()-nMinutes)*0.6 );
   (*m_memVariable) = TimeDuration( 0, nMinutes, nSeconds );
+}
+
+
+MemGuiTimeDate::MemGuiTimeDate( boost::posix_time::ptime *memVariable,
+                const std::string &label,
+                const boost::posix_time::ptime &lower,
+                const boost::posix_time::ptime &upper,
+                Wt::WContainerWidget *parent)
+  : DateTimeSelect(  label, WDateTime::fromPosixTime(*memVariable), parent ),
+  m_memVariable( memVariable )
+{
+  if( lower != boost::posix_time::min_date_time ) setBottom( WDateTime::fromPosixTime(lower) );
+  if( upper != boost::posix_time::max_date_time ) setTop( WDateTime::fromPosixTime(upper) );
+  changed().connect( this, &MemGuiTimeDate::updateMemmoryFromGui );
+}//MemGuiTimeDate constructor
+
+void MemGuiTimeDate::updateGuiFromMemmory()
+{ DateTimeSelect::set( WDateTime::fromPosixTime( *m_memVariable ) ); }
+
+void MemGuiTimeDate::updateMemmoryFromGui()
+{
+  typedef boost::recursive_mutex::scoped_lock Lock;
+  typedef boost::shared_ptr<Lock> LockShrdPtr;
+
+  WtGui *gui = dynamic_cast<WtGui *>(wApp);
+
+  if( gui )
+  {
+    LockShrdPtr lock( new Lock(gui->modelMutex(), boost::try_to_lock ) );
+
+    if( !(*lock) )
+    {
+      const string msg = "Sorry, you can't change this value while your computing model parameters";
+      wApp->doJavaScript( "alert( \"" + msg + "\" )", true );
+      cerr << endl << msg << endl;
+      updateGuiFromMemmory();
+      return;
+    }//if( !lock )
+
+    *m_memVariable = dateTime().toPosixTime();
+  }else *m_memVariable = dateTime().toPosixTime();
+}//updateMemmoryFromGui()
+
+double MemGuiTimeDate::asNumber() const
+{ return Wt::asNumber( dateTime() ); }
+
+boost::posix_time::ptime MemGuiTimeDate::currentValue() const
+{
+  //return *m_memVariable;
+  return dateTime().toPosixTime();
 }
 

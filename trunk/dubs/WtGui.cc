@@ -407,14 +407,16 @@ void WtGui::init( const string username )
   Chart::WDataSeries cgmsSeries(kCgmsData, Chart::LineSeries);
   cgmsSeries.setShadow(WShadow(3, 3, WColor(0, 0, 0, 127), 3));
   m_bsGraph->addSeries( cgmsSeries );
-
   Chart::WDataSeries fingerSeries( kFingerStickData, Chart::PointSeries );
   m_bsGraph->addSeries( fingerSeries );
-
   Chart::WDataSeries mealSeries( kMealData, Chart::PointSeries, Chart::Y2Axis );
   m_bsGraph->addSeries( mealSeries );
   Chart::WDataSeries predictSeries( kPredictedBloodGlucose, Chart::LineSeries );
   m_bsGraph->addSeries( predictSeries );
+  Chart::WDataSeries insulinSeries( kFreePlasmaInsulin, Chart::LineSeries );
+  m_bsGraph->addSeries( insulinSeries );
+
+
 
 
   m_errorGridModel = new WStandardItemModel(  this );
@@ -484,6 +486,10 @@ void WtGui::init( const string username )
   /*Div *optionsTabDiv = new Div( "optionsTabDiv" );
   m_tabs->addTab( optionsTabDiv, "Options" );*/
 
+  WtGeneticallyOptimize *optimizationTab = new WtGeneticallyOptimize( this );
+  m_tabs->addTab( optimizationTab, "Optimize" );
+
+
   Div *errorGridTabDiv = new Div( "errorGridTabDiv" );
   WBorderLayout *errorGridTabLayout = new WBorderLayout();
   errorGridTabLayout->setSpacing( 0 );
@@ -508,9 +514,7 @@ void WtGui::init( const string username )
   cgmsDataTableDiv->setLayout( cgmsDataTableLayout );
   WTableView *view = new WTableView();
   cgmsDataTableLayout->addWidget( view, WBorderLayout::Center );
-
   view->setModel( m_bsModel );
-
   view->setSortingEnabled(true);
   view->setColumnResizeEnabled(true);
   view->setAlternatingRowColors(true);
@@ -859,56 +863,49 @@ void WtGui::syncDisplayToModel()
   int row = 0;
   foreach( const cg_type &element, modelPtr->m_cgmsData )
   {
-    WDateTime x;
-    x.setPosixTime( element.m_time );
+    const WDateTime x = WDateTime::fromPosixTime( element.m_time );
     m_bsModel->setData( row, kTimeData, x );
     m_bsModel->setData( row++, kCgmsData, element.m_value );
   }//
 
   foreach( const cg_type &element, modelPtr->m_fingerMeterData )
   {
-    WDateTime x;
-    x.setPosixTime( element.m_time );
+    const WDateTime x = WDateTime::fromPosixTime( element.m_time );
     m_bsModel->setData( row, kTimeData, x );
     m_bsModel->setData( row++, kFingerStickData, element.m_value );
   }//
 
   foreach( const cg_type &element, modelPtr->m_mealData )
   {
-    WDateTime x;
-    x.setPosixTime( element.m_time );
+    const WDateTime x = WDateTime::fromPosixTime( element.m_time );
     m_bsModel->setData( row, kTimeData, x );
     m_bsModel->setData( row++, kMealData, element.m_value );
   }//
 
   foreach( const cg_type &element, modelPtr->m_predictedBloodGlucose )
   {
-    WDateTime x;
-    x.setPosixTime( element.m_time );
+    const WDateTime x = WDateTime::fromPosixTime( element.m_time );
     m_bsModel->setData( row, kTimeData, x );
     m_bsModel->setData( row++, kPredictedBloodGlucose, element.m_value );
   }//
 
   foreach( const cg_type &element, modelPtr->m_glucoseAbsorbtionRate )
   {
-    WDateTime x;
-    x.setPosixTime( element.m_time );
+    const WDateTime x = WDateTime::fromPosixTime( element.m_time );
     m_bsModel->setData( row, kTimeData, x );
     m_bsModel->setData( row++, kGlucoseAbsRate, element.m_value );
   }//
 
   foreach( const cg_type &element, modelPtr->m_customEvents )
   {
-    WDateTime x;
-    x.setPosixTime( element.m_time );
+    const WDateTime x = WDateTime::fromPosixTime( element.m_time );
     m_bsModel->setData( row, kTimeData, x );
     m_bsModel->setData( row++, kCustomEventData, element.m_value );
   }//
 
   foreach( const cg_type &element, modelPtr->m_predictedInsulinX )
   {
-    WDateTime x;
-    x.setPosixTime( element.m_time );
+    const WDateTime x = WDateTime::fromPosixTime( element.m_time );
     m_bsModel->setData( row, kTimeData, x );
     m_bsModel->setData( row++, kPredictedInsulinX, element.m_value );
   }//
@@ -1101,6 +1098,16 @@ void WtGui::newModel()
     init( m_userDbPtr->name );
   }//if( accepted )
 }//void newModel()
+
+void WtGui::saveCurrentModel()
+{
+  saveModel( m_userDbPtr->currentFileName );
+}//void WtGui::saveCurrentModel()
+
+const std::string &WtGui::currentFileName()
+{
+  return m_userDbPtr->currentFileName;
+}//const std::string &currentFileName()
 
 
 void WtGui::saveModel( const std::string &fileName )
@@ -1618,6 +1625,209 @@ void WtModelSettingsGui::init()
 }//void init()
 
 
+WtGeneticallyOptimize::WtGeneticallyOptimize( WtGui *wtGuiParent, Wt::WContainerWidget *parent )
+  : WContainerWidget( parent ), m_parentWtGui( wtGuiParent )
+{
+  setInline(false);
+  setStyleClass( "WtGeneticallyOptimize" );
+
+  m_layout = new WBorderLayout();
+  setLayout( m_layout );
+
+  m_graphModel = new WStandardItemModel( this );
+  m_graphModel->insertColumns( m_graphModel->columnCount(), WtGui::NumDataSources );
+  m_graphModel->setHeaderData( WtGui::kTimeData,              WString("Time"));
+  m_graphModel->setHeaderData( WtGui::kCgmsData,              WString("CGMS Readings") );
+  m_graphModel->setHeaderData( WtGui::kFreePlasmaInsulin,     WString("Free Plasma Insulin (pred.)") );
+  m_graphModel->setHeaderData( WtGui::kGlucoseAbsRate,        WString("Glucose Abs. Rate (pred.)") );
+  m_graphModel->setHeaderData( WtGui::kMealData,              WString("Consumed Carbohydrates") );
+  m_graphModel->setHeaderData( WtGui::kFingerStickData,       WString("Finger Stick Readings") );
+  m_graphModel->setHeaderData( WtGui::kCustomEventData,       WString("User Defined Events") );
+  m_graphModel->setHeaderData( WtGui::kPredictedBloodGlucose, WString("Predicted Blood Glucose") );
+  m_graphModel->setHeaderData( WtGui::kPredictedInsulinX,     WString("Insulin X (pred.)") );
+
+  m_graph = new Chart::WCartesianChart(Chart::ScatterPlot);
+  m_graph->setModel( m_graphModel );
+  m_graph->setXSeriesColumn(WtGui::kTimeData);
+  m_graph->setLegendEnabled(true);
+  m_graph->setPlotAreaPadding( 200, Wt::Right );
+  m_graph->setPlotAreaPadding( 70, Wt::Bottom );
+  m_graph->axis(Chart::XAxis).setScale(Chart::DateTimeScale);
+  m_graph->axis(Chart::XAxis).setLabelAngle(45.0);
+  m_graph->axis(Chart::YAxis).setTitle( "mg/dL" );
+  m_graph->setMinimumSize( 200, 200 );
+
+
+  Chart::WDataSeries cgmsSeries(WtGui::kCgmsData, Chart::LineSeries);
+  cgmsSeries.setShadow(WShadow(3, 3, WColor(0, 0, 0, 127), 3));
+  m_graph->addSeries( cgmsSeries );
+
+  //Chart::WDataSeries fingerSeries( WtGui::kFingerStickData, Chart::PointSeries );
+  //m_graph->addSeries( fingerSeries );
+
+  Chart::WDataSeries mealSeries( WtGui::kMealData, Chart::PointSeries );
+  m_graph->addSeries( mealSeries );
+
+  Chart::WDataSeries predictSeries( WtGui::kPredictedBloodGlucose, Chart::LineSeries );
+  m_graph->addSeries( predictSeries );
+
+  Chart::WDataSeries freeInsSeries( WtGui::kFreePlasmaInsulin, Chart::LineSeries );
+  m_graph->addSeries( freeInsSeries );
+
+  Chart::WDataSeries predXSeries( WtGui::kPredictedInsulinX, Chart::LineSeries );
+  m_graph->addSeries( predXSeries );
+
+  Chart::WDataSeries customSeries( WtGui::kCustomEventData, Chart::LineSeries );
+  m_graph->addSeries( customSeries );
+
+  m_chi2Model = new WStandardItemModel( this );
+  m_chi2Model->insertColumns( m_chi2Model->columnCount(), 2 );
+  m_chi2Model->setHeaderData( 0, WString("Generation Number") );
+  m_chi2Model->setHeaderData( 1, WString("Best &chi;<sup>2</sup>") );
+
+  m_chi2Graph = new Chart::WCartesianChart(Chart::ScatterPlot);
+  m_chi2Graph->setModel( m_chi2Model );
+  m_chi2Graph->setXSeriesColumn(0);
+  m_chi2Graph->setLegendEnabled(false);
+  //m_chi2Graph->setPlotAreaPadding( 200, Wt::Right );
+  m_chi2Graph->setPlotAreaPadding( 70, Wt::Bottom );
+  //m_chi2Graph->axis(Chart::XAxis).setScale(Chart::DateTimeScale);
+  //m_chi2Graph->axis(Chart::XAxis).setLabelAngle(45.0);
+  m_chi2Graph->axis(Chart::YAxis).setTitle( "Best &chi;2" );
+  m_chi2Graph->setMinimumSize( 200, 200 );
+  m_chi2Graph->axis(Chart::XAxis).setTitle( "Generation Number" );
+
+  Chart::WDataSeries chi2Series( WtGui::kCustomEventData, Chart::LineSeries );
+  m_chi2Graph->addSeries( chi2Series );
+
+
+  Div *graphsDiv = new Div();
+  WGridLayout *graphLayout = new WGridLayout();
+  graphsDiv->setLayout( graphLayout );
+  graphLayout->addWidget( m_graph, 0, 0 );
+  graphLayout->addWidget( m_chi2Graph, 1, 0 );
+  graphLayout->setRowStretch( 0, 2 );
+  graphLayout->setRowStretch( 1, 2 );
+
+  m_layout->addWidget( graphsDiv, WBorderLayout::Center );
+
+
+
+  Div *southernDiv = new Div();
+  m_layout->addWidget( southernDiv, WBorderLayout::South );
+  Div *timeSelectDiv = new Div( "", southernDiv );
+  //timeSelectDiv->setInline(true);
+
+
+  const WDateTime &top = m_parentWtGui->getBeginTimePicker()->top();
+  const WDateTime &bottom = m_parentWtGui->getBeginTimePicker()->bottom();
+  new WLabel( "Train using data ", timeSelectDiv );
+
+  NLSimplePtr modelPtr( m_parentWtGui );
+  PosixTime *trainStartPtr = &(modelPtr->m_settings.m_startTrainingTime);
+  PosixTime *trainEndPtr = &(modelPtr->m_settings.m_endTrainingTime);
+
+  *trainStartPtr = bottom.toPosixTime();
+  *trainEndPtr = top.toPosixTime();
+
+  m_startTrainingTimeSelect = new MemGuiTimeDate( trainStartPtr,
+                                                  "from ",
+                                                  bottom.toPosixTime(),
+                                                  top.toPosixTime(),
+                                                  timeSelectDiv );
+  m_endTrainingTimeSelect = new MemGuiTimeDate( trainEndPtr,
+                                                " &nbsp;&nbsp;to ",
+                                                bottom.toPosixTime(),
+                                                top.toPosixTime(),
+                                                timeSelectDiv );
+  m_parentWtGui->getBeginTimePicker()->topBottomUpdated().connect( this, &WtGeneticallyOptimize::updateDateSelectLimits );
+
+  m_startTrainingTimeSelect->changed().connect( this, &WtGeneticallyOptimize::syncGraphDataToNLSimple );
+  m_endTrainingTimeSelect->changed().connect( this, &WtGeneticallyOptimize::syncGraphDataToNLSimple );
+
+  timeSelectDiv->addWidget( m_startTrainingTimeSelect );
+  timeSelectDiv->addWidget( m_endTrainingTimeSelect );
+
+  new WText( "Model Parameter training will only use the data"
+             " in the selected range.  To modify the settings"
+             " that determine how the training will be done, please"
+             " see the \"Settings\" tab.  Also please note that training"
+             " may take days of time, or longer if a large date range of data"
+             " is used (I would recomned about 2 weeks)", XHTMLText, southernDiv );
+
+  Div *buttonDiv = new Div( "buttonDivCentered", southernDiv );
+  m_startOptimization = new WPushButton( "Start Genetic Optimization", buttonDiv );
+  m_startOptimization->clicked().connect( this, &WtGeneticallyOptimize::startOptimization );
+
+  m_stopOptimization = new WPushButton( "Stop Genetic Optimization", buttonDiv );
+  m_stopOptimization->hide();
+  m_stopOptimization->clicked().connect( boost::bind( &WtGeneticallyOptimize::setContinueOptimizing, this, false ) );
+
+  m_minuit2Optimization = new WPushButton( "Minuit2 Fine Tune", buttonDiv );
+  m_minuit2Optimization->clicked().connect( this, &WtGeneticallyOptimize::startMinuit2Optimization );
+
+  syncGraphDataToNLSimple();
+}//WtGeneticallyOptimize
+
+
+WtGeneticallyOptimize::~WtGeneticallyOptimize() {};
+
+
+void WtGeneticallyOptimize::updateDateSelectLimits()
+{
+  const WDateTime &top = m_parentWtGui->getBeginTimePicker()->top();
+  const WDateTime &bottom = m_parentWtGui->getBeginTimePicker()->bottom();
+
+  m_startTrainingTimeSelect->setTop( top );
+  m_startTrainingTimeSelect->setBottom( bottom );
+  m_endTrainingTimeSelect->setTop( top );
+  m_endTrainingTimeSelect->setBottom( bottom );
+}//void updateDateSelectLimits()
+
+void WtGeneticallyOptimize::startMinuit2Optimization()
+{
+  new boost::thread( boost::bind( &WtGeneticallyOptimize::doMinuit2Optimization, this ) );
+}//void WtGeneticallyOptimize::startMinuit2Optimization()
+
+
+void WtGeneticallyOptimize::doMinuit2Optimization()
+{
+  boost::recursive_mutex::scoped_lock lock( m_parentWtGui->modelMutex(), boost::try_to_lock );
+
+  if( !lock )
+  {
+    const string msg = "Failed to get thread lock for Minuit2 minimization. "
+                       "Are you trying to optimize the same model twice at the "
+                       "same time?";
+    m_parentWtGui->doJavaScript( "alert( \"" + msg + "\" )", true );
+    cerr << endl << msg << endl;
+    return;
+  }//if( !lock )
+
+  WText *text = NULL;
+
+  {
+    WApplication::UpdateLock appLock( m_parentWtGui );
+    m_startOptimization->hide();
+    text = new WText( "<font color=\"blue\"><b>Currently Optimizing</b></font>", XHTMLUnsafeText );
+    m_layout->addWidget( text, WBorderLayout::North );
+    if( appLock ) m_parentWtGui->triggerUpdate();
+  }//
+
+
+  NLSimplePtr model( m_parentWtGui );
+  model->fitModelToDataViaMinuit2( model->m_settings.m_lastPredictionWeight );
+
+
+  {
+    WApplication::UpdateLock appLock( m_parentWtGui );
+    m_startOptimization->show();
+    m_layout->removeWidget( text );
+    if( appLock ) m_parentWtGui->triggerUpdate();
+  }//
+
+}//void WtGeneticallyOptimize::doMinuit2Optimization()
+
 
 void WtGeneticallyOptimize::startOptimization()
 {
@@ -1629,6 +1839,7 @@ void WtGeneticallyOptimize::doGeneticOptimization()
 {
   //std::vector<Wt::WWidget *> m_disableWhenBusyItems;
   //foreach( WWidget *w, m_disableWhenBusyItems ) w->setDisabled(true);
+
   setContinueOptimizing( true );
 
   boost::recursive_mutex::scoped_lock lock( m_parentWtGui->modelMutex(), boost::try_to_lock );
@@ -1638,10 +1849,22 @@ void WtGeneticallyOptimize::doGeneticOptimization()
     const string msg = "Failed to get thread lock for genetic minimization. "
                        "Are you trying to optimize the same model twice at the "
                        "same time?";
-    wApp->doJavaScript( "alert( \"" + msg + "\" )", true );
+    m_parentWtGui->doJavaScript( "alert( \"" + msg + "\" )", true );
     cerr << endl << msg << endl;
     return;
   }//if( !lock )
+
+  WText *text = NULL;
+
+  {
+    WApplication::UpdateLock appLock( m_parentWtGui );
+    //if( appLock )
+    m_stopOptimization->show();  //TODO: figure out if we didn't get appLock, will the changes be propogated to user eventually?
+    m_startOptimization->hide();
+    text = new WText( "<font color=\"blue\"><b>Currently Optimizing</b></font>", XHTMLUnsafeText );
+    m_layout->addWidget( text, WBorderLayout::North );
+    if( appLock ) m_parentWtGui->triggerUpdate();
+  }//
 
   m_bestChi2.clear();
 
@@ -1649,11 +1872,39 @@ void WtGeneticallyOptimize::doGeneticOptimization()
   NLSimple::ContinueFcn continueFcn = boost::bind( &WtGeneticallyOptimize::continueOptimizing, this);
 
   NLSimplePtr model( m_parentWtGui );
-  model->geneticallyOptimizeModel( model->m_settings.m_lastPredictionWeight,
+  cerr << "about to do the workptr" << endl;
+  try
+  {
+    model->geneticallyOptimizeModel( model->m_settings.m_lastPredictionWeight,
                                      TimeRangeVec(), chi2Calback, continueFcn );
+  }catch( exception &e )
+  {
+    string msg = "Warning: Optimization failed:\n";
+    msg += e.what();
+    m_parentWtGui->doJavaScript( "alert( \"" + msg + "\" )", false );
+    cerr << msg << endl;
+  }catch(...)
+  {
+    string msg = "Warning: Optimization failed";
+    m_parentWtGui->doJavaScript( "alert( \"" + msg + "\" )", false );
+    cerr << msg << endl;
+  }//try / catch
 
+  cerr << "done doing the work" << endl;
   m_parentWtGui->syncDisplayToModel();
   m_parentWtGui->updateClarkAnalysis();
+
+  //just to make sure we don't loose all this work
+  const std::string &fileName = m_parentWtGui->currentFileName();
+  if( fileName != "" ) m_parentWtGui->saveCurrentModel();
+
+  {
+    WApplication::UpdateLock appLock( m_parentWtGui );
+    m_stopOptimization->hide();
+    m_startOptimization->show();
+    m_layout->removeWidget( text );
+    if( appLock ) m_parentWtGui->triggerUpdate();
+  }//
 
   //foreach( WWidget *w, m_disableWhenBusyItems ) w->setDisabled(false);
 }//void doGeneticOptimization()
@@ -1675,7 +1926,9 @@ bool WtGeneticallyOptimize::continueOptimizing()
 
 void WtGeneticallyOptimize::optimizationUpdateFcn( double chi2 )
 {
-  WApplication::UpdateLock lock( wApp );
+  cerr << "optimizationUpdateFcn( chi2=" << chi2 << ") called" << endl;
+
+  WApplication::UpdateLock lock( m_parentWtGui );
   if( !lock )
   {
     cerr << "Couldn't get WApplication lock!!!" << endl;
@@ -1683,6 +1936,8 @@ void WtGeneticallyOptimize::optimizationUpdateFcn( double chi2 )
     return;
   }//if( !lock )
 
+  m_bestChi2.push_back( chi2 );
+  syncGraphDataToNLSimple();
 
   // Push the changes to the browser
   wApp->triggerUpdate();
@@ -1690,5 +1945,107 @@ void WtGeneticallyOptimize::optimizationUpdateFcn( double chi2 )
 
 
 
+void WtGeneticallyOptimize::syncGraphDataToNLSimple()
+{
+  typedef ConsentrationGraph::value_type cg_type;
 
+
+  m_chi2Model->removeRows( 0, m_chi2Model->rowCount() );
+  m_chi2Model->insertRows( 0, m_bestChi2.size() );
+  for( size_t i = 0; i < m_bestChi2.size(); ++i )
+  {
+    m_chi2Model->setData( i, 0, 1 );
+    m_chi2Model->setData( i, 1, m_bestChi2[i] );
+  }//for( add chi data to the model )
+
+
+  NLSimplePtr modelPtr( m_parentWtGui );
+
+  const WDateTime start = m_startTrainingTimeSelect->dateTime();
+  const WDateTime end = m_endTrainingTimeSelect->dateTime();
+
+  const int nNeededRow = modelPtr->m_cgmsData.size()
+                         //+ modelPtr->m_fingerMeterData.size()
+                         + modelPtr->m_mealData.size()
+                         + modelPtr->m_predictedBloodGlucose.size()
+                         //+ modelPtr->m_glucoseAbsorbtionRate.size()
+                         + modelPtr->m_freePlasmaInsulin.size()
+                         + modelPtr->m_customEvents.size()
+                         + modelPtr->m_predictedInsulinX.size();
+
+  m_graphModel->removeRows( 0, m_graphModel->rowCount() );
+  m_graphModel->insertRows( 0, nNeededRow );
+
+
+  int row = 0;
+  foreach( const cg_type &element, modelPtr->m_cgmsData )
+  {
+    const WDateTime x = WDateTime::fromPosixTime( element.m_time );
+    if( (x < start) || (x > end) ) continue;
+    m_graphModel->setData( row, WtGui::kTimeData, x );
+    m_graphModel->setData( row++, WtGui::kCgmsData, element.m_value );
+  }//
+
+  foreach( const cg_type &element, modelPtr->m_fingerMeterData )
+  {
+    const WDateTime x = WDateTime::fromPosixTime( element.m_time );
+    if( (x < start) || (x > end) ) continue;
+    m_graphModel->setData( row, WtGui::kTimeData, x );
+    m_graphModel->setData( row++, WtGui::kFingerStickData, element.m_value );
+  }//
+
+  foreach( const cg_type &element, modelPtr->m_mealData )
+  {
+    const WDateTime x = WDateTime::fromPosixTime( element.m_time );
+    if( (x < start) || (x > end) ) continue;
+    m_graphModel->setData( row, WtGui::kTimeData, x );
+    m_graphModel->setData( row++, WtGui::kMealData, element.m_value );
+  }//
+
+  foreach( const cg_type &element, modelPtr->m_predictedBloodGlucose )
+  {
+    const WDateTime x = WDateTime::fromPosixTime( element.m_time );
+    if( (x < start) || (x > end) ) continue;
+    m_graphModel->setData( row, WtGui::kTimeData, x );
+    m_graphModel->setData( row++, WtGui::kPredictedBloodGlucose, element.m_value );
+  }//
+
+  PosixTime lastInsulin = modelPtr->m_freePlasmaInsulin.size() ? modelPtr->m_freePlasmaInsulin.getStartTime() : PosixTime(boost::posix_time::min_date_time);
+
+  foreach( const cg_type &element, modelPtr->m_freePlasmaInsulin )
+  {
+    if( (element.m_time-lastInsulin) < TimeDuration( 0, 5, 0 ) ) continue;
+    lastInsulin = element.m_time;
+
+    const WDateTime x = WDateTime::fromPosixTime( element.m_time );
+    if( (x < start) || (x > end) ) continue;
+    m_graphModel->setData( row, WtGui::kTimeData, x );
+    m_graphModel->setData( row++, WtGui::kFreePlasmaInsulin, element.m_value );
+  }//
+
+
+  foreach( const cg_type &element, modelPtr->m_glucoseAbsorbtionRate )
+  {
+    const WDateTime x = WDateTime::fromPosixTime( element.m_time );
+    if( (x < start) || (x > end) ) continue;
+    m_graphModel->setData( row, WtGui::kTimeData, x );
+    m_graphModel->setData( row++, WtGui::kGlucoseAbsRate, element.m_value );
+  }//
+
+  foreach( const cg_type &element, modelPtr->m_customEvents )
+  {
+    const WDateTime x = WDateTime::fromPosixTime( element.m_time );
+    if( (x < start) || (x > end) ) continue;
+    m_graphModel->setData( row, WtGui::kTimeData, x );
+    m_graphModel->setData( row++, WtGui::kCustomEventData, element.m_value );
+  }//
+
+  foreach( const cg_type &element, modelPtr->m_predictedInsulinX )
+  {
+    const WDateTime x = WDateTime::fromPosixTime( element.m_time );
+    if( (x < start) || (x > end) ) continue;
+    m_graphModel->setData( row, WtGui::kTimeData, x );
+    m_graphModel->setData( row++, WtGui::kPredictedInsulinX, element.m_value );
+  }//
+}//void syncGraphDataToNLSimple()
 

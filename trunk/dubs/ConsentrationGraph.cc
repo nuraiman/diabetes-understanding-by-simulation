@@ -504,7 +504,6 @@ unsigned int ConsentrationGraph::add( double amountPerVol,
     if( !hasBecomeNonZero ) hasBecomeNonZero = (addValue > 0.0 );
   }//for( the absorbtion function has more in it )
 
-
   //We have to do is loop through already defined times, and update those values
   //The first place equal to, or past beginTimeOffset
   ConstGraphIter posIter = upper_bound(beginTime);
@@ -522,7 +521,9 @@ unsigned int ConsentrationGraph::add( double amountPerVol,
     GraphElement newElement( currentTime, totalValue );
 
     GraphElementSet::erase( posIter );
-    posIter = GraphElementSet::insert( posIter, newElement );
+    //posIter = GraphElementSet::insert( posIter, newElement );
+    posIter = GraphElementSet::insert( newElement ).first;
+
     //ConstGraphIter newPos = GraphElementSet::insert( posIter, newElement );
     //assert( newPos == posIter );
   }//for( loop over previously defined times )

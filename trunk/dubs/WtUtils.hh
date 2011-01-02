@@ -11,6 +11,7 @@
 #include <Wt/WSpinBox>
 #include "ArtificialPancrease.hh"
 
+
 namespace Wt
 {
   class WText;
@@ -47,6 +48,7 @@ class DateTimeSelect : public Wt::WContainerWidget
   Wt::WDateTime    m_top;
   Wt::WDateTime    m_bottom;
   Wt::Signal<>     m_changed;
+  Wt::Signal<>     m_topBottomChanged;
 
   void validate( bool emitChanged = false );
 
@@ -64,6 +66,7 @@ public:
   const Wt::WDateTime &bottom() const;
 
   Wt::Signal<> &changed();
+  Wt::Signal<> &topBottomUpdated();
 };//class DateTimeSelect
 
 
@@ -87,7 +90,7 @@ public:
   virtual void updateGuiFromMemmory() = 0;
   virtual void updateMemmoryFromGui() = 0;
   Wt::Signal<double> &valueChanged();
-  double value();
+  virtual double value();
 };//class MemVariableSpinBox
 
 
@@ -135,6 +138,22 @@ public:
                        Wt::WContainerWidget *parent = 0 );
   virtual void updateGuiFromMemmory();
   virtual void updateMemmoryFromGui();
+};//class TimeDurationSpinBox
+
+class MemGuiTimeDate : public DateTimeSelect
+{
+  boost::posix_time::ptime *m_memVariable;
+
+public:
+  MemGuiTimeDate( boost::posix_time::ptime *memVariable,
+                  const std::string &label = "",
+                  const boost::posix_time::ptime &lower = boost::posix_time::ptime(boost::posix_time::min_date_time),
+                  const boost::posix_time::ptime &upper = boost::posix_time::ptime(boost::posix_time::max_date_time),
+                  Wt::WContainerWidget *parent = 0 );
+  virtual void updateGuiFromMemmory();
+  virtual void updateMemmoryFromGui();
+  double asNumber() const;
+  boost::posix_time::ptime currentValue() const;
 };//class TimeDurationSpinBox
 
 

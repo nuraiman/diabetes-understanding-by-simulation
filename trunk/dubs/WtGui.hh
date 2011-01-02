@@ -33,6 +33,7 @@ class ConsentrationGraph;
 class ClarkErrorGridGraph;
 class WtModelSettingsGui;
 class MemVariableSpinBox;
+class MemGuiTimeDate;
 
 class NLSimplePtr;
 
@@ -134,6 +135,8 @@ public:
     virtual ~WtGui(){}
 
     void saveModel( const std::string &fileName );
+    void saveCurrentModel(); //calls saveModel( m_userDbPtr->currentFileName )
+    const std::string &currentFileName();
     void deleteModelFile( const std::string &fileName );
     void setModel( const std::string &fileName );
     void setModelFileName( const std::string &fileName );
@@ -256,6 +259,11 @@ private:
 
 class WtModelSettingsGui: public Wt::WContainerWidget
 {
+  //This class hooks the ModelSettings object (that is a member of NLSimple)
+  //  up to a gui so a user can edit the settings of the ModelSettings object.
+  //  Note that m_endTrainingTime, and m_startTrainingTime are not hooked up.
+
+private:
   typedef std::vector<MemVariableSpinBox *> SpinBoxes;
 
 public:
@@ -283,11 +291,25 @@ class WtGeneticallyOptimize: public Wt::WContainerWidget
 {
   WtGui *m_parentWtGui;
 
+  Wt::WBorderLayout          *m_layout;
+  Wt::WStandardItemModel     *m_graphModel;
+  Wt::Chart::WCartesianChart *m_graph;
+
+  Wt::WStandardItemModel     *m_chi2Model;
+  Wt::Chart::WCartesianChart *m_chi2Graph;
+
+  Wt::WPushButton *m_startOptimization;
+  Wt::WPushButton *m_stopOptimization;
+  Wt::WPushButton *m_minuit2Optimization;
+
   boost::mutex m_continueMutex;
   bool m_continueOptimizing;
 
   boost::mutex m_beingOptimizedMutex;
   std::vector<double> m_bestChi2;
+
+  MemGuiTimeDate *m_endTrainingTimeSelect;
+  MemGuiTimeDate *m_startTrainingTimeSelect;
 
 public:
   WtGeneticallyOptimize( WtGui *wtGuiParent,
@@ -303,6 +325,10 @@ public:
   void setContinueOptimizing( const bool doContinue );
   void startOptimization(); //call this to start the optimization
   void doGeneticOptimization();  //lanuched as a thread by startOptimization()
+  void doMinuit2Optimization();
+  void startMinuit2Optimization();
+  void syncGraphDataToNLSimple();
+  void updateDateSelectLimits();
 };//class WtGeneticallyOptimize
 
 
