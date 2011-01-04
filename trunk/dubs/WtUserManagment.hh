@@ -60,6 +60,10 @@ private:
   LoginSignal    m_loginSuccessfulSignal;
 
   void addUser();
+  void enableButton( Wt::WPushButton *button,
+                     Wt::WLineEdit *edit1,
+                     Wt::WLineEdit *edit2 = NULL,
+                     Wt::WLineEdit *edit3 = NULL );
   void checkCredentials();
   bool validLogin( const std::string &user, std::string pass );
 };//class DubsLogin : public Wt::WContainerWidget
@@ -78,6 +82,7 @@ public:
 
   std::string name;
   std::string password;
+  std::string email;
   Role        role;
   std::string currentFileName;
   std::string cookieHash;
@@ -89,6 +94,7 @@ public:
   {
     Wt::Dbo::field(a, name,            "name" );
     Wt::Dbo::field(a, password,        "password" );
+    Wt::Dbo::field(a, password,        "email" );
     Wt::Dbo::field(a, role,            "role" );
     Wt::Dbo::field(a, currentFileName, "currentFileName" );
     Wt::Dbo::field(a, cookieHash,      "cookieHash" );

@@ -131,10 +131,16 @@ int NLSimplePtr::count( WtGui *gui )
 
 void NLSimplePtr::resetCount( WtGui *gui )
 {
+  cerr << SRC_LOCATION << endl << "  we really should check to see if we are currently under a thread lock before reseting the count!" << endl;
   RecursiveScopedLock lock( sm_nLockMapMutex );
   sm_nLocksMap.erase( gui );
 }//resetCount
 
+
+WtGui::~WtGui()
+{
+  NLSimplePtr::resetCount( this );
+}//WtGui::~WtGui()
 
 
 WtGui::WtGui( const Wt::WEnvironment& env )
@@ -886,6 +892,8 @@ void WtGui::addData( WtGui::EntryType type, Wt::WFileUpload *fileUpload )
 
 void WtGui::syncDisplayToModel()
 {
+  WApplication::UpdateLock appLock( this );
+
   const TimeDuration plasmaInsulinDt( 0, 5, 0 );  //5 minutes
   typedef ConsentrationGraph::value_type cg_type;
 
@@ -1005,6 +1013,7 @@ void WtGui::updateClarkAnalysis( const ConsentrationGraph &xGraph,
 {
   typedef ConsentrationGraph::value_type cg_type;
 
+  WApplication::UpdateLock appLock( this );
   NLSimplePtr modelPtr( this, false, SRC_LOCATION );
   if( !modelPtr ) return;
 
@@ -2018,7 +2027,7 @@ void WtGeneticallyOptimize::optimizationUpdateFcn( double chi2 )
 void WtGeneticallyOptimize::syncGraphDataToNLSimple()
 {
   typedef ConsentrationGraph::value_type cg_type;
-
+  WApplication::UpdateLock appLock( m_parentWtGui );
 
   m_chi2Model->removeRows( 0, m_chi2Model->rowCount() );
   m_chi2Model->insertRows( 0, m_bestChi2.size() );

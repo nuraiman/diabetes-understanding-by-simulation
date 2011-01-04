@@ -32,6 +32,7 @@
 #include <Wt/WTable>
 #include <Wt/WPushButton>
 #include <Wt/WEnvironment>
+#include <Wt/WRegExpValidator>
 
 
 #include "TH1.h"
@@ -150,37 +151,72 @@ void DubsLogin::insertCookie( const std::string &uname,
 
 }//void DubsLogin::insertCookie()
 
+void DubsLogin::enableButton( WPushButton *button, WLineEdit *edit1, WLineEdit *edit2, WLineEdit *edit3 )
+{
+  bool valid = true;
+  valid = (valid && (edit1->validate() == WValidator::Valid));
+  if( edit2 ) valid = (valid && (edit2->validate() == WValidator::Valid));
+  if( edit3 ) valid = (valid && (edit3->validate() == WValidator::Valid));
+  if( valid ) button->enable();
+  else        button->disable();
+}//void enableButton(...)
 
 
 void DubsLogin::addUser()
 {
-  WDialog *dialog = new WDialog( "Add User" );
-  //dialog->setModal( false );
-  new WText( "User Name: ", dialog->contents() );
-  WLineEdit *userNameEdit = new WLineEdit( dialog->contents() );
+  WDialog dialog( "Add User" );
+  //dialog.setModal( false );
+  new WText( "User Name: ", dialog.contents() );
+  WLineEdit *userNameEdit = new WLineEdit( dialog.contents() );
   userNameEdit->setText( "" );
   WLengthValidator *val = new WLengthValidator( 3, 50 );
   userNameEdit->setValidator( val );
-  new WText( " Password: ", dialog->contents() );
-  WLineEdit *passwordEdit = new WLineEdit( dialog->contents() );
+  new WText( " Password: ", dialog.contents() );
+  WLineEdit *passwordEdit = new WLineEdit( dialog.contents() );
+  new WBreak( dialog.contents() );
+  WLabel *emailLabel = new WLabel( "Email Address: ", dialog.contents() );
+  WLineEdit *emailEdit = new WLineEdit( dialog.contents() );
+  emailEdit->setTextSize( 25 );
+  WRegExpValidator *emailValidator = new WRegExpValidator("[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,4}");
+  emailEdit->setValidator( emailValidator );
+  emailLabel->setBuddy( emailEdit );
   passwordEdit->setText( "" );
   val = new WLengthValidator( 3, 50 );
   passwordEdit->setValidator( val );
 
-  new Wt::WBreak( dialog->contents() );
-  WPushButton *ok = new WPushButton( "Ok", dialog->contents() );
-  WPushButton *cancel = new WPushButton( "Cancel", dialog->contents() );
+  WContainerWidget *newUserTextDiv = new WContainerWidget( dialog.contents() );
+  newUserTextDiv->setStyleClass( "newUserTextDiv" );
+  newUserTextDiv->setInline( false );
 
-  userNameEdit->enterPressed().connect( dialog, &WDialog::accept );
-  passwordEdit->enterPressed().connect( dialog, &WDialog::accept );
-  ok->clicked().connect( dialog, &WDialog::accept );
-  cancel->clicked().connect( dialog, &WDialog::reject );
-  userNameEdit->escapePressed().connect( dialog, &WDialog::reject );
-  passwordEdit->escapePressed().connect( dialog, &WDialog::reject );
+  new WText( "This will create a limited demo account"
+             " untill you email"
+             " <a href=\"mailto:wcjohnson@ucdavis.edu\">wcjohnson@ucdavis.edu</a>"
+             " to give you full usage rights; sorry about this but some potential"
+             " actions take a ton of cpu resources and Im running this off of my"
+             " laptop right now, and I would like to make sure I can provide you"
+             " with the information and help to effictively use this tool.",
+             XHTMLUnsafeText, newUserTextDiv );
+
+  WPushButton *ok = new WPushButton( "Ok", dialog.contents() );
+  ok->disable();
+  WPushButton *cancel = new WPushButton( "Cancel", dialog.contents() );
+
+  userNameEdit->changed().connect( boost::bind( &DubsLogin::enableButton, this, ok, userNameEdit, passwordEdit, emailEdit ) );
+  passwordEdit->changed().connect( boost::bind( &DubsLogin::enableButton, this, ok, userNameEdit, passwordEdit, emailEdit ) );
+  emailEdit->changed().connect( boost::bind( &DubsLogin::enableButton, this, ok, userNameEdit, passwordEdit, emailEdit ) );
+
+  userNameEdit->enterPressed().connect( passwordEdit, &WFormWidget::setFocus );
+  passwordEdit->enterPressed().connect( emailEdit, &WFormWidget::setFocus );
+  emailEdit->enterPressed().connect( ok, &WPushButton::setFocus );
+  ok->clicked().connect( &dialog, &WDialog::accept );
+  cancel->clicked().connect( &dialog, &WDialog::reject );
+  userNameEdit->escapePressed().connect( &dialog, &WDialog::reject );
+  passwordEdit->escapePressed().connect( &dialog, &WDialog::reject );
+  emailEdit->escapePressed().connect( &dialog, &WDialog::reject );
   userNameEdit->setFocus();
-  dialog->exec();
+  dialog.exec();
 
-  if( dialog->result() == WDialog::Rejected )
+  if( dialog.result() == WDialog::Rejected )
   {
     //delete dialog;
     return;
@@ -188,6 +224,7 @@ void DubsLogin::addUser()
 
   const string name = userNameEdit->text().narrow();
   const string pword = passwordEdit->text().narrow();
+  const string email = emailEdit->text().narrow();
 
   Dbo::ptr<DubUser> user;
 
@@ -213,13 +250,20 @@ void DubsLogin::addUser()
     DubUser *user = new DubUser();
     user->name = name;
     user->password = pwordhash;
+    user->email = email;
     user->currentFileName = "example";//ProgramOptions::ns_defaultModelFileName;
     const string example_file_name = "../data/" + name + "_example.dubm";
     gSystem->CopyFile( "../data/example.dubm", example_file_name.c_str(), kFALSE );
     user->cookieHash = "";
-    using boost::algorithm::ends_with;
-    if( ends_with( name, "guest" ) ) user->role = DubUser::Visitor;
-    else                             user->role = DubUser::FullUser;
+
+    //it's cheesy, but if the user name doedn't start with 'dub', make them a
+    //  visitor, unless they email me to change it
+
+    if( name.substr(0, 3) == "dub"  ) user->role = DubUser::FullUser;
+    else                              user->role = DubUser::Visitor;
+    //using boost::algorithm::ends_with;
+    //if( ends_with( name, "guest" ) ) user->role = DubUser::Visitor;
+    //else                             user->role = DubUser::FullUser;
 
     Dbo::ptr<DubUser> userptr;
 
