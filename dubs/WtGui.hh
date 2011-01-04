@@ -145,7 +145,7 @@ public:
 
   public:
     WtGui( const Wt::WEnvironment& env );
-    virtual ~WtGui(){}
+    virtual ~WtGui();
 
     void saveModel( const std::string &fileName );
     void saveCurrentModel(); //calls saveModel( m_userDbPtr->currentFileName )
