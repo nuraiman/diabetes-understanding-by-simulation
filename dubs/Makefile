@@ -42,8 +42,8 @@ endif
 
 ROOTCFLAGS   := $(shell $(ROOTCONFIG) --cflags)
 ROOTLDFLAGS  := $(shell $(ROOTCONFIG) --ldflags)
-ROOTLIBS     := $(shell $(ROOTCONFIG) --libs) -L$(ROOTSYS)/lib -lMinuit -lMinuit2 -lTMVA -lTreePlayer
-ROOTGLIBS    := $(shell $(ROOTCONFIG) --glibs) -L$(ROOTSYS)/lib -lMinuit -lMinuit2 -lTMVA -lTreePlayer
+ROOTLIBS     := $(shell $(ROOTCONFIG) --libs) -lMinuit -lMinuit2 -lTreePlayer -lTMVA
+ROOTGLIBS    := $(shell $(ROOTCONFIG) --glibs)  -lMinuit -lMinuit2 -lTreePlayer -lTMVA
 HASTHREAD    := $(shell $(ROOTCONFIG) --has-thread)
 ROOTDICTTYPE := $(shell $(ROOTCONFIG) --dicttype)
 #NOSTUBS      := $(shell $(ROOTCONFIG) --nostubs)

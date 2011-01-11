@@ -7,6 +7,7 @@
 #include <boost/thread/recursive_mutex.hpp>
 #include <boost/thread/mutex.hpp>
 #include <boost/shared_ptr.hpp>
+#include <boost/thread.hpp>
 #include <Wt/WApplication>
 #include <Wt/WContainerWidget>
 #include <Wt/WDateTime>
@@ -36,6 +37,8 @@ class MemVariableSpinBox;
 class MemGuiTimeDate;
 
 class NLSimplePtr;
+class NLSimpleDisplayModel;
+class WChartWithLegend;
 
 namespace Wt
 {
@@ -187,6 +190,7 @@ public:
     DateTimeSelect *getBeginTimePicker() { return m_bsBeginTimePicker; }
     DateTimeSelect *getEndTimePicker() { return m_bsEndTimePicker; }
 
+
   private:
     //m_model should never be accessed in any situation where multithreaded
     //  access is any possibility, instead, a NLSimplePtr object should be
@@ -204,8 +208,9 @@ public:
     Wt::WPopupMenu *m_fileMenuPopup;
     Wt::WTabWidget *m_tabs;
 
+    boost::shared_ptr<NLSimpleDisplayModel> m_nlSimleDisplayModel;
     Wt::WStandardItemModel     *m_bsModel;
-    Wt::Chart::WCartesianChart *m_bsGraph;
+    WChartWithLegend           *m_bsGraph;
     DateTimeSelect             *m_bsBeginTimePicker;
     DateTimeSelect             *m_bsEndTimePicker;
 

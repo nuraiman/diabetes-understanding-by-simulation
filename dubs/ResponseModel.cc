@@ -2484,6 +2484,17 @@ bool NLSimple::saveToFile( std::string filename )
     if( extention != ".dubm" ) filename += ".dubm";
   }//
 
+  //should make thread safe
+//#include <boost/interprocess/sync/scoped_lock.hpp>
+//#include <boost/interprocess/sync/named_mutex.hpp>
+  //using namespace boost::interprocess;
+  //named_mutex mutex(open_or_create, "fstream_named_mutex");
+  //scoped_lock<named_mutex> lock(mutex);
+  //try{ ...write to file...}catch{ interprocess_exception &ex){
+  //  named_mutex::remove("fstream_named_mutex"); ... return;}
+  //named_mutex::remove("fstream_named_mutex");
+
+
   std::ofstream ofs( filename.c_str() );
 
   if( !ofs.is_open() )
