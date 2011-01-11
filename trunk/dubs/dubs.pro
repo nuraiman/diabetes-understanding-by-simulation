@@ -26,7 +26,8 @@ SOURCES += main.cc \
     WtGui.cc \
     WtCreateNLSimple.cc \
     WtUserManagment.cc \
-    WtUtils.cc
+    WtUtils.cc \
+    WtChartClasses.cc
 HEADERS += nlsimpleguiwindow.h \
     ArtificialPancrease.hh \
     ProgramOptions.hh \
@@ -38,7 +39,10 @@ HEADERS += nlsimpleguiwindow.h \
     WtGui.hh \
     WtCreateNLSimple.hh \
     WtUserManagment.hh \
-    WtUtils.hh
+    WtUtils.hh \
+    WtChartClasses.hh
+
+OTHER_FILES = Makefile
 
 # below assumes NLSimpleGui_linkdef containes all the '#pragma link C++ class ClassName;' statments in it
 CREATE_ROOT_DICT_FOR_CLASSES = ConsentrationGraphGui.hh \

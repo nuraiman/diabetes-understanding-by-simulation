@@ -177,7 +177,7 @@ void DubsLogin::addUser()
   WLabel *emailLabel = new WLabel( "Email Address: ", dialog.contents() );
   WLineEdit *emailEdit = new WLineEdit( dialog.contents() );
   emailEdit->setTextSize( 25 );
-  WRegExpValidator *emailValidator = new WRegExpValidator("[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,4}");
+  WRegExpValidator *emailValidator = new WRegExpValidator( "[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,4}" );
   emailEdit->setValidator( emailValidator );
   emailLabel->setBuddy( emailEdit );
   passwordEdit->setText( "" );
@@ -188,10 +188,10 @@ void DubsLogin::addUser()
   newUserTextDiv->setStyleClass( "newUserTextDiv" );
   newUserTextDiv->setInline( false );
 
-  new WText( "This will create a limited demo account"
+  new WText( "This will create a limited account"
              " untill you email"
              " <a href=\"mailto:wcjohnson@ucdavis.edu\">wcjohnson@ucdavis.edu</a>"
-             " to give you full usage rights; sorry about this but some potential"
+             " to give you full usage capabilities; sorry about this but some potential"
              " actions take a ton of cpu resources and Im running this off of my"
              " laptop right now, and I would like to make sure I can provide you"
              " with the information and help to effictively use this tool.",

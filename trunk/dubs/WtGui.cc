@@ -68,6 +68,7 @@
 #include "ResponseModel.hh"
 #include "ProgramOptions.hh"
 #include "CgmsDataImport.hh"
+#include "WtChartClasses.hh"
 
 using namespace Wt;
 using namespace std;
@@ -88,6 +89,8 @@ NLSimplePtr::NLSimplePtr( WtGui *gui, const bool waite, const std::string &failu
   m_parent( gui ),
   m_lock()
 {
+// gui->m_userDbPtr->role==DubUser::FullUser
+
   if( m_parent )
   {
     if( waite ) m_lock.reset( new RecursiveScopedLock( m_parent->m_modelMutex ) );
@@ -151,6 +154,7 @@ WtGui::WtGui( const Wt::WEnvironment& env )
   m_upperEqnDiv( NULL ),
   m_fileMenuPopup( NULL ),
   m_tabs( NULL ),
+  m_nlSimleDisplayModel( new NLSimpleDisplayModel( NULL, this, this ) ),
   m_bsModel( NULL ),
   m_bsGraph( NULL ),
   m_bsBeginTimePicker( NULL ),
@@ -163,7 +167,7 @@ WtGui::WtGui( const Wt::WEnvironment& env )
 {
   enableUpdates(true);
   setTitle( "dubs" );
-  useStyleSheet( "/local_resources/dubs.css" );
+  useStyleSheet( "local_resources/dubs.css" );
 
   m_dbSession.setConnection( m_dbBackend );
   m_dbBackend.setProperty("show-queries", "true");
@@ -204,6 +208,7 @@ void WtGui::logout()
 {
   boost::recursive_mutex::scoped_lock lock( m_modelMutex );
   m_model = NLSimpleShrdPtr();
+  m_nlSimleDisplayModel->setDiabeticModel( NULL );
   DubsLogin::insertCookie( m_userDbPtr->name, 0, m_dbSession ); //deltes the cookie
   requireLogin();
 }//void logout()
@@ -223,6 +228,7 @@ void WtGui::resetGui()
   }//if( couldn't get the lock )
 
   m_model = NLSimpleShrdPtr();
+  m_nlSimleDisplayModel->setDiabeticModel( NULL );
   init( m_userDbPtr->name );
 }//void resetGui()
 
@@ -432,11 +438,12 @@ void WtGui::init( const string username )
   m_bsModel->setHeaderData( kPredictedBloodGlucose, WString("Predicted Blood Glucose") );
   m_bsModel->setHeaderData( kPredictedInsulinX,     WString("Insulin X (pred.)") );
   
-  m_bsGraph = new Chart::WCartesianChart(Chart::ScatterPlot);
-  m_bsGraph->setModel( m_bsModel );
+  m_bsGraph = new WChartWithLegend();
+  m_bsGraph->setModel( m_nlSimleDisplayModel.get() );
+  //m_bsGraph->setModel( m_bsModel );
   m_bsGraph->setXSeriesColumn(0);
-  m_bsGraph->setLegendEnabled(true);
-  m_bsGraph->setPlotAreaPadding( 200, Wt::Right );
+  m_bsGraph->setLegendEnabled(false);
+  m_bsGraph->setPlotAreaPadding( 25, Wt::Right );
   m_bsGraph->setPlotAreaPadding( 70, Wt::Bottom );
   m_bsGraph->axis(Chart::XAxis).setScale(Chart::DateTimeScale);
   m_bsGraph->axis(Chart::XAxis).setLabelAngle(45.0);
@@ -445,20 +452,25 @@ void WtGui::init( const string username )
   const WPen &y2Pen = m_bsGraph->palette()->strokePen(kMealData-2);
   m_bsGraph->axis(Chart::Y2Axis).setPen( y2Pen );
   m_bsGraph->axis(Chart::YAxis).setTitle( "mg/dL" );
+  m_bsGraph->setMinimumSize( 200, 300 );
 
 
-  Chart::WDataSeries cgmsSeries(kCgmsData, Chart::LineSeries);
+  Chart::WDataSeries cgmsSeries(NLSimpleDisplayModel::CgmsData, Chart::LineSeries);
   cgmsSeries.setShadow(WShadow(3, 3, WColor(0, 0, 0, 127), 3));
   m_bsGraph->addSeries( cgmsSeries );
-  Chart::WDataSeries fingerSeries( kFingerStickData, Chart::PointSeries );
+  Chart::WDataSeries fingerSeries( NLSimpleDisplayModel::FingerMeterData, Chart::PointSeries );
   m_bsGraph->addSeries( fingerSeries );
-  Chart::WDataSeries mealSeries( kMealData, Chart::PointSeries, Chart::Y2Axis );
+  Chart::WDataSeries mealSeries( NLSimpleDisplayModel::MealData, Chart::PointSeries, Chart::Y2Axis );
   m_bsGraph->addSeries( mealSeries );
-  Chart::WDataSeries predictSeries( kPredictedBloodGlucose, Chart::LineSeries );
+  Chart::WDataSeries predictSeries( NLSimpleDisplayModel::PredictedBloodGlucose, Chart::LineSeries );
   m_bsGraph->addSeries( predictSeries );
-  Chart::WDataSeries insulinSeries( kFreePlasmaInsulin, Chart::LineSeries );
+  Chart::WDataSeries insulinSeries( NLSimpleDisplayModel::FreePlasmaInsulin, Chart::LineSeries );
   m_bsGraph->addSeries( insulinSeries );
 
+  //NLSimpleDisplayModel::TimeColumn,
+  //NLSimpleDisplayModel::GlucoseAbsorbtionRate,
+  //NLSimpleDisplayModel::CustomEvents,
+  //NLSimpleDisplayModel::PredictedInsulinX,
 
 
 
@@ -590,6 +602,31 @@ void WtGui::init( const string username )
   // view->setColumnHidden( kPredictedInsulinX, true );
 */
 
+  /*
+  Div *topRawDataDiv = new Div();
+  cgmsDataTableLayout->addWidget( topRawDataDiv, WBorderLayout::North );
+
+
+  for( int i = 0; i < m_bsModel->columnCount(); ++i )
+  {
+    try
+    {
+      WString name = boost::any_cast<WString>( m_bsModel->headerData(i) );
+
+      WPushButton *removeB = new WPushButton( "Remove " + name, topRawDataDiv );
+      WPushButton *addB = new WPushButton( "Show " + name, topRawDataDiv );
+      removeB->resize( view->columnWidth(i), WLength::Auto );
+      addB->resize( view->columnWidth(i), WLength::Auto );
+      addB->hide();
+      removeB->clicked().connect( removeB, &WPushButton::hide );
+      removeB->clicked().connect( addB, &WPushButton::show );
+      addB->clicked().connect( removeB, &WPushButton::show );
+      addB->clicked().connect( addB, &WPushButton::hide );
+      removeB->clicked().connect( boost::bind( &WTableView::setColumnHidden, view, i, true ) );
+      addB->clicked().connect( boost::bind( &WTableView::setColumnHidden, view, i, false ) );
+    }catch(...){}
+  }//for( loop over the columns )
+*/
 
   Div *bottomRawDataDiv = new Div();
   cgmsDataTableLayout->addWidget( bottomRawDataDiv, WBorderLayout::South );
@@ -1175,6 +1212,9 @@ void WtGui::newModel()
   if( (code==WDialog::Accepted) && new_model)
   {
     m_model = NLSimpleShrdPtr( new_model );
+
+    m_nlSimleDisplayModel->setDiabeticModel( new_model );
+
     setModelFileName( "" );
     init( m_userDbPtr->name );
   }//if( accepted )
@@ -1273,6 +1313,7 @@ void WtGui::setModel( const std::string &fileName )
 
   try{
     m_model = NLSimpleShrdPtr( new NLSimple( formFileSystemName(fileName) ) );
+    m_nlSimleDisplayModel->setDiabeticModel( m_model.get() );
     setModelFileName( fileName );
   }catch(...){
     cerr << "Failed to open NLSimple named " << fileName << endl;
