@@ -209,6 +209,7 @@ public:
     Wt::WTabWidget *m_tabs;
 
     boost::shared_ptr<NLSimpleDisplayModel> m_nlSimleDisplayModel;
+    boost::shared_ptr<NLSimpleDisplayModel> m_enteredDataModel;
     Wt::WStandardItemModel     *m_bsModel;
     WChartWithLegend           *m_bsGraph;
     DateTimeSelect             *m_bsBeginTimePicker;
