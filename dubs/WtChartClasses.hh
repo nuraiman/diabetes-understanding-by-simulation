@@ -46,6 +46,18 @@ public:
 
 class NLSimpleDisplayModel : public Wt::WAbstractItemModel
 {
+  //Right now this class is a model that meets some of the purposes I wanted:
+  //  I wanted to just use the NLSimple model to supply the data, but
+  //  accessing any given element of a std::set is so slow this isn't
+  //  practicle.
+  //Right now the 0th axis is the time axis, and it is implicitly always
+  //  defined (eg no entry in m_columnHeaderData or m_cachedData exists
+  //  for it), and its header data cannot be set.
+  //The upside to using this model is it's easy to only use the columns
+  //  you want, and have them in the same order you add them in (using
+  //  useColumn(Columns) ).
+  //updateData() only emits the dataChanged() signal
+
 public:
   const static boost::posix_time::time_duration sm_plasmaInsulinDt;
 
@@ -70,6 +82,9 @@ protected:
   typedef std::map<int, boost::any> HeaderData;
   std::vector<HeaderData> m_columnHeaderData;
 
+  typedef std::pair<Columns,std::vector<GraphElement> > ColumnDataPair;
+  typedef std::vector<ColumnDataPair > DataVec;
+  DataVec m_cachedData;
 
 public:
   NLSimpleDisplayModel( NLSimple *diabeticModel,
@@ -92,8 +107,13 @@ public:
                                  int role = Wt::DisplayRole ) const;
   void clear();
 
+  void useAllColums();
+  void useColumn( Columns col );
+
   void setDiabeticModel( NLSimple *diabeticModel );
   virtual const ConsentrationGraph &graph( const Columns row ) const;
+
+  void updateData();
 };//class NLSimpleDisplayModel
 
 

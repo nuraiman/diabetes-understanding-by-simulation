@@ -154,7 +154,8 @@ WtGui::WtGui( const Wt::WEnvironment& env )
   m_upperEqnDiv( NULL ),
   m_fileMenuPopup( NULL ),
   m_tabs( NULL ),
-  m_nlSimleDisplayModel( new NLSimpleDisplayModel( NULL, this, this ) ),
+  m_nlSimleDisplayModel( new NLSimpleDisplayModel( NULL, this, NULL ) ),
+  m_enteredDataModel( new NLSimpleDisplayModel( NULL, this, NULL ) ),
   m_bsModel( NULL ),
   m_bsGraph( NULL ),
   m_bsBeginTimePicker( NULL ),
@@ -209,6 +210,7 @@ void WtGui::logout()
   boost::recursive_mutex::scoped_lock lock( m_modelMutex );
   m_model = NLSimpleShrdPtr();
   m_nlSimleDisplayModel->setDiabeticModel( NULL );
+  m_enteredDataModel->setDiabeticModel( NULL );
   DubsLogin::insertCookie( m_userDbPtr->name, 0, m_dbSession ); //deltes the cookie
   requireLogin();
 }//void logout()
@@ -229,6 +231,7 @@ void WtGui::resetGui()
 
   m_model = NLSimpleShrdPtr();
   m_nlSimleDisplayModel->setDiabeticModel( NULL );
+  m_enteredDataModel->setDiabeticModel( NULL );
   init( m_userDbPtr->name );
 }//void resetGui()
 
@@ -425,22 +428,11 @@ void WtGui::init( const string username )
   m_tabs = new WTabWidget();
   m_tabs->setStyleClass( "m_tabs" );
   layout->addWidget( m_tabs, WBorderLayout::Center );
-
-  m_bsModel = new WStandardItemModel( this );
-  m_bsModel->insertColumns( m_bsModel->columnCount(), NumDataSources );
-  m_bsModel->setHeaderData( kTimeData,              WString("Time"));
-  m_bsModel->setHeaderData( kCgmsData,              WString("CGMS Readings") );
-  m_bsModel->setHeaderData( kFreePlasmaInsulin,     WString("Free Plasma Insulin (pred.)") );
-  m_bsModel->setHeaderData( kGlucoseAbsRate,        WString("Glucose Abs. Rate (pred.)") );
-  m_bsModel->setHeaderData( kMealData,              WString("Consumed Carbohydrates") );
-  m_bsModel->setHeaderData( kFingerStickData,       WString("Finger Stick Readings") );
-  m_bsModel->setHeaderData( kCustomEventData,       WString("User Defined Events") );
-  m_bsModel->setHeaderData( kPredictedBloodGlucose, WString("Predicted Blood Glucose") );
-  m_bsModel->setHeaderData( kPredictedInsulinX,     WString("Insulin X (pred.)") );
   
+
   m_bsGraph = new WChartWithLegend();
+  m_nlSimleDisplayModel->useAllColums();
   m_bsGraph->setModel( m_nlSimleDisplayModel.get() );
-  //m_bsGraph->setModel( m_bsModel );
   m_bsGraph->setXSeriesColumn(0);
   m_bsGraph->setLegendEnabled(false);
   m_bsGraph->setPlotAreaPadding( 25, Wt::Right );
@@ -569,12 +561,19 @@ void WtGui::init( const string username )
   cgmsDataTableDiv->setLayout( cgmsDataTableLayout );
   WTableView *view = new WTableView();
   cgmsDataTableLayout->addWidget( view, WBorderLayout::Center );
-  view->setModel( m_bsModel );
-  view->setSortingEnabled(true);
+
+  m_enteredDataModel->useColumn( NLSimpleDisplayModel::MealData );
+  m_enteredDataModel->useColumn( NLSimpleDisplayModel::FingerMeterData );
+  m_enteredDataModel->useColumn( NLSimpleDisplayModel::CustomEvents );
+  m_enteredDataModel->useColumn( NLSimpleDisplayModel::CgmsData );
+
+
+  view->setModel( m_enteredDataModel.get() );
+  view->setSortingEnabled(false);
   view->setColumnResizeEnabled(true);
   view->setAlternatingRowColors(true);
-  //view->setSelectionBehavior( SelectRows );
-  //view->setSelectionMode( SingleSelection );
+  view->setSelectionBehavior( SelectRows );
+  view->setSelectionMode( SingleSelection );
   view->setRowHeight(22);
   view->setColumnWidth( 0, 150 );
   view->setColumnWidth( 1, 150 );
@@ -931,105 +930,8 @@ void WtGui::syncDisplayToModel()
 {
   WApplication::UpdateLock appLock( this );
 
-  const TimeDuration plasmaInsulinDt( 0, 5, 0 );  //5 minutes
-  typedef ConsentrationGraph::value_type cg_type;
-
-  NLSimplePtr modelPtr( this, false, string(SRC_LOCATION) );
-  if( !modelPtr ) return;
-
-
-  int nNeededRow = modelPtr->m_cgmsData.size()
-                         + modelPtr->m_fingerMeterData.size()
-                         + modelPtr->m_mealData.size()
-                         + modelPtr->m_predictedBloodGlucose.size()
-                         + modelPtr->m_glucoseAbsorbtionRate.size()
-                         + modelPtr->m_customEvents.size()
-                         + modelPtr->m_predictedInsulinX.size();
-
-  //m_freePlasmaInsulin has a ton of points, so we'll only cound every 5
-  //  minutes of them, make sure this is consisten with actually putting
-  //  the data into the model
-  if( modelPtr->m_freePlasmaInsulin.size() )
-  {
-    PosixTime lastInsulin = modelPtr->m_freePlasmaInsulin.getStartTime();
-    foreach( const cg_type &element, modelPtr->m_freePlasmaInsulin )
-    {
-      if( (element.m_time-lastInsulin) >= plasmaInsulinDt )
-      {
-        lastInsulin = element.m_time;
-        ++nNeededRow;
-      }//if( its been long enough, count this point )
-    }//foreach point
-  }//if( modelPtr->m_freePlasmaInsulin.size() )
-
-
-  m_bsModel->removeRows( 0, m_bsModel->rowCount() );
-  m_bsModel->insertRows( 0, nNeededRow );
-
-  int row = 0;
-  foreach( const cg_type &element, modelPtr->m_cgmsData )
-  {
-    const WDateTime x = WDateTime::fromPosixTime( element.m_time );
-    m_bsModel->setData( row, kTimeData, x );
-    m_bsModel->setData( row++, kCgmsData, element.m_value );
-  }//
-
-  foreach( const cg_type &element, modelPtr->m_fingerMeterData )
-  {
-    const WDateTime x = WDateTime::fromPosixTime( element.m_time );
-    m_bsModel->setData( row, kTimeData, x );
-    m_bsModel->setData( row++, kFingerStickData, element.m_value );
-  }//
-
-  foreach( const cg_type &element, modelPtr->m_mealData )
-  {
-    const WDateTime x = WDateTime::fromPosixTime( element.m_time );
-    m_bsModel->setData( row, kTimeData, x );
-    m_bsModel->setData( row++, kMealData, element.m_value );
-  }//
-
-  foreach( const cg_type &element, modelPtr->m_predictedBloodGlucose )
-  {
-    const WDateTime x = WDateTime::fromPosixTime( element.m_time );
-    m_bsModel->setData( row, kTimeData, x );
-    m_bsModel->setData( row++, kPredictedBloodGlucose, element.m_value );
-  }//
-
-  foreach( const cg_type &element, modelPtr->m_glucoseAbsorbtionRate )
-  {
-    const WDateTime x = WDateTime::fromPosixTime( element.m_time );
-    m_bsModel->setData( row, kTimeData, x );
-    m_bsModel->setData( row++, kGlucoseAbsRate, element.m_value );
-  }//
-
-
-  if( modelPtr->m_freePlasmaInsulin.size() )
-  {
-    PosixTime lastInsulin = modelPtr->m_freePlasmaInsulin.getStartTime();
-    foreach( const cg_type &element, modelPtr->m_freePlasmaInsulin )
-    {
-      if( (element.m_time-lastInsulin) < plasmaInsulinDt ) continue;
-      lastInsulin = element.m_time;
-      const WDateTime x = WDateTime::fromPosixTime( element.m_time );
-      m_bsModel->setData( row, kTimeData, x );
-      m_bsModel->setData( row++, kFreePlasmaInsulin, element.m_value );
-    }//
-  }//if( modelPtr->m_freePlasmaInsulin.size() )
-
-
-  foreach( const cg_type &element, modelPtr->m_customEvents )
-  {
-    const WDateTime x = WDateTime::fromPosixTime( element.m_time );
-    m_bsModel->setData( row, kTimeData, x );
-    m_bsModel->setData( row++, kCustomEventData, element.m_value );
-  }//
-
-  foreach( const cg_type &element, modelPtr->m_predictedInsulinX )
-  {
-    const WDateTime x = WDateTime::fromPosixTime( element.m_time );
-    m_bsModel->setData( row, kTimeData, x );
-    m_bsModel->setData( row++, kPredictedInsulinX, element.m_value );
-  }//
+  m_nlSimleDisplayModel->updateData();
+  m_enteredDataModel->updateData();
 
   updateDataRange();
 }//void syncDisplayToModel()
@@ -1214,6 +1116,7 @@ void WtGui::newModel()
     m_model = NLSimpleShrdPtr( new_model );
 
     m_nlSimleDisplayModel->setDiabeticModel( new_model );
+    m_enteredDataModel->setDiabeticModel( new_model );
 
     setModelFileName( "" );
     init( m_userDbPtr->name );
@@ -1314,6 +1217,7 @@ void WtGui::setModel( const std::string &fileName )
   try{
     m_model = NLSimpleShrdPtr( new NLSimple( formFileSystemName(fileName) ) );
     m_nlSimleDisplayModel->setDiabeticModel( m_model.get() );
+    m_enteredDataModel->setDiabeticModel( m_model.get() );
     setModelFileName( fileName );
   }catch(...){
     cerr << "Failed to open NLSimple named " << fileName << endl;
