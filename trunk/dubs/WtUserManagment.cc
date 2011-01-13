@@ -33,6 +33,7 @@
 #include <Wt/WPushButton>
 #include <Wt/WEnvironment>
 #include <Wt/WRegExpValidator>
+#include <Wt/SyncLock>
 
 
 #include "TH1.h"
@@ -53,6 +54,43 @@ using namespace std;
 
 
 const std::string DubsLogin::cookie_name = "dubsuserid";
+
+DubUserServer::DubUserServer() : m_userLoggedIn(this), m_userLoggedOut(this)
+{}
+
+bool DubUserServer::login(const WString& user)
+{
+  SyncLock<boost::recursive_mutex::scoped_lock> lock(m_mutex);
+
+  const bool wasLoggedIn = (m_users.find(user) != m_users.end());
+  if( wasLoggedIn ) cerr << "Forcing user " << user << " to logout" << endl;
+  m_userLoggedIn.emit(user);
+  m_users.insert(user);
+  return !wasLoggedIn;
+}//...login( user )
+
+void DubUserServer::logout(const WString& user)
+{
+  SyncLock<boost::recursive_mutex::scoped_lock> lock(m_mutex);
+
+  UserSet::iterator i = m_users.find(user);
+
+  if (i != m_users.end() )
+  {
+    cerr << endl << "logging out " << user << endl;
+    m_users.erase(i);
+    m_userLoggedOut.emit(user);
+  }
+}//logout( user )
+
+
+DubUserServer::UserSet DubUserServer::users()
+{
+  SyncLock<boost::recursive_mutex::scoped_lock> lock(m_mutex);
+
+  return m_users;
+}//UserSet users()
+
 
 
 DubsLogin::DubsLogin(  Wt::Dbo::Session &dbSession, WContainerWidget *parent ):

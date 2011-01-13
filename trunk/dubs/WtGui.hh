@@ -17,7 +17,9 @@
 #include <Wt/Chart/WCartesianChart>
 #include <Wt/WLineF>
 #include <Wt/WRectF>
+
 #include "ArtificialPancrease.hh"
+#include "WtUserManagment.hh"
 
 //Some forward declarations
 class NLSimple;
@@ -147,7 +149,7 @@ public:
 
 
   public:
-    WtGui( const Wt::WEnvironment& env );
+    WtGui( const Wt::WEnvironment& env, DubUserServer &server );
     virtual ~WtGui();
 
     void saveModel( const std::string &fileName );
@@ -164,6 +166,7 @@ public:
     void requireLogin();
     void init( const std::string username );
     void logout();
+    void checkLogout( Wt::WString username );
 
     void resetGui();
     void openModelDialog();
@@ -200,6 +203,8 @@ public:
 
     Wt::Dbo::ptr<DubUser> m_userDbPtr;
 
+    DubUserServer &m_server;
+    boost::signals::connection m_logoutConnection;
 
     Wt::Dbo::backend::Sqlite3 m_dbBackend;
     Wt::Dbo::Session m_dbSession;
