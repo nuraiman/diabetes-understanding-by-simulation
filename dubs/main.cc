@@ -37,7 +37,7 @@
 #include "ProgramOptions.hh"
 
 #include "WtGui.hh"
-
+#include "WtUtils.hh"
 
 using namespace Wt;
 using namespace std;
@@ -45,10 +45,13 @@ using namespace std;
 //Forward Declarations
 void setStyle();
 
+DubUserServer gDubUserServer;  //the single instance of the DubUserServer
+
+
 
 WApplication *createApplication(const WEnvironment& env)
 {
-  WtGui *app = new WtGui(env);
+  WtGui *app = new WtGui(env, gDubUserServer);
   return app;
 }
 

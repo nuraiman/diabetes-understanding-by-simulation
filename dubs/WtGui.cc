@@ -142,13 +142,15 @@ void NLSimplePtr::resetCount( WtGui *gui )
 
 WtGui::~WtGui()
 {
+  m_server.logout( m_userDbPtr->name );
   NLSimplePtr::resetCount( this );
 }//WtGui::~WtGui()
 
 
-WtGui::WtGui( const Wt::WEnvironment& env )
+WtGui::WtGui( const Wt::WEnvironment& env, DubUserServer &server )
   : WApplication( env ),
   m_model(),
+  m_server( server ),
   m_dbBackend( "user_information.db" ),
   m_dbSession(),
   m_upperEqnDiv( NULL ),
@@ -187,6 +189,7 @@ void WtGui::requireLogin()
 
   if( logged_in_username != "" )
   {
+    //m_server.login( logged_in_username );
     init( logged_in_username );
     return;
   }//if( isLoggedIn() )
@@ -212,8 +215,26 @@ void WtGui::logout()
   m_nlSimleDisplayModel->setDiabeticModel( NULL );
   m_enteredDataModel->setDiabeticModel( NULL );
   DubsLogin::insertCookie( m_userDbPtr->name, 0, m_dbSession ); //deltes the cookie
+  m_server.logout( m_userDbPtr->name );
+  m_userDbPtr = Wt::Dbo::ptr<DubUser>();
   requireLogin();
 }//void logout()
+
+void WtGui::checkLogout( Wt::WString username )
+{
+  if( username.narrow() == m_userDbPtr->name )
+  {
+    {
+      WApplication::UpdateLock lock( this );
+      m_server.logout( username );
+      redirect( "static_pages/forced_logout.html" );
+      triggerUpdate();
+      m_logoutConnection.disconnect();
+    }
+
+    quit();
+  }//if( username.narrow() == m_userDbPtr->name )
+}//void checkLogout( Wt::WString username )
 
 
 void WtGui::resetGui()
@@ -354,6 +375,10 @@ void WtGui::init( const string username )
     m_userDbPtr = m_dbSession.find<DubUser>().where("name = ?").bind( username );
     transaction.commit();
   }
+
+  m_server.login( username );
+  m_logoutConnection.disconnect();
+  m_logoutConnection = m_server.userLogIn().connect( this, &WtGui::checkLogout );
 
   if( !m_userDbPtr )
   {

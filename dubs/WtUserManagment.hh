@@ -3,9 +3,11 @@
 
 #include <string>
 #include <Wt/WContainerWidget>
+#include <Wt/WString>
 #include <Wt/Dbo/Dbo>
 #include <Wt/Dbo/backend/Sqlite3>
 #include <Wt/Dbo/WtSqlTraits>
+#include <boost/thread.hpp>
 
 class DubUser;
 class UsersModel;
@@ -27,6 +29,33 @@ namespace Wt
   class WBorderLayout;
   class WStandardItemModel;
 };//namespace Wt
+
+class DubUserServer : public Wt::WObject
+{
+  //This is a simple class adapted from the SimpleChat example included
+  //  with Wt, to create a server such that a user may only be logged
+  //  in once at a time.  At a minimum each WApplication session should
+  //  be connected to the userLogIn() signal so that if the same user logs
+  //  in elsewhere it can quit
+
+public:
+  DubUserServer();
+  bool login(const Wt::WString& user);
+  void logout(const Wt::WString& user);
+  Wt::Signal<Wt::WString> &userLogIn() { return m_userLoggedIn; }
+  Wt::Signal<Wt::WString> &userLogOut() { return m_userLoggedOut; }
+
+  typedef std::set<Wt::WString> UserSet;
+  UserSet users();
+
+private:
+  Wt::Signal<Wt::WString>       m_userLoggedIn;
+  Wt::Signal<Wt::WString>       m_userLoggedOut;
+  boost::recursive_mutex        m_mutex;
+
+  UserSet                       m_users;
+};//DubUserServer class
+
 
 
 class DubsLogin : public Wt::WContainerWidget
