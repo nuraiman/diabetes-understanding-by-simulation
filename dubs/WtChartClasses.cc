@@ -368,3 +368,62 @@ void NLSimpleDisplayModel::updateData()
   WApplication::UpdateLock appLock( m_wApp ); //we can get a deadlock without this
   dataChanged().emit( index(0,0), index( rowCount(), columnCount() ) );
 }//void NLSimpleDisplayModel::updateData()
+
+
+
+WtGeneralArrayModel::WtGeneralArrayModel( const int nbin,
+                                      const double *x_values,
+                                      const double *y_values,
+                                      Wt::WObject *parent )
+  : WAbstractItemModel(parent), m_nbins(nbin), m_x(x_values), m_y(y_values)
+{
+}//WtGeneralArrayModel constructor
+
+void WtGeneralArrayModel::setNBins( const int nbins )
+{
+  m_nbins = nbins;
+  dataChanged().emit( index(0,0), index( rowCount(), columnCount() ) );
+}
+
+void WtGeneralArrayModel::setArrayAddresses( const int nbins,
+                                           const double *x_values,
+                                           const double *y_values )
+{
+  m_x = x_values;
+  m_y = y_values;
+  setNBins( nbins );
+}//setArrayAddresses( ...)
+
+int WtGeneralArrayModel::columnCount( const Wt::WModelIndex& ) const
+{
+   return 2;
+}
+
+int WtGeneralArrayModel::rowCount( const Wt::WModelIndex&  ) const
+{
+  return m_nbins;
+}
+
+WModelIndex WtGeneralArrayModel::parent( const Wt::WModelIndex& ) const
+{
+  return WModelIndex();
+}
+
+boost::any WtGeneralArrayModel::data( const Wt::WModelIndex& index, int role ) const
+{
+  const int row = index.row();
+  const int column = index.column();
+  if( !m_x || !m_y || (column>1) || (row>=m_nbins) || (column<0) || (row<0) )
+    return boost::any();
+
+  if( 0 == column ) return boost::any( m_x[row] );
+  return boost::any( m_y[row] );
+}//data(...)
+
+Wt::WModelIndex WtGeneralArrayModel::index( int row, int column, const Wt::WModelIndex& ) const
+{
+  if( !m_x || !m_y || (column>1) || (row>=m_nbins) || (column<0) || (row<0) )
+    return WModelIndex();
+
+  return WAbstractItemModel::createIndex( row, column, (void *)this );
+}//index(...)

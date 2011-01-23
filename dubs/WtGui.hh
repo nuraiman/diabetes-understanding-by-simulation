@@ -41,6 +41,7 @@ class MemGuiTimeDate;
 class NLSimplePtr;
 class NLSimpleDisplayModel;
 class WChartWithLegend;
+class WtGeneralArrayModel;
 
 namespace Wt
 {
@@ -224,9 +225,6 @@ public:
     ClarkErrorGridGraph        *m_errorGridGraph;
     Div                        *m_errorGridLegend;
 
-    Wt::WTableView             *m_customEventsView;
-    Wt::WStandardItemModel     *m_customEventsModel;
-    std::vector<ModelGraphPair> m_customEventGraphs;
 
     friend class NLSimplePtr;
     //friend class DubEventEntry;
@@ -356,6 +354,45 @@ public:
   void syncGraphDataToNLSimple();
   void updateDateSelectLimits();
 };//class WtGeneticallyOptimize
+
+
+class WtCustomEventTab: public Wt::WContainerWidget
+{
+protected:
+  WtGui                          *m_parentWtGui;
+  Wt::WBorderLayout              *m_layout;
+
+  int m_currentCE;
+  WtGeneralArrayModel            *m_currentCEModel;
+  Wt::Chart::WCartesianChart     *m_currentCEChart;
+
+  Wt::WTableView                 *m_eventTypesView;
+  Wt::WStandardItemModel         *m_eventTypesModel;
+
+public:
+  WtCustomEventTab( WtGui *wtGuiParent,
+                    Wt::WContainerWidget *parent = NULL );
+  virtual ~WtCustomEventTab();
+
+  int selectedEventType() const;
+
+  void updateAvailableEventTypes();
+  void displaySelectedModel();
+
+
+  void addCustomEventDialog();
+  void validateCustomEventNameAndID( Wt::WLineEdit *name,
+                                     Wt::WSpinBox *id,
+                                     Wt::WPushButton *button );
+  void defineCustomEvent( const int recordType,
+                          const std::string name,
+                          const TimeDuration eventDuration,
+                          const int eventDefType, //of type EventDefType, see ResponseModel.hh
+                          const int nPoints );
+
+  bool undefineCustomEvent( int index );
+  void confirmUndefineCustomEventDialog(); //currently selected event type
+};//class WtCustomEventTab:
 
 
 #endif // WTGUI_H

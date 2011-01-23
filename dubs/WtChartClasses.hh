@@ -117,4 +117,29 @@ public:
 };//class NLSimpleDisplayModel
 
 
+class WtGeneralArrayModel : public Wt::WAbstractItemModel
+{
+  //This class is meant to display the class EventDef in ResponseModel.hh
+  //  and will likely change to be either vector or TSpline3 based in the
+  //  future.
+  //This class is also not thread safe or blah-blah-blah
+
+  int m_nbins;
+  const double *m_x;
+  const double *m_y;
+
+public:
+  WtGeneralArrayModel( const int nbin,
+                     const double *x_values,
+                     const double *y_values, Wt::WObject *parent = 0  );
+  void setNBins( const int nbins );
+  void setArrayAddresses( const int nbins, const double *x_values, const double *y_values );
+
+  virtual int columnCount( const Wt::WModelIndex& parent = Wt::WModelIndex() ) const;
+  virtual int rowCount( const Wt::WModelIndex& parent = Wt::WModelIndex() ) const;
+  virtual Wt::WModelIndex parent( const Wt::WModelIndex& index) const;
+  virtual boost::any data( const Wt::WModelIndex& index, int role = Wt::DisplayRole) const;
+  virtual Wt::WModelIndex index( int row, int column, const Wt::WModelIndex& parent = Wt::WModelIndex() ) const;
+};//class WtGeneralArrayModel
+
 #endif // WTCHARTCLASSES_HH

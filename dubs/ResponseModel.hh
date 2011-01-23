@@ -510,6 +510,10 @@ class EventDef
 
     void draw() const;
 
+    const double *times() const { return m_times; }
+    const double *values() const { return m_values; }
+
+
   private:
     template<class Archive>
     void save(Archive & ar, const unsigned int version) const;

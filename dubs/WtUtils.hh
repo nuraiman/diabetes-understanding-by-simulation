@@ -89,6 +89,7 @@ public:
   virtual ~MemVariableSpinBox(){}
   virtual void updateGuiFromMemmory() = 0;
   virtual void updateMemmoryFromGui() = 0;
+  Wt::WSpinBox *spinBox() { return m_spinBox; }
   Wt::Signal<double> &valueChanged();
   virtual double value();
 };//class MemVariableSpinBox
