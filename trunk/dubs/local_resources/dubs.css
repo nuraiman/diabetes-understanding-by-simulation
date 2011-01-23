@@ -161,6 +161,10 @@ br.Wt-tabs-clear
 {
 }
 
+.WtCustomEventTab_buttonDiv
+{
+  text-align: center;
+}
 
 .viewDiv
 {

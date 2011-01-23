@@ -6,6 +6,7 @@
 #include <stdio.h>
 #include <math.h>
 #include <stdlib.h>
+#include <limits.h>
 
 #include "boost/foreach.hpp"
 #include "boost/lexical_cast.hpp"
@@ -52,6 +53,11 @@
 #include <Wt/WRadioButton>
 #include <Wt/WButtonGroup>
 #include <Wt/WGroupBox>
+#include <Wt/WSortFilterProxyModel>
+#include <Wt/WLineEdit>
+#include <Wt/WSpinBox>
+#include <Wt/WPushButton>
+#include <Wt/WPanel>
 
 #include "TH1.h"
 #include "TH1F.h"
@@ -163,10 +169,7 @@ WtGui::WtGui( const Wt::WEnvironment& env, DubUserServer &server )
   m_bsBeginTimePicker( NULL ),
   m_bsEndTimePicker( NULL ),
   m_errorGridModel( NULL ),
-  m_errorGridGraph( NULL ),
-  m_customEventsView( NULL ),
-  m_customEventsModel( NULL ),
-  m_customEventGraphs( 0 )
+  m_errorGridGraph( NULL )
 {
   enableUpdates(true);
   setTitle( "dubs" );
@@ -513,11 +516,6 @@ void WtGui::init( const string username )
 
   updateClarkAnalysis();
 
-  m_customEventsView = new WTableView();
-  m_customEventsModel = new WStandardItemModel( this );
-  m_customEventsView->setModel( m_customEventsModel );
-  m_customEventGraphs.clear();
-
 
   NLSimplePtr modelPtr( this );
 
@@ -592,9 +590,12 @@ void WtGui::init( const string username )
   m_enteredDataModel->useColumn( NLSimpleDisplayModel::CustomEvents );
   m_enteredDataModel->useColumn( NLSimpleDisplayModel::CgmsData );
 
+  WSortFilterProxyModel *sortModel = new WSortFilterProxyModel( this );
+  sortModel->setSourceModel( m_enteredDataModel.get() );
 
-  view->setModel( m_enteredDataModel.get() );
-  view->setSortingEnabled(false);
+  //view->setModel( m_enteredDataModel.get() );
+  view->setModel( sortModel );
+  view->setSortingEnabled(true);
   view->setColumnResizeEnabled(true);
   view->setAlternatingRowColors(true);
   view->setSelectionBehavior( SelectRows );
@@ -661,6 +662,9 @@ void WtGui::init( const string username )
 
   m_tabs->addTab( cgmsDataTableDiv, "Raw Data" );
 
+
+  WtCustomEventTab *customEventTab = new WtCustomEventTab( this );
+  m_tabs->addTab( customEventTab, "Custom Events" );
 
   DubEventEntry *dataEntry = new DubEventEntry( this );
   layout->addWidget( dataEntry, WBorderLayout::South );
@@ -2103,4 +2107,321 @@ void WtGeneticallyOptimize::syncGraphDataToNLSimple()
     m_graphModel->setData( row++, WtGui::kPredictedInsulinX, element.m_value );
   }//
 }//void syncGraphDataToNLSimple()
+
+
+
+
+
+WtCustomEventTab::WtCustomEventTab( WtGui *wtGuiParent,
+                                    Wt::WContainerWidget *parent )
+  : WContainerWidget( parent ), m_parentWtGui( wtGuiParent ),
+  m_layout( new WBorderLayout(this) ),
+  m_currentCE(-1),
+  m_currentCEModel( new WtGeneralArrayModel(0, NULL, NULL, this) ),
+  m_currentCEChart( new Chart::WCartesianChart(Wt::Chart::ScatterPlot,parent)),
+  m_eventTypesView( new WTableView() ),
+  m_eventTypesModel( new WStandardItemModel(this) )
+{
+  m_eventTypesModel->insertColumns( 0, 2 );
+  m_eventTypesModel->setHeaderData( 0, Horizontal, WString("ID"), DisplayRole );
+  m_eventTypesModel->setHeaderData( 1, Horizontal, WString("Name"), DisplayRole );
+  m_eventTypesView->resize( 250, WLength( 10, WLength::FontEm ) );
+  m_eventTypesView->setSortingEnabled( true );
+  m_eventTypesView->setSelectionMode( SingleSelection );
+  m_eventTypesView->setAlternatingRowColors( true );
+  m_eventTypesView->setSelectionBehavior( SelectRows );
+  m_eventTypesView->setColumnWidth( 0, WLength(5, WLength::FontEx) );
+  m_eventTypesView->setModel( m_eventTypesModel );
+  m_eventTypesView->selectionChanged().connect( this, &WtCustomEventTab::displaySelectedModel );
+  WPanel *panel = new WPanel();
+  panel->setTitle( "Defined Custom Events:" );
+  panel->setCentralWidget( m_eventTypesView );
+
+
+  Div *eastDiv = new Div();
+  eastDiv->addWidget( panel );
+  Div *buttonDiv = new Div( "WtCustomEventTab_buttonDiv", eastDiv );
+  WPushButton *addModelButton = new WPushButton( "Add Event Type", buttonDiv );
+  WPushButton *delModelButton = new WPushButton( "Delete Event Type", buttonDiv );
+  //new WBreak( buttonDiv );
+  addModelButton->clicked().connect( this, &WtCustomEventTab::addCustomEventDialog );
+  delModelButton->clicked().connect( boost::bind( &WtCustomEventTab::confirmUndefineCustomEventDialog, this ) );
+  WText *headerText = new WText( "Custom Defined Events" );
+
+  m_currentCEChart->setMinimumSize( 200, 200 );
+  m_currentCEChart->setModel( m_currentCEModel );
+  m_currentCEChart->setXSeriesColumn(0);
+  m_currentCEChart->setLegendEnabled(false);
+  m_currentCEChart->setPlotAreaPadding( 25, Wt::Right );
+  m_currentCEChart->setPlotAreaPadding( 70, Wt::Bottom );
+  //m_bsGraph->axis(Chart::XAxis).setScale(Chart::DateTimeScale);
+  m_currentCEChart->axis(Chart::XAxis).setTitle( "Minutes After Beginning" );
+  Chart::WDataSeries series( 1, Chart::LineSeries);
+  series.setShadow(WShadow(3, 3, WColor(0, 0, 0, 127), 3));
+  m_currentCEChart->addSeries( series );
+
+  if( m_eventTypesModel->rowCount() )
+  {
+    std::set<WModelIndex> indices;
+    indices.insert( m_eventTypesModel->index(0,0) );
+    indices.insert( m_eventTypesModel->index(0,1) );
+    m_eventTypesView->setSelectedIndexes( indices );
+  }//if( m_eventTypesModel->rowCount() )
+
+  m_layout->addWidget( eastDiv, WBorderLayout::East );
+  m_layout->addWidget( m_currentCEChart, WBorderLayout::Center );
+  m_layout->addWidget( headerText, WBorderLayout::North );
+
+  displaySelectedModel();
+}//WtCustomEventTab constructor
+
+WtCustomEventTab::~WtCustomEventTab(){};
+
+void WtCustomEventTab::updateAvailableEventTypes()
+{
+  NLSimplePtr nlsimpleptr( m_parentWtGui );
+  const NLSimple::EventDefMap &eventDefMap = nlsimpleptr->m_customEventDefs;
+
+  m_eventTypesModel->removeRows( 0, m_eventTypesModel->rowCount() );
+  m_eventTypesModel->insertRows( 0, eventDefMap.size() );
+
+  int row = 0;
+  NLSimple::EventDefMap::const_iterator iter;
+  for( iter = eventDefMap.begin(); iter != eventDefMap.end(); ++iter )
+  {
+    m_eventTypesModel->setData( row, 0, iter->first );
+    m_eventTypesModel->setData( row++, 1, WString(iter->second.getName()) );
+  }//for loop over and add data to the model
+}//void updateAvailableEventTypes()
+
+
+
+int WtCustomEventTab::selectedEventType() const
+{
+  const set<WModelIndex> selected = m_eventTypesView->selectedIndexes();
+
+  if( selected.empty() ) return INT_MIN;
+
+  set<WModelIndex>::const_iterator ind;
+  for( ind = selected.begin(); ind != selected.end(); ++ind )
+  {
+    if( ind->column() == 0 )
+    {
+      try{ return boost::any_cast<int>( ind->data() ); }
+      catch(...){}
+    }//if( ind->row() == 0 )
+  }//for( loop over selected indices )
+
+  return INT_MIN;
+}//int selectedEventType() const
+
+
+void WtCustomEventTab::displaySelectedModel()
+{
+  m_currentCEModel->setArrayAddresses( 0, NULL, NULL );
+  if( !m_eventTypesModel->rowCount() ) return;
+
+  const int eventType = selectedEventType();
+  if( eventType == INT_MIN ) return;
+
+  NLSimplePtr nlsimpleptr( m_parentWtGui );
+  const std::map<int, EventDef> &eventDefs = nlsimpleptr->m_customEventDefs;
+  std::map<int, EventDef>::const_iterator eventDef = eventDefs.find(eventType);
+
+  if( eventDef == eventDefs.end() )
+  {
+    cerr << "WtCustomEventTab::displaySelectedModel(): Couldn't find an"
+         << " event of type " << eventType << "\nThis shouldn't happen"
+         << endl;
+    return;
+  }//
+  const EventDef &event = eventDef->second;
+
+  cerr << "event.getNPoints()=" << event.getNPoints() << ": ";
+  for( int i = 0; i < event.getNPoints(); ++i ) cerr << "( " << event.times()[i] << ", " << event.values()[i] << " ), ";
+  cerr << endl;
+  m_currentCEModel->setArrayAddresses( event.getNPoints(),
+                                       event.times(),
+                                       event.values() );
+}//void displaySelectedModel()
+
+
+void WtCustomEventTab::addCustomEventDialog()
+{
+  WDialog dialog( "Define a new Custom Event Type:" );
+
+  Wt::WGroupBox *container = new Wt::WGroupBox("Effect On System", dialog.contents() );
+  Wt::WButtonGroup *group = new Wt::WButtonGroup( dialog.contents() );
+
+  Wt::WRadioButton *button;
+  button = new Wt::WRadioButton("Constant Effect", container);
+  new Wt::WBreak(container);
+  group->addButton(button, IndependantEffect);
+
+  button = new Wt::WRadioButton("Insulin Dependant", container);
+  new Wt::WBreak(container);
+  group->addButton(button, MultiplyInsulin);
+
+  button = new Wt::WRadioButton("Carb Depentdant", container);
+  new Wt::WBreak(container);
+  group->addButton(button, MultiplyCarbConsumed);
+
+  group->setCheckedButton( group->button(IndependantEffect) );
+
+  int n_points = 6;
+  TimeDuration duration( 2, 0, 0, 0 );
+  new TimeDurationSpinBox( &duration, "Total Duration",
+                           0.0, 24.0*60, dialog.contents() );
+  new WBreak( dialog.contents() );
+  new IntSpinBox( &n_points, "Number of Points", "", 1, 50, dialog.contents() );
+  new WBreak( dialog.contents() );
+
+  int event_id = -1;
+  IntSpinBox *id = new IntSpinBox( &event_id, "ID:", "",
+                                   0, 1000, dialog.contents() );
+  WLabel *label = new WLabel( "Name ", dialog.contents() );
+  WLineEdit *name = new WLineEdit( "", dialog.contents() );
+  label->setBuddy( name );
+
+  new WBreak( dialog.contents() );
+  WPushButton *ok = new WPushButton( "Create", dialog.contents() );
+  ok->disable();
+  WPushButton *cancel = new WPushButton( "Cancel", dialog.contents() );
+  ok->clicked().connect( &dialog, &WDialog::accept );
+  cancel->clicked().connect( &dialog, &WDialog::reject );
+
+  id->valueChanged().connect(
+                 boost::bind( &WtCustomEventTab::validateCustomEventNameAndID,
+                              this, name, id->spinBox(), ok ) );
+  name->changed().connect(
+                 boost::bind( &WtCustomEventTab::validateCustomEventNameAndID,
+                              this, name, id->spinBox(), ok ) );
+
+  const WDialog::DialogCode code = dialog.exec();
+
+  if( code == WDialog::Rejected ) return;
+
+  cerr << "Defineing custom event tagged by ID=" << event_id
+       << " named " << name->text().narrow()
+       << " with a duration of " << duration
+       << " of EventDefType=" << group->checkedId()
+       << " described by " << n_points << " points" << endl;
+
+  defineCustomEvent( event_id, name->text().narrow(), duration,
+                     group->checkedId(), n_points );
+
+}//void addCustomEventDialog();
+
+
+void WtCustomEventTab::validateCustomEventNameAndID( WLineEdit *name,
+                                                     WSpinBox *id,
+                                                     WPushButton *button )
+{
+  button->enable();
+
+  const string nameStr = name->text().narrow();
+  const int idValue =  std::floor( id->value() + 0.5 );
+  if( id->value() != id->value() ) button->disable();
+
+  NLSimplePtr nlsimpleptr( m_parentWtGui );
+  const std::map<int, EventDef> &eventDefs = nlsimpleptr->m_customEventDefs;
+  NLSimple::EventDefMap::const_iterator iter = eventDefs.begin();
+
+  if( nameStr.empty() ) button->disable();
+
+  for( ; iter != eventDefs.end(); ++iter )
+  {
+    if( iter->first == idValue ) button->disable();
+    if( iter->second.getName() == nameStr ) button->disable();
+  }//for( loop over defined EventDefs )
+
+  if( button->isEnabled() )
+  {
+    //Set the name and id objects to validated
+    //name->set
+  }
+}//validateCustomEventNameAndID
+
+
+void WtCustomEventTab::defineCustomEvent( const int recordType,
+                                          const string name,
+                                          const TimeDuration eventDuration,
+                                          const int eventDefType, //of type EventDefType, see ResponseModel.hh
+                                          const int nPoints )
+{
+  DVec initialValues;
+
+  switch( eventDefType )
+  {
+    case IndependantEffect:
+      initialValues = DVec( nPoints, 0.0 );
+    break;
+
+    case MultiplyInsulin:
+    case MultiplyCarbConsumed:
+      initialValues = DVec( nPoints, 1.0 );
+    break;
+
+    case NumEventDefTypes:
+    default: assert(0);
+  };//switch( eventDefType )
+
+  NLSimplePtr nlsimpleptr( m_parentWtGui );
+  nlsimpleptr->defineCustomEvent( recordType, name, eventDuration,
+                                  EventDefType(eventDefType), initialValues );
+  updateAvailableEventTypes();
+  displaySelectedModel();
+}//void WtCustomEventTab::defineCustomEvent( ... )
+
+
+void WtCustomEventTab::confirmUndefineCustomEventDialog()
+{
+  const int eventType = selectedEventType();
+
+  string name = "";
+
+  {
+    NLSimplePtr nlsimpleptr( m_parentWtGui );
+    const std::map<int, EventDef> &eventDefs = nlsimpleptr->m_customEventDefs;
+    std::map<int, EventDef>::const_iterator eventDef = eventDefs.find(eventType);
+
+    if( eventDef == eventDefs.end() )
+    {
+      cerr << "WtCustomEventTab::confirmUndefineCustomEventDialog(): WTF?"
+          << endl;
+      return;
+    }//if( eventDef == eventDefs.end() )
+    name = eventDef->second.getName();
+  }
+
+  WDialog dialog( "Confirm" );
+  const string msg = "Are you sure you would like to delete the event named '"
+                     + name + "'";
+  new WText( msg, dialog.contents() );
+  new WBreak( dialog.contents() );
+  WPushButton *yes = new WPushButton( "Yes", dialog.contents() );
+  WPushButton *no = new WPushButton( "no", dialog.contents() );
+  yes->clicked().connect( &dialog, &WDialog::accept );
+  no->clicked().connect( &dialog, &WDialog::reject );
+
+  WDialog::DialogCode status = dialog.exec();
+
+  if( status == WDialog::Rejected ) return;
+
+  undefineCustomEvent( eventType );
+}//void confirmUndefineCustomEventDialog( int index );
+
+
+bool WtCustomEventTab::undefineCustomEvent( int recordType )
+{
+  NLSimplePtr nlsimpleptr( m_parentWtGui );
+  const bool status = nlsimpleptr->undefineCustomEvent( recordType );
+
+  updateAvailableEventTypes();
+  displaySelectedModel();
+
+  return status;
+}//bool undefineCustomEvent( int recordType )
+
+
 

@@ -187,6 +187,7 @@ MemVariableSpinBox::MemVariableSpinBox( const string &label,
   m_spinBox->setTextSize( 6 );
   m_spinBox->setMaxLength( 5 );
   //m_spinBox->setMaximumSize(  );
+  m_spinBox->changed().connect( this, &MemVariableSpinBox::updateMemmoryFromGui );
 }//MemVariableSpinBox
 
 MemVariableSpinBox::LockShrdPtr MemVariableSpinBox::getLock()
@@ -223,6 +224,7 @@ IntSpinBox::IntSpinBox( int *memVariable,
 {
   m_spinBox->setSingleStep( 1.0 );
   updateGuiFromMemmory();
+
 }
 
 DoubleSpinBox::DoubleSpinBox( double *memVariable,
@@ -273,7 +275,7 @@ void TimeDurationSpinBox::updateGuiFromMemmory()
 void IntSpinBox::updateMemmoryFromGui()
 {
   LockShrdPtr lock = getLock();
-  assert( !lock.get() );
+  assert( lock.get() );
   if( !(*lock) ) return;
   (*m_memVariable) = floor( m_spinBox->value() + 0.5 );
 }//
@@ -281,7 +283,7 @@ void IntSpinBox::updateMemmoryFromGui()
 void DoubleSpinBox::updateMemmoryFromGui()
 {
   LockShrdPtr lock = getLock();
-  assert( !lock.get() );
+  assert( lock.get() );
   if( !(*lock) ) return;
   (*m_memVariable) = m_spinBox->value();
 }//
@@ -289,7 +291,7 @@ void DoubleSpinBox::updateMemmoryFromGui()
 void TimeDurationSpinBox::updateMemmoryFromGui()
 {
   LockShrdPtr lock = getLock();
-  assert( !lock.get() );
+  assert( lock.get() );
   if( !(*lock) ) return;
   const int nMinutes = floor( m_spinBox->value() );
   const int nSeconds = floor( (m_spinBox->value()-nMinutes)*0.6 );
