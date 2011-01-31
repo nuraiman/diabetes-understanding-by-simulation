@@ -396,6 +396,40 @@ bool NLSimple::defineCustomEvent( int recordType, std::string name,
 }//void NLSimple::defineCustomEvent( int recordType, std::string name, std::vector<double> initialPars )
 
 
+void NLSimple::defineDefautDexcomEvents()
+{
+  using namespace CgmsDataImport;
+
+  for( PredefinedDexcomEvents type = k30MinLightExcersize;
+       type < kNumPredefinedDexcomEvents;
+       type = PredefinedDexcomEvents(type+1) )
+  {
+    switch( type )
+    {
+      case k30MinLightExcersize:  defineCustomEvent( type, "30 min Light Excersize",   TimeDuration(0,60,0),  MultiplyInsulin, 4 );  break;
+      case k60MinLightExcersize:  defineCustomEvent( type, "60 min Light Excersize",   TimeDuration(0,120,0), MultiplyInsulin, 8 );  break;
+      case k90MinLightExcersize:  defineCustomEvent( type, "90 min Light Excersize",   TimeDuration(0,180,0), MultiplyInsulin, 12 ); break;
+      case k120MinLightExcersize: defineCustomEvent( type, "120 min Light Excersize",  TimeDuration(0,240,0), MultiplyInsulin, 16 ); break;
+      case k30MinMedExcersize:    defineCustomEvent( type, "30 min Medium Excersize",  TimeDuration(0,60,0),  MultiplyInsulin, 4 );  break;
+      case k60MinMedExcersize:    defineCustomEvent( type, "60 min Medium Excersize",  TimeDuration(0,120,0), MultiplyInsulin, 8 );  break;
+      case k90MinMedExcersize:    defineCustomEvent( type, "90 min Medium Excersize",  TimeDuration(0,180,0), MultiplyInsulin, 12 ); break;
+      case k120MinMedExcersize:   defineCustomEvent( type, "120 min Medium Excersize", TimeDuration(0,240,0), MultiplyInsulin, 16 ); break;
+      case k30MinHardExcersize:   defineCustomEvent( type, "30 min Hard Excersize",    TimeDuration(0,60,0),  MultiplyInsulin, 4 );  break;
+      case k60MinHardExcersize:   defineCustomEvent( type, "60 min Hard Excersize",    TimeDuration(0,120,0), MultiplyInsulin, 8 );  break;
+      case k90MinHardExcersize:   defineCustomEvent( type, "90 min Hard Excersize",    TimeDuration(0,180,0), MultiplyInsulin, 12 ); break;
+      case k120MinHardExcersize:  defineCustomEvent( type, "120 min Hard Excersize",   TimeDuration(0,240,0), MultiplyInsulin, 16 ); break;
+
+      case kHealthIllness:        defineCustomEvent( type, "Illness", TimeDuration(12,0,0),      MultiplyInsulin, 4); break;
+      case kHealthStress:         defineCustomEvent( type, "Stress", TimeDuration(4,0,0),        IndependantEffect, 4);    break;
+      case kHealthHighSymptoms:   defineCustomEvent( type, "High Symptons", TimeDuration(2,0,0), IndependantEffect, 4); break;
+      case kHealthLowSymptoms:    defineCustomEvent( type, "Low Symptons", TimeDuration(2,0,0),  IndependantEffect, 4); break;
+      case kHealthCycle:          defineCustomEvent( type, "Cycle", TimeDuration(3,0,0),         IndependantEffect, 6); break;
+      case kHealthAlcohol:        defineCustomEvent( type, "Alcohol", TimeDuration(2,0,0),       MultiplyInsulin, 6); break;
+      case kNumPredefinedDexcomEvents: break;
+    };//switch( type )
+  }//for
+}//void NLSimple::defineDefautDexcomEvents()
+
 
 double NLSimple::getBasalInsulinConcentration( double unitsPerKiloPerhour )
 {
@@ -2173,7 +2207,7 @@ DVec NLSimple::chi2DofStudy( double endPredChi2Weight,
     double min = *min_element(chi2s.begin(), chi2s.end());
     double max = *max_element(chi2s.begin(), chi2s.end());
 
-    chi2Hists[parNum] = new TH1F( "parTh1", Form("chi2Hist par %i", parNum), 25, min, max);
+    chi2Hists[parNum] = new TH1F( "parTh1", Form("chi2Hist par %u", parNum), 25, min, max);
 
     foreach( double d, chi2s ) chi2Hists[parNum]->Fill( d );
 
@@ -3109,12 +3143,29 @@ m_values( nPoints ? new double[nPoints] : NULL ),
   const double nMinutes = toNMinutes(eventLength);
   const double dT = nMinutes / (nPoints - 1);
 
-  if( nPoints ) m_values[0] = m_times[0]  = 0.0;
+  double defaultValue = 0.0;
+  switch( m_eventDefType )
+  {
+    case IndependantEffect:
+      defaultValue = 0.0;
+    break;
+    case MultiplyInsulin:
+    case MultiplyCarbConsumed:
+       defaultValue = 1.0;
+    break;
+    case NumEventDefTypes: break;
+  };//switch( eventDefType )
+
+  if( nPoints )
+  {
+    m_times[0]  = 0.0;
+    m_values[0] = defaultValue;
+  }//if( nPoints )
 
   for( unsigned int i = 1; i < nPoints; ++i )
   {
     m_times[i]  = m_times[i-1] + dT;
-    m_values[i] = 0.0;
+    m_values[i] = defaultValue;
   }//for
 }//EventDef::EventDef(...)
 

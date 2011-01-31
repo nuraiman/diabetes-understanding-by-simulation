@@ -241,6 +241,7 @@ class DubEventEntry : public Wt::WContainerWidget
 {
   DateTimeSelect    *m_time;
   Wt::WComboBox     *m_type;
+  Wt::WComboBox     *m_customTypes;
   Wt::WLineEdit     *m_value;
   Wt::WText         *m_units;
   Wt::WPushButton   *m_button;
@@ -381,6 +382,7 @@ public:
 
 
   void addCustomEventDialog();
+  void defineDefaultDexcomEvents();
   void validateCustomEventNameAndID( Wt::WLineEdit *name,
                                      Wt::WSpinBox *id,
                                      Wt::WPushButton *button );

@@ -210,6 +210,7 @@ class NLSimple
                             TimeDuration eventDuration,
                             EventDefType eventType,
                             unsigned int nDataPoints );
+    void defineDefautDexcomEvents();
     bool undefineCustomEvent( int recordType );
 
     void addCustomEvent( const PosixTime &time, int eventType );

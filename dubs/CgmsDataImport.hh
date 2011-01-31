@@ -152,9 +152,31 @@ namespace CgmsDataImport
   };//class NavEvent
   
   
-  
-  
-  
+  enum PredefinedDexcomEvents
+  {
+    //Excersize as a custom events is weird since it has a duration
+    //  involved in it, we will just round to the nearest 30 minutes
+    k30MinLightExcersize = 20,
+    k60MinLightExcersize,
+    k90MinLightExcersize,
+    k120MinLightExcersize,
+    k30MinMedExcersize,
+    k60MinMedExcersize,
+    k90MinMedExcersize,
+    k120MinMedExcersize,
+    k30MinHardExcersize,
+    k60MinHardExcersize,
+    k90MinHardExcersize,
+    k120MinHardExcersize,
+    kHealthIllness,
+    kHealthStress,
+    kHealthHighSymptoms,
+    kHealthLowSymptoms,
+    kHealthCycle,
+    kHealthAlcohol,
+    kNumPredefinedDexcomEvents
+  };//enum PredefCustomEventTypes
+
 
   //Now Start the functions
   ConsentrationGraph importSpreadsheet( std::string filename, InfoType type, 

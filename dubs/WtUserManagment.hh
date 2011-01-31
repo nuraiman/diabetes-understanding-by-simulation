@@ -1,6 +1,7 @@
 #ifndef WTUSERMANAGMENT_HH
 #define WTUSERMANAGMENT_HH
 
+#include <map>
 #include <string>
 #include <Wt/WContainerWidget>
 #include <Wt/WString>
@@ -40,20 +41,23 @@ class DubUserServer : public Wt::WObject
 
 public:
   DubUserServer();
-  bool login(const Wt::WString& user);
+  bool login(const Wt::WString& user, const std::string &sessionId);
   void logout(const Wt::WString& user);
   Wt::Signal<Wt::WString> &userLogIn() { return m_userLoggedIn; }
   Wt::Signal<Wt::WString> &userLogOut() { return m_userLoggedOut; }
 
-  typedef std::set<Wt::WString> UserSet;
-  UserSet users();
+  const std::string sessionId( const Wt::WString user ) const;
+
+  //typedef std::set<Wt::WString> UserSet;
+  typedef std::map<Wt::WString,std::string> UserToSessionMap;
+  UserToSessionMap users();
 
 private:
   Wt::Signal<Wt::WString>       m_userLoggedIn;
   Wt::Signal<Wt::WString>       m_userLoggedOut;
   boost::recursive_mutex        m_mutex;
 
-  UserSet                       m_users;
+  UserToSessionMap              m_users;
 };//DubUserServer class
 
 

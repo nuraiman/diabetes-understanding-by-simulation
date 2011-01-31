@@ -10,7 +10,12 @@
 #include <Wt/Chart/WChart2DRenderer>
 #include <Wt/WAbstractItemModel>
 #include <Wt/WApplication>
+#include <Wt/WPointF>
+#include <Wt/WString>
 
+#include "TMath.h"
+
+#include "WtGui.hh"
 #include "WtChartClasses.hh"
 #include "ConsentrationGraph.hh"
 #include "ResponseModel.hh"
@@ -24,9 +29,10 @@ using namespace std;
 const boost::posix_time::time_duration NLSimpleDisplayModel::sm_plasmaInsulinDt( 0, 5, 0 );  //5 minutes
 
 
-WChartWithLegend::WChartWithLegend( WContainerWidget *parent ) :
+WChartWithLegend::WChartWithLegend( WtGui *parentGui, WContainerWidget *parent ) :
     Chart::WCartesianChart(Wt::Chart::ScatterPlot,parent), m_width(0),
-  m_height(0), m_legTopOffset(30), m_legRightOffset(245)
+  m_height(0), m_legTopOffset(30), m_legRightOffset(245),
+  m_parentGui(parentGui)
 {
   setMinimumSize( 250, 250 );
 }//WChartWithLegend constructor
@@ -67,6 +73,24 @@ void WChartWithLegend::paint( WPainter& painter, const WRectF& rectangle ) const
                        m_legTopOffset+25*index );
     renderLegendItem(painter, point, series()[index]);
   }//for( loop over series )
+
+  if( m_parentGui )
+  {
+    NLSimplePtr modelPtr( m_parentGui );
+    const double minimum = axis(Wt::Chart::YAxis).minimum();
+    const double maximum = axis(Wt::Chart::YAxis).maximum();
+    const double ypos = minimum + (maximum-minimum)*0.05;
+
+    foreach( const GraphElement &el, modelPtr->m_customEvents )
+    {
+      WPointF pos = mapToDevice( WDateTime::fromPosixTime(el.m_time), ypos );
+      WRectF loc( pos.x(), pos.y(), 0.1, 0.1 );
+      painter.drawText( loc, AlignLeft, WString(Form("%i", TMath::Nint(el.m_value))) );
+    }//foreach custom event
+
+
+
+  }//if( m_parentGui )
 }//paint
 
 
@@ -153,7 +177,7 @@ void NLSimpleDisplayModel::useAllColums()
    WApplication::UpdateLock appLock( m_wApp ); //we can get a deadlock without this
    if( old )
    {
-     rowsRemoved().emit( WModelIndex(), 0, nOldRow );
+     // rowsRemoved().emit( WModelIndex(), 0, nOldRow );
    }else columnsInserted().emit( WModelIndex(), 0, columnCount() );
 
    if( m_diabeticModel ) rowsInserted().emit( WModelIndex(), 0, rowCount() );

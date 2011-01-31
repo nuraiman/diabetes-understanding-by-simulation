@@ -15,7 +15,7 @@
 
 #include "ConsentrationGraph.hh"
 
-
+class WtGui;
 class NLSimple;
 
 namespace Wt
@@ -31,8 +31,10 @@ protected:
   int m_legTopOffset;    //legend offset from top in pixels
   int m_legRightOffset;  //legend offset from right in pixels
 
+  WtGui *m_parentGui;
+
 public:
-  WChartWithLegend( Wt::WContainerWidget *parent = NULL );
+  WChartWithLegend( WtGui *parentGui, Wt::WContainerWidget *parent = NULL );
   virtual ~WChartWithLegend();
 
   int getHeight() const;
