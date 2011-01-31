@@ -58,38 +58,47 @@ const std::string DubsLogin::cookie_name = "dubsuserid";
 DubUserServer::DubUserServer() : m_userLoggedIn(this), m_userLoggedOut(this)
 {}
 
-bool DubUserServer::login(const WString& user)
+bool DubUserServer::login(const WString& user, const std::string &sessionId )
 {
   SyncLock<boost::recursive_mutex::scoped_lock> lock(m_mutex);
 
   const bool wasLoggedIn = (m_users.find(user) != m_users.end());
   if( wasLoggedIn ) cerr << "Forcing user " << user << " to logout" << endl;
   m_userLoggedIn.emit(user);
-  m_users.insert(user);
+  m_users[user] = sessionId;
   return !wasLoggedIn;
 }//...login( user )
+
+
+const std::string DubUserServer::sessionId( const Wt::WString user ) const
+{
+  UserToSessionMap::const_iterator iter = m_users.find(user);
+  if( iter == m_users.end() ) return "";
+  return iter->second;
+}//const string sessionId( const Wt::WString &user ) const
+
 
 void DubUserServer::logout(const WString& user)
 {
   SyncLock<boost::recursive_mutex::scoped_lock> lock(m_mutex);
 
-  UserSet::iterator i = m_users.find(user);
+  UserToSessionMap::iterator i = m_users.find(user);
 
   if (i != m_users.end() )
   {
-    cerr << endl << "logging out " << user << endl;
+    cerr << "\nlogging out " << user << " sessionID=" << i->second << endl;
     m_users.erase(i);
     m_userLoggedOut.emit(user);
   }
 }//logout( user )
 
 
-DubUserServer::UserSet DubUserServer::users()
+DubUserServer::UserToSessionMap DubUserServer::users()
 {
   SyncLock<boost::recursive_mutex::scoped_lock> lock(m_mutex);
 
   return m_users;
-}//UserSet users()
+}//UserToSessionMap users()
 
 
 

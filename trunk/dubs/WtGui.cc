@@ -173,7 +173,12 @@ WtGui::WtGui( const Wt::WEnvironment& env, DubUserServer &server )
 {
   enableUpdates(true);
   setTitle( "dubs" );
-  useStyleSheet( "local_resources/dubs.css" );
+
+  string urlStr = "local_resources/dubs_style.css";
+  if( boost::algorithm::contains( url(), "dubs.app" ) )
+    urlStr = "dubs/exec/" + urlStr;
+
+  useStyleSheet( urlStr );
 
   m_dbSession.setConnection( m_dbBackend );
   m_dbBackend.setProperty("show-queries", "true");
@@ -379,7 +384,10 @@ void WtGui::init( const string username )
     transaction.commit();
   }
 
-  m_server.login( username );
+  if( m_server.sessionId(username) != sessionId() )
+    m_server.login( username, sessionId() );
+
+
   m_logoutConnection.disconnect();
   m_logoutConnection = m_server.userLogIn().connect( this, &WtGui::checkLogout );
 
@@ -458,7 +466,7 @@ void WtGui::init( const string username )
   layout->addWidget( m_tabs, WBorderLayout::Center );
   
 
-  m_bsGraph = new WChartWithLegend();
+  m_bsGraph = new WChartWithLegend(this);
   m_nlSimleDisplayModel->useAllColums();
   m_bsGraph->setModel( m_nlSimleDisplayModel.get() );
   m_bsGraph->setXSeriesColumn(0);
@@ -704,9 +712,10 @@ void WtGui::addDataDialog()
   new Wt::WBreak(container);
   group->addButton(button, kCgmsReading);
 
-  //button = new Wt::WRadioButton("I didn't vote", container);
-  //new Wt::WBreak(container);
-  //group->addButton(button, kGenericEvent);
+  button = new Wt::WRadioButton("Custom Events data", container);
+  new Wt::WBreak(container);
+  group->addButton(button, kGenericEvent );
+
 
   group->setCheckedButton(group->button(kBolusTaken));
   new WBreak( dialog.contents() );
@@ -857,7 +866,7 @@ void WtGui::addData( WtGui::EventInformation info )
       modelPtr->addBolusData( info.dateTime.toPosixTime(), info.value );
     break;
     case WtGui::kGenericEvent:
-      //modelPtr->addCustomEvent( const PosixTime &time, int eventType );
+      modelPtr->addCustomEvent( info.dateTime.toPosixTime(), info.value );
     break;
     case WtGui::kNumEntryType: break;
   };//switch( et )
@@ -886,7 +895,7 @@ void WtGui::addData( WtGui::EntryType type, Wt::WFileUpload *fileUpload )
     case kGlucoseEaten:     infoType = CgmsDataImport::GlucoseEaten;    break;
     case kMeterReading:     infoType = CgmsDataImport::MeterReading;    break;
     case kMeterCalibration: infoType = CgmsDataImport::MeterCalibration;break;
-    case kGenericEvent:     break;
+    case kGenericEvent:     infoType = CgmsDataImport::GenericEvent;    break;
     case kNotSelected:      break;
     case kNumEntryType:     break;
   };//switch( det )
@@ -944,7 +953,7 @@ void WtGui::addData( WtGui::EntryType type, Wt::WFileUpload *fileUpload )
       modelPtr->addBolusData( *newData, findNewSteadyState );
     break;
     case WtGui::kGenericEvent:
-      //modelPtr->addCustomEvent( *newData, findNewSteadyState );
+      modelPtr->addCustomEvents( *newData );
     break;
     case WtGui::kNumEntryType: break;
     case WtGui::kNotSelected: break;
@@ -963,6 +972,7 @@ void WtGui::syncDisplayToModel()
   m_enteredDataModel->updateData();
 
   updateDataRange();
+  m_bsGraph->update();
 }//void syncDisplayToModel()
 
 
@@ -1278,6 +1288,7 @@ DubEventEntry::DubEventEntry( WtGui *wtguiparent, WContainerWidget *parent )
                               WDateTime::fromPosixTime(boost::posix_time::second_clock::local_time())
                             ) ),
   m_type( new WComboBox() ),
+  m_customTypes( new WComboBox() ),
   m_value( new WLineEdit() ),
   m_units( new WText() ),
   m_button( new WPushButton("submit") ),
@@ -1303,6 +1314,7 @@ DubEventEntry::DubEventEntry( WtGui *wtguiparent, WContainerWidget *parent )
   addWidget( m_type );
   addWidget( m_value );
   addWidget( m_units );
+  addWidget( m_customTypes );
   addWidget( m_button );
 
   for( WtGui::EntryType et = WtGui::EntryType(0);
@@ -1323,6 +1335,7 @@ DubEventEntry::DubEventEntry( WtGui *wtguiparent, WContainerWidget *parent )
   };//enum EntryType
 
   m_type->setCurrentIndex( WtGui::kNotSelected );
+  m_customTypes->setHidden( true );
   m_value->enterPressed().connect( boost::bind( &DubEventEntry::emitEntered, this ) );
   m_type->changed().connect( boost::bind( &DubEventEntry::typeChanged, this ) );
   m_button->clicked().connect( boost::bind( &DubEventEntry::emitEntered, this ) );
@@ -1334,21 +1347,42 @@ DubEventEntry::~DubEventEntry(){}
 
 void DubEventEntry::emitEntered()
 {
-  if( m_type->currentIndex() == WtGui::kNotSelected
-      || m_type->currentIndex() == WtGui::kCustomEventData ) return;
+  if( m_type->currentIndex() == WtGui::kNotSelected ) return;
 
   WtGui::EventInformation info;
   info.dateTime = m_time->dateTime();
   info.type = WtGui::EntryType( m_type->currentIndex() );
 
-  try
+  if( m_type->currentIndex() != WtGui::kCustomEventData )
   {
-    info.value = boost::lexical_cast<double>( m_value->text().narrow() );
-  }catch(...)
+    try
+    {
+      info.value = boost::lexical_cast<double>( m_value->text().narrow() );
+    }catch(...)
+    {
+      cerr << "Warning failed lexical_cast<double> in emitEntered" << endl;
+      return;
+    }//try/catch
+  } else
   {
-    cerr << "Warning failed lexical_cast<double> in emitEntered" << endl;
-    return;
-  }//try/catch
+    bool found = false;
+    NLSimplePtr modelPtr( m_wtgui );
+    const NLSimple::EventDefMap &customEvents = modelPtr->m_customEventDefs;
+    foreach( const NLSimple::EventDefMap::value_type &p, customEvents )
+    {
+      if( m_customTypes->currentText() == p.second.getName() )
+      {
+        found = true;
+        info.value = static_cast<double>( p.first );
+        break;
+      }//if( m_customTypes->currentText() == p->second.getName() )
+    }//foreach possible custom event type
+    if( !found )
+    {
+      cerr << "void DubEventEntry::emitEntered(): check function logic (will blissfully continue for now" << endl;
+      return;
+    }//if( !found )
+  }//if( m_type->currentIndex() != WtGui::kCustomEventData ) / else
 
   reset();
 
@@ -1365,6 +1399,9 @@ void DubEventEntry::reset()
   m_value->setText( "" );
   m_value->setEnabled(false);
   m_button->setEnabled(false);
+  m_units->setHidden(false);
+  m_value->setHidden(false);
+  m_customTypes->setHidden(true);
 }//void DubEventEntry::reset()
 
 
@@ -1386,6 +1423,9 @@ void DubEventEntry::typeChanged()
 {
   m_value->setEnabled(true);
   m_button->setEnabled(true);
+  m_units->setHidden(false);
+  m_value->setHidden(false);
+  m_customTypes->setHidden(true);
 
   switch( m_type->currentIndex() )
   {
@@ -1416,11 +1456,21 @@ void DubEventEntry::typeChanged()
       m_value->setValidator( new WDoubleValidator(0,50) );
     break;
     case WtGui::kGenericEvent:
+    {
+      m_customTypes->setHidden(false);
+      m_units->setHidden(true);
+      m_value->setHidden(true);
       m_units->setText("");
       m_value->setText( "NA" );
       m_value->setEnabled(false);
-      m_button->setEnabled(false);
-    break;
+      m_customTypes->clear();
+      NLSimplePtr modelPtr( m_wtgui );
+      const NLSimple::EventDefMap &customEvents = modelPtr->m_customEventDefs;
+      foreach( const NLSimple::EventDefMap::value_type &p, customEvents )
+        m_customTypes->addItem( p.second.getName() );
+      break;
+    };//
+
     case WtGui::kNumEntryType:
       m_type->addItem( "" );
     break;
@@ -2125,12 +2175,14 @@ WtCustomEventTab::WtCustomEventTab( WtGui *wtGuiParent,
   m_eventTypesModel->insertColumns( 0, 2 );
   m_eventTypesModel->setHeaderData( 0, Horizontal, WString("ID"), DisplayRole );
   m_eventTypesModel->setHeaderData( 1, Horizontal, WString("Name"), DisplayRole );
-  m_eventTypesView->resize( 250, WLength( 10, WLength::FontEm ) );
+  m_eventTypesView->resize( WLength( 40, WLength::FontEx ),
+                            WLength( 12, WLength::FontEm ) );
   m_eventTypesView->setSortingEnabled( true );
   m_eventTypesView->setSelectionMode( SingleSelection );
   m_eventTypesView->setAlternatingRowColors( true );
   m_eventTypesView->setSelectionBehavior( SelectRows );
   m_eventTypesView->setColumnWidth( 0, WLength(5, WLength::FontEx) );
+  m_eventTypesView->setColumnWidth( 1, WLength(24, WLength::FontEx) );
   m_eventTypesView->setModel( m_eventTypesModel );
   m_eventTypesView->selectionChanged().connect( this, &WtCustomEventTab::displaySelectedModel );
   WPanel *panel = new WPanel();
@@ -2143,9 +2195,13 @@ WtCustomEventTab::WtCustomEventTab( WtGui *wtGuiParent,
   Div *buttonDiv = new Div( "WtCustomEventTab_buttonDiv", eastDiv );
   WPushButton *addModelButton = new WPushButton( "Add Event Type", buttonDiv );
   WPushButton *delModelButton = new WPushButton( "Delete Event Type", buttonDiv );
-  //new WBreak( buttonDiv );
+  new WBreak( buttonDiv );
+  WPushButton *defDexButton = new WPushButton( "Add Default Dexcom Events", buttonDiv );
+
   addModelButton->clicked().connect( this, &WtCustomEventTab::addCustomEventDialog );
   delModelButton->clicked().connect( boost::bind( &WtCustomEventTab::confirmUndefineCustomEventDialog, this ) );
+  defDexButton->clicked().connect( boost::bind( &WtCustomEventTab::defineDefaultDexcomEvents, this ) );
+
   WText *headerText = new WText( "Custom Defined Events" );
 
   m_currentCEChart->setMinimumSize( 200, 200 );
@@ -2172,6 +2228,8 @@ WtCustomEventTab::WtCustomEventTab( WtGui *wtGuiParent,
   m_layout->addWidget( m_currentCEChart, WBorderLayout::Center );
   m_layout->addWidget( headerText, WBorderLayout::North );
 
+  updateAvailableEventTypes();
+
   displaySelectedModel();
 }//WtCustomEventTab constructor
 
@@ -2193,6 +2251,16 @@ void WtCustomEventTab::updateAvailableEventTypes()
     m_eventTypesModel->setData( row++, 1, WString(iter->second.getName()) );
   }//for loop over and add data to the model
 }//void updateAvailableEventTypes()
+
+
+
+void WtCustomEventTab::defineDefaultDexcomEvents()
+{
+  NLSimplePtr nlsimpleptr( m_parentWtGui );
+  nlsimpleptr->defineDefautDexcomEvents();
+  updateAvailableEventTypes();
+}//void WtCustomEventTab::defineDefaultDexcomEvents()
+
 
 
 
@@ -2238,7 +2306,7 @@ void WtCustomEventTab::displaySelectedModel()
   const EventDef &event = eventDef->second;
 
   cerr << "event.getNPoints()=" << event.getNPoints() << ": ";
-  for( int i = 0; i < event.getNPoints(); ++i ) cerr << "( " << event.times()[i] << ", " << event.values()[i] << " ), ";
+  for( size_t i = 0; i < event.getNPoints(); ++i ) cerr << "( " << event.times()[i] << ", " << event.values()[i] << " ), ";
   cerr << endl;
   m_currentCEModel->setArrayAddresses( event.getNPoints(),
                                        event.times(),
@@ -2349,26 +2417,9 @@ void WtCustomEventTab::defineCustomEvent( const int recordType,
                                           const int eventDefType, //of type EventDefType, see ResponseModel.hh
                                           const int nPoints )
 {
-  DVec initialValues;
-
-  switch( eventDefType )
-  {
-    case IndependantEffect:
-      initialValues = DVec( nPoints, 0.0 );
-    break;
-
-    case MultiplyInsulin:
-    case MultiplyCarbConsumed:
-      initialValues = DVec( nPoints, 1.0 );
-    break;
-
-    case NumEventDefTypes:
-    default: assert(0);
-  };//switch( eventDefType )
-
   NLSimplePtr nlsimpleptr( m_parentWtGui );
   nlsimpleptr->defineCustomEvent( recordType, name, eventDuration,
-                                  EventDefType(eventDefType), initialValues );
+                                  EventDefType(eventDefType), nPoints );
   updateAvailableEventTypes();
   displaySelectedModel();
 }//void WtCustomEventTab::defineCustomEvent( ... )

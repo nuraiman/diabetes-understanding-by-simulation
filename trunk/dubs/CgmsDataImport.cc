@@ -519,8 +519,7 @@ CgmsDataImport::getDexcomDm3Info( std::string &line,
       dateField = dateIter->second;
       valueField = valueIter->second;
       //if( feilds.at(eventTypeField) != "" ) valueField = -1;
-      valueField = -1;
-      //Possible types of custom events are "Exercise Light", "Exercise Medium", "Exercise Hard", "Health Illness", "Health Stress", "Health HighSymptoms", "Health LowSymptoms", "Health Cycle", "Health Alcohol"
+       if( valueField < 0 ) return answer;
     break;
 
     case ISig: break;
@@ -534,9 +533,10 @@ CgmsDataImport::getDexcomDm3Info( std::string &line,
   if( valueField < 0 ) return answer;
 
   const string &rawValueStr = feilds.at( valueField );
-  if( rawValueStr.empty() ) return answer;
+  if( rawValueStr.empty() && (infoWanted!=GenericEvent) ) return answer;
 
   const string &rawDateTime = feilds.at(dateField);
+  if( rawDateTime == "" ) return answer;
   const string dateTimeStr = sanitizeDateAndTimeInput( rawDateTime, Dexcom7Dm3Tab );
 
   // cerr << " rawValueStr='" << rawValueStr << "', rawDateTime='" << rawDateTime << "'" << endl;
@@ -554,18 +554,77 @@ CgmsDataImport::getDexcomDm3Info( std::string &line,
     throw runtime_error( msg.str() );
   }//try/catch( date )
 
-  try
+  if( infoWanted != GenericEvent )
   {
-    answer.second = lexical_cast<double>( rawValueStr );
-    if( infoWanted == BolusTaken ) answer.second /= 100.0;
-  }catch(boost::exception &)
+    try
+    {
+      answer.second = lexical_cast<double>( rawValueStr );
+      if( infoWanted == BolusTaken ) answer.second /= 100.0;
+    }catch(boost::exception &)
+    {
+      const string msg = "'" + rawValueStr
+                         + "' is an invalid reading for infoWanted="
+                         + boost::lexical_cast<string>( static_cast<int>(infoWanted) );
+      cerr << msg << endl;
+      throw runtime_error( msg );
+    }//try/catch( BG reading )
+  }else
   {
-    const string msg = "'" + rawValueStr
-                       + "' is an invalid reading for infoWanted="
-                       + boost::lexical_cast<string>( static_cast<int>(infoWanted) );
-    cerr << msg << endl;
-    throw runtime_error( msg );
-  }//try/catch( BG reading )
+    const string &name = feilds.at(eventTypeField);
+    if( name == "Exercise Light" )
+    {
+      try
+      {
+        const double duration = lexical_cast<double>( rawValueStr );
+        if( duration < 45.0 )       answer.second = static_cast<double>( k30MinLightExcersize );
+        else if( duration < 75.0 )  answer.second = static_cast<double>( k60MinLightExcersize );
+        else if( duration < 105.0 ) answer.second = static_cast<double>( k90MinLightExcersize );
+        else                        answer.second = static_cast<double>( k120MinLightExcersize );
+      }catch(...)
+      {
+        cerr << "getDexcomDm3Info(...): " << name << " doesn't have a duration" << endl;
+        return TimeValuePair(kGenericT0, kFailValue);
+      }//try/catch
+    }else if( name == "Exercise Medium" )
+    {
+      try
+      {
+        const double duration = lexical_cast<double>( rawValueStr );
+        if( duration < 45.0 )       answer.second = static_cast<double>( k30MinMedExcersize );
+        else if( duration < 75.0 )  answer.second = static_cast<double>( k60MinMedExcersize );
+        else if( duration < 105.0 ) answer.second = static_cast<double>( k90MinMedExcersize );
+        else                        answer.second = static_cast<double>( k120MinMedExcersize );
+      }catch(...)
+      {
+        cerr << "getDexcomDm3Info(...): " << name << " doesn't have a duration" << endl;
+        return TimeValuePair(kGenericT0, kFailValue);
+      }//try/catch
+    }else if( name == "Exercise Hard" )
+    {
+      try
+      {
+        const double duration = lexical_cast<double>( rawValueStr );
+        if( duration < 45.0 )       answer.second = static_cast<double>( k30MinHardExcersize );
+        else if( duration < 75.0 )  answer.second = static_cast<double>( k60MinHardExcersize );
+        else if( duration < 105.0 ) answer.second = static_cast<double>( k90MinHardExcersize );
+        else                        answer.second = static_cast<double>( k120MinHardExcersize );
+      }catch(...)
+      {
+        cerr << "getDexcomDm3Info(...): " << name << " doesn't have a duration" << endl;
+        return TimeValuePair(kGenericT0, kFailValue);
+      }//try/catch
+    }else if( name == "Health Illness" )     answer.second = static_cast<double>( kHealthIllness );
+    else if( name == "Health Stress" )       answer.second = static_cast<double>( kHealthStress );
+    else if( name == "Health HighSymptoms" ) answer.second = static_cast<double>( kHealthHighSymptoms );
+    else if( name == "Health LowSymptoms" )  answer.second = static_cast<double>( kHealthLowSymptoms );
+    else if( name == "Health Cycle" )        answer.second = static_cast<double>( kHealthCycle );
+    else if( name == "Health Alcohol" )      answer.second = static_cast<double>( kHealthAlcohol );
+    else return TimeValuePair(kGenericT0, kFailValue);
+
+    //cerr << "  returning '" << answer.first << "' = " << answer.second << endl << endl << endl;
+  }//if( infoWanted != GenericEvent ) / else
+
+
 
   //cerr << "  returning '" << answer.first << "' = " << answer.second << endl << endl << endl;
 
@@ -680,8 +739,9 @@ std::string
 CgmsDataImport::sanitizeDateAndTimeInput( std::string time, SpreadSheetSource source)
 {
    //do some really basic format checks
-  assert(time.find(" ") != string::npos );
-  assert(time.find(":") != string::npos );
+
+  if( (time.find(" ") == string::npos) || (time.find(":") == string::npos) )
+    throw runtime_error( Form( "CgmsDataImport::sanitizeDateAndTimeInput(...): '%s' is not a time in an accepted format", time.c_str() ) );
 
   string monthDay  = time.substr(0, time.find(" "));
   string timeOfDay  = time.substr( time.find(" ") );

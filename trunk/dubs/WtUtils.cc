@@ -84,7 +84,7 @@ DateTimeSelect::DateTimeSelect( const std::string &labelText,
   m_datePicker->changed().connect(   boost::bind( &DateTimeSelect::validate, this, true ) );
   m_hourSelect->changed().connect(   boost::bind( &DateTimeSelect::validate, this, true ) );
   m_minuteSelect->changed().connect( boost::bind( &DateTimeSelect::validate, this, true ) );
-  m_datePicker->changed().connect(  boost::bind( &WDatePicker::setPopupVisible, m_datePicker, false ) );
+  m_datePicker->changed().connect(  boost::bind( &WDatePicker::setPopupVisible, m_datePicker, true ) );
 
 
   if( labelText != "" )
@@ -107,7 +107,7 @@ DateTimeSelect::~DateTimeSelect(){}
 void DateTimeSelect::set( const Wt::WDateTime &dt )
 {
   if( !dt.isValid() ) return;
-  if( (dt > m_top) || (dt < m_bottom) ) return;
+  if( (dt < m_bottom)  || (dt > m_top) ) return;
 
   m_datePicker->setDate( dt.date() );
   const int hour = dt.time().hour();
