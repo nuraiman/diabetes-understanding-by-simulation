@@ -141,6 +141,7 @@ class NLSimple
 
 
     ConsentrationGraph m_cgmsData;
+    ConsentrationGraph m_boluses;
     ConsentrationGraph m_freePlasmaInsulin;
     ConsentrationGraph m_glucoseAbsorbtionRate;
     ConsentrationGraph m_mealData;

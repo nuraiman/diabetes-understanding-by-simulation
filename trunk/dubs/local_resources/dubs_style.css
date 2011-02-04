@@ -74,6 +74,12 @@ br.Wt-tabs-clear
 {
 }
 
+.Wt-domRoot 
+{
+/*  min-width: 155ex; */
+/*  overflow: auto; */
+}
+
 .DubEventEntry
 {
   padding: 5px;
@@ -82,11 +88,15 @@ br.Wt-tabs-clear
   border: solid 1px #D5D8E2;
   text-align: left;
   background-color:#F6F6F9;
+/*  position: static; */
+  /*min-width: 150ex;*/
+ /*overflow: auto; */
 }
 
 .DubEventEntry_timeSelectDiv
 {
   border: solid 1px #D5D8E2;
+  /*min-width: 50ex;*/
 }
 
 .dubEventEntryTimeButton

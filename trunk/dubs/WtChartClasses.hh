@@ -88,6 +88,8 @@ protected:
   typedef std::vector<ColumnDataPair > DataVec;
   DataVec m_cachedData;
 
+  boost::mutex m_dataBeingChangedMutex;
+
 public:
   NLSimpleDisplayModel( NLSimple *diabeticModel,
                       Wt::WApplication *wapp,
@@ -113,9 +115,17 @@ public:
   void useColumn( Columns col );
 
   void setDiabeticModel( NLSimple *diabeticModel );
+
+  //For graphFromColumn(), the first column added (with useColumn())
+  //  cooresponds to column 1; therefore columNumber must be >=1
+  virtual ConsentrationGraph &graphFromColumn( const int columNumber );
+
+  virtual ConsentrationGraph &graph( const Columns row );
   virtual const ConsentrationGraph &graph( const Columns row ) const;
 
   void updateData();
+  void dataExternallyChanged( Wt::WModelIndex upperLeft, Wt::WModelIndex lowerRight );
+
 };//class NLSimpleDisplayModel
 
 

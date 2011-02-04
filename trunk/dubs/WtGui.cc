@@ -58,6 +58,7 @@
 #include <Wt/WSpinBox>
 #include <Wt/WPushButton>
 #include <Wt/WPanel>
+#include <Wt/WHBoxLayout>
 
 #include "TH1.h"
 #include "TH1F.h"
@@ -75,6 +76,7 @@
 #include "ProgramOptions.hh"
 #include "CgmsDataImport.hh"
 #include "WtChartClasses.hh"
+#include "ConsentrationGraph.hh"
 
 using namespace Wt;
 using namespace std;
@@ -169,10 +171,15 @@ WtGui::WtGui( const Wt::WEnvironment& env, DubUserServer &server )
   m_bsBeginTimePicker( NULL ),
   m_bsEndTimePicker( NULL ),
   m_errorGridModel( NULL ),
-  m_errorGridGraph( NULL )
+  m_errorGridGraph( NULL ),
+  m_rawDataView( NULL ),
+  m_delDataButton( NULL )
 {
   enableUpdates(true);
   setTitle( "dubs" );
+
+  m_nlSimleDisplayModel->dataChanged().connect( boost::bind( &NLSimpleDisplayModel::dataExternallyChanged, m_enteredDataModel, _1, _2 ) );
+  m_enteredDataModel->dataChanged().connect( boost::bind( &NLSimpleDisplayModel::dataExternallyChanged, m_nlSimleDisplayModel, _1, _2 ) );
 
   string urlStr = "local_resources/dubs_style.css";
   if( boost::algorithm::contains( url(), "dubs.app" ) )
@@ -480,7 +487,7 @@ void WtGui::init( const string username )
   const WPen &y2Pen = m_bsGraph->palette()->strokePen(kMealData-2);
   m_bsGraph->axis(Chart::Y2Axis).setPen( y2Pen );
   m_bsGraph->axis(Chart::YAxis).setTitle( "mg/dL" );
-  m_bsGraph->setMinimumSize( 200, 300 );
+  m_bsGraph->setMinimumSize( 200, 150 );
 
 
   Chart::WDataSeries cgmsSeries(NLSimpleDisplayModel::CgmsData, Chart::LineSeries);
@@ -575,7 +582,7 @@ void WtGui::init( const string username )
   errorGridTabDiv->setLayout( errorGridTabLayout );
   errorGridTabLayout->addWidget( m_errorGridLegend, WBorderLayout::West );
   errorGridTabLayout->addWidget( m_errorGridGraph, WBorderLayout::Center );
-  m_errorGridGraph->setMinimumSize( 400, 400 );
+  m_errorGridGraph->setMinimumSize( 150, 150 );
   m_tabs->addTab( errorGridTabDiv, "Error Grid" );
 
 
@@ -590,8 +597,8 @@ void WtGui::init( const string username )
   Div *cgmsDataTableDiv = new Div( "cgmsDataTableDiv" );
   WBorderLayout *cgmsDataTableLayout = new WBorderLayout();
   cgmsDataTableDiv->setLayout( cgmsDataTableLayout );
-  WTableView *view = new WTableView();
-  cgmsDataTableLayout->addWidget( view, WBorderLayout::Center );
+  m_rawDataView = new WTableView();
+  cgmsDataTableLayout->addWidget( m_rawDataView, WBorderLayout::Center );
 
   m_enteredDataModel->useColumn( NLSimpleDisplayModel::MealData );
   m_enteredDataModel->useColumn( NLSimpleDisplayModel::FingerMeterData );
@@ -600,39 +607,42 @@ void WtGui::init( const string username )
 
   WSortFilterProxyModel *sortModel = new WSortFilterProxyModel( this );
   sortModel->setSourceModel( m_enteredDataModel.get() );
+  sortModel->setDynamicSortFilter(true);
+  //m_enteredDataModel->dataChanged().connect(  );
 
-  //view->setModel( m_enteredDataModel.get() );
-  view->setModel( sortModel );
-  view->setSortingEnabled(true);
-  view->setColumnResizeEnabled(true);
-  view->setAlternatingRowColors(true);
-  view->setSelectionBehavior( SelectRows );
-  view->setSelectionMode( SingleSelection );
-  view->setRowHeight(22);
-  view->setColumnWidth( 0, 150 );
-  view->setColumnWidth( 1, 150 );
-  view->setColumnWidth( 2, 150 );
-  view->setMinimumSize( 200, 200 );
+
+  //m_rawDataView->setModel( m_enteredDataModel.get() );
+  m_rawDataView->setModel( sortModel );
+  m_rawDataView->setSortingEnabled(true);
+  m_rawDataView->setColumnResizeEnabled(true);
+  m_rawDataView->setAlternatingRowColors(true);
+  m_rawDataView->setSelectionBehavior( SelectRows );
+  m_rawDataView->setSelectionMode( ExtendedSelection );
+  m_rawDataView->setRowHeight(22);
+  m_rawDataView->setColumnWidth( 0, 150 );
+  m_rawDataView->setColumnWidth( 1, 150 );
+  m_rawDataView->setColumnWidth( 2, 150 );
+  m_rawDataView->setMinimumSize( 200, 150 );
 
 /*
  //As of Wt 3.1.7a calling the setColumnHidden(...) function before the
  //  WTableView widget renders causes the program to crash
-  view->refresh(); //without this statment the setColumnHidden(...) statments below will cause the app to crash
+  m_rawDataView->refresh(); //without this statment the setColumnHidden(...) statments below will cause the app to crash
 
   for( int i = 0; i < m_bsModel->columnCount(); ++i )
-    view->setColumnHidden( i, true );
+    m_rawDataView->setColumnHidden( i, true );
 
-  view->setColumnHidden( kTimeData, false );
-  view->setColumnHidden( kCgmsData, false );
-  view->setColumnHidden( kMealData, false );
-  view->setColumnHidden( kFingerStickData, false );
-  view->setColumnHidden( kCustomEventData, false );
+  m_rawDataView->setColumnHidden( kTimeData, false );
+  m_rawDataView->setColumnHidden( kCgmsData, false );
+  m_rawDataView->setColumnHidden( kMealData, false );
+  m_rawDataView->setColumnHidden( kFingerStickData, false );
+  m_rawDataView->setColumnHidden( kCustomEventData, false );
 
 
-  // view->setColumnHidden( kFreePlasmaInsulin, true );
-  // view->setColumnHidden( kGlucoseAbsRate, true );
-  // view->setColumnHidden( kPredictedBloodGlucose, true );
-  // view->setColumnHidden( kPredictedInsulinX, true );
+  // m_rawDataView->setColumnHidden( kFreePlasmaInsulin, true );
+  // m_rawDataView->setColumnHidden( kGlucoseAbsRate, true );
+  // m_rawDataView->setColumnHidden( kPredictedBloodGlucose, true );
+  // m_rawDataView->setColumnHidden( kPredictedInsulinX, true );
 */
 
   /*
@@ -648,15 +658,15 @@ void WtGui::init( const string username )
 
       WPushButton *removeB = new WPushButton( "Remove " + name, topRawDataDiv );
       WPushButton *addB = new WPushButton( "Show " + name, topRawDataDiv );
-      removeB->resize( view->columnWidth(i), WLength::Auto );
-      addB->resize( view->columnWidth(i), WLength::Auto );
+      removeB->resize( m_rawDataView->columnWidth(i), WLength::Auto );
+      addB->resize( m_rawDataView->columnWidth(i), WLength::Auto );
       addB->hide();
       removeB->clicked().connect( removeB, &WPushButton::hide );
       removeB->clicked().connect( addB, &WPushButton::show );
       addB->clicked().connect( removeB, &WPushButton::show );
       addB->clicked().connect( addB, &WPushButton::hide );
-      removeB->clicked().connect( boost::bind( &WTableView::setColumnHidden, view, i, true ) );
-      addB->clicked().connect( boost::bind( &WTableView::setColumnHidden, view, i, false ) );
+      removeB->clicked().connect( boost::bind( &WTableView::setColumnHidden, m_rawDataView, i, true ) );
+      addB->clicked().connect( boost::bind( &WTableView::setColumnHidden, m_rawDataView, i, false ) );
     }catch(...){}
   }//for( loop over the columns )
 */
@@ -666,6 +676,14 @@ void WtGui::init( const string username )
 
   WPushButton *addDataButton = new WPushButton( "Add Data", bottomRawDataDiv );
   addDataButton->clicked().connect( this, &WtGui::addDataDialog );
+
+  m_delDataButton = new WPushButton( "Delete Data", bottomRawDataDiv );
+  m_delDataButton->clicked().connect( this, &WtGui::delRawData );
+  m_delDataButton->disable();
+
+  m_rawDataView->selectionChanged().connect(  this, &WtGui::enableRawDataDelButton );
+
+
 
 
   m_tabs->addTab( cgmsDataTableDiv, "Raw Data" );
@@ -680,6 +698,75 @@ void WtGui::init( const string username )
 
   NLSimplePtr::resetCount( this );
 }//WtGui::init()
+
+
+void WtGui::delRawData()
+{
+  WSortFilterProxyModel *model;
+  model = dynamic_cast<WSortFilterProxyModel *>( m_rawDataView->model() );
+  assert( model );
+  const WModelIndexSet selected = m_rawDataView->selectedIndexes();
+  //'selected' is column zero of the selected rows
+
+  WDialog dialog( "Confirmation" );
+  const string msg = Form( "Are you sure you would like to delete these %u data points?" , static_cast<unsigned int>(selected.size()) );
+  new WText( msg, dialog.contents() );
+  new WBreak( dialog.contents() );
+  WPushButton *ok = new WPushButton( "Yes", dialog.contents() );
+  WPushButton *no = new WPushButton( "No", dialog.contents() );
+  ok->clicked().connect( &dialog, &WDialog::accept );
+  no->clicked().connect( &dialog, &WDialog::reject );
+  WDialog::DialogCode code = dialog.exec();
+  if( code == WDialog::Rejected ) return;
+
+
+  foreach( const WModelIndex &index, selected )
+  {
+    WModelIndex sourceIndex = model->mapToSource( index );
+    const int row = sourceIndex.row();
+
+    const int ncolumn = m_enteredDataModel->columnCount();
+    for( int colum = 1; colum < ncolumn; ++colum )
+    {
+      try
+      {
+        const WDateTime dt = boost::any_cast<WDateTime>( index.data() );
+        const PosixTime pdt = dt.toPosixTime();
+        const boost::any data = m_enteredDataModel->index( row, colum ).data();
+        const double value = boost::any_cast<double>( data );
+        ConsentrationGraph &origGraph = m_enteredDataModel->graphFromColumn(colum);
+
+        const GraphElement el( pdt, value ); //we don't actually need value
+        const ConsentrationGraph::const_iterator iter = origGraph.find( el );
+        if( iter != origGraph.end() )
+        {
+          origGraph.erase( iter );
+          colum = ncolumn;
+        }else
+        {
+          cerr << "Couldn't find it in the graph though: " << pdt << " = "
+                << value << endl;
+        }//if( found it, else )
+      }catch(...){}
+    }//for( loop over columns )
+  }//foreach selected index
+
+  //const int startRow = model->rowCount()-selected.size();
+  //const int endRow = model->rowCount();
+  //m_rawDataView->model()->rowsAboutToBeRemoved().emit( WModelIndex(), startRow, endRow );
+  m_rawDataView->setSelectedIndexes( WModelIndexSet() );
+  m_nlSimleDisplayModel->updateData();
+  m_rawDataView->refresh();
+  //m_nlSimleDisplayModel->updateData();
+  //m_rawDataView->model()->rowsRemoved().emit( WModelIndex(), startRow, endRow );
+}//void WtGui::delRawData()
+
+
+void WtGui::enableRawDataDelButton()
+{
+  if( m_rawDataView->selectedIndexes().empty() ) m_delDataButton->disable();
+  else m_delDataButton->enable();
+}//void WtGui::enableRawDataDelButton()
 
 
 
@@ -1292,16 +1379,14 @@ DubEventEntry::DubEventEntry( WtGui *wtguiparent, WContainerWidget *parent )
   m_value( new WLineEdit() ),
   m_units( new WText() ),
   m_button( new WPushButton("submit") ),
+  m_saveModel( new WCheckBox( "Save Model&nbsp;" ) ),
   m_wtgui( wtguiparent )
 {
   setStyleClass( "DubEventEntry" );
   setInline(false);
 
-  addWidget( new WText( "<b>Enter New Event:</b>&nbsp;&nbsp;" ) );
-
-  Div *timeSelectDiv = new Div( "DubEventEntry_timeSelectDiv", this );
+  Div *timeSelectDiv = new Div( "DubEventEntry_timeSelectDiv" );
   timeSelectDiv->setInline(true);
-  addWidget( timeSelectDiv );
 
   timeSelectDiv->addWidget( m_time );
   WPushButton *nowB = new WPushButton( "now", timeSelectDiv );
@@ -1311,10 +1396,16 @@ DubEventEntry::DubEventEntry( WtGui *wtguiparent, WContainerWidget *parent )
   nowB->clicked().connect( this, &DubEventEntry::setTimeToNow );
   lastTimeB->clicked().connect( this, &DubEventEntry::setTimeToLastData );
 
+  m_saveModel->setCheckState( Checked );
+
+  addWidget( new WText( "<b>Enter New Event:</b>&nbsp;&nbsp;" ) );
+  addWidget( timeSelectDiv );
   addWidget( m_type );
   addWidget( m_value );
   addWidget( m_units );
   addWidget( m_customTypes );
+  addWidget( new WText( "&nbsp;&nbsp;" ) );
+  addWidget( m_saveModel );
   addWidget( m_button );
 
   for( WtGui::EntryType et = WtGui::EntryType(0);
@@ -1387,6 +1478,8 @@ void DubEventEntry::emitEntered()
   reset();
 
   m_signal.emit(info);
+
+  if( m_saveModel->isChecked() ) m_wtgui->saveCurrentModel();
 }//void emitEntered()
 
 void DubEventEntry::reset()
@@ -1766,7 +1859,7 @@ WtGeneticallyOptimize::WtGeneticallyOptimize( WtGui *wtGuiParent, Wt::WContainer
   m_graph->axis(Chart::XAxis).setScale(Chart::DateTimeScale);
   m_graph->axis(Chart::XAxis).setLabelAngle(45.0);
   m_graph->axis(Chart::YAxis).setTitle( "mg/dL" );
-  m_graph->setMinimumSize( 200, 200 );
+  m_graph->setMinimumSize( 200, 150 );
 
 
   Chart::WDataSeries cgmsSeries(WtGui::kCgmsData, Chart::LineSeries);
@@ -1802,7 +1895,7 @@ WtGeneticallyOptimize::WtGeneticallyOptimize( WtGui *wtGuiParent, Wt::WContainer
   m_chi2Graph->setLegendEnabled(false);
   m_chi2Graph->setPlotAreaPadding( 70, Wt::Bottom );
   m_chi2Graph->axis(Chart::YAxis).setTitle( "Best &chi;2" );
-  m_chi2Graph->setMinimumSize( 200, 200 );
+  m_chi2Graph->setMinimumSize( 200, 150 );
   m_chi2Graph->axis(Chart::XAxis).setTitle( "Generation Number" );
   m_chi2Graph->addSeries( Chart::WDataSeries( 1, Chart::LineSeries ) );
 
@@ -2204,7 +2297,7 @@ WtCustomEventTab::WtCustomEventTab( WtGui *wtGuiParent,
 
   WText *headerText = new WText( "Custom Defined Events" );
 
-  m_currentCEChart->setMinimumSize( 200, 200 );
+  m_currentCEChart->setMinimumSize( 200, 150 );
   m_currentCEChart->setModel( m_currentCEModel );
   m_currentCEChart->setXSeriesColumn(0);
   m_currentCEChart->setLegendEnabled(false);

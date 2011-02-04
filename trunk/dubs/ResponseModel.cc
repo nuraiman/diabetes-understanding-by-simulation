@@ -75,28 +75,6 @@ using namespace boost::posix_time;
 extern TApplication *gTheApp;
 
 
-/*
-NLSimple::NLSimple( const NLSimple &rhs ) :
-     m_description( rhs.m_description ),
-     m_cgmsDelay( rhs.m_cgmsDelay ),
-     m_basalInsulinConc( rhs.m_basalInsulinConc ),
-     m_basalGlucoseConcentration( rhs.m_basalGlucoseConcentration ),
-     m_t0( rhs.m_t0 ),
-     m_dt( ModelDefaults::kIntegrationDt ),
-     m_predictAhead( ModelDefaults::kPredictAhead ),
-     m_effectiveDof( 1.0 ),
-     m_paramaters( rhs.m_paramaters ),
-     m_paramaterErrorPlus( rhs.m_paramaterErrorPlus ),
-     m_paramaterErrorMinus( rhs.m_paramaterErrorMinus ),
-     m_cgmsData( rhs.m_cgmsData ),
-     m_freePlasmaInsulin( rhs.m_freePlasmaInsulin ),
-     m_glucoseAbsorbtionRate( rhs.m_glucoseAbsorbtionRate ),
-     m_predictedInsulinX( rhs.m_predictedInsulinX ),
-     m_predictedBloodGlucose( rhs.m_predictedBloodGlucose ),
-     m_startSteadyStateTimes( rhs.m_startSteadyStateTimes ), m_gui(NULL)
-{
-}//NLSimple( const NLSimple &rhs )
-*/
 
 NLSimple::NLSimple( const string &description, double basalUnitsPerKiloPerhour,
                     double basalGlucoseConcen, boost::posix_time::ptime t0 ) :
@@ -110,6 +88,7 @@ NLSimple::NLSimple( const string &description, double basalUnitsPerKiloPerhour,
      m_paramaters(NumNLSimplePars, kFailValue),
      m_paramaterErrorPlus(0), m_paramaterErrorMinus(0),
      m_cgmsData(t0, 5.0, GlucoseConsentrationGraph),
+     m_boluses(t0, 5.0, BolusGraph),
      m_freePlasmaInsulin(t0, 5.0, InsulinGraph),
      m_glucoseAbsorbtionRate(t0, 5.0, GlucoseAbsorbtionRateGraph),
      m_mealData(t0, 5.0, GlucoseConsumptionGraph),
@@ -138,6 +117,7 @@ NLSimple::NLSimple( std::string fileName ) :
      m_paramaters(NumNLSimplePars, kFailValue),
      m_paramaterErrorPlus(0), m_paramaterErrorMinus(0),
      m_cgmsData(kGenericT0, 5.0, GlucoseConsentrationGraph),
+     m_boluses(kGenericT0, 5.0, BolusGraph),
      m_freePlasmaInsulin(kGenericT0, 5.0, InsulinGraph),
      m_glucoseAbsorbtionRate(kGenericT0, 5.0, GlucoseAbsorbtionRateGraph),
      m_mealData(kGenericT0, 5.0, GlucoseConsumptionGraph),
@@ -210,6 +190,7 @@ const NLSimple &NLSimple::operator=( const NLSimple &rhs )
   m_customEventDefs            = rhs.m_customEventDefs;
 
   m_cgmsData                   = rhs.m_cgmsData;
+  m_boluses                    = rhs.m_boluses;
   m_freePlasmaInsulin          = rhs.m_freePlasmaInsulin;
   m_glucoseAbsorbtionRate      = rhs.m_glucoseAbsorbtionRate;
   m_fingerMeterData            = rhs.m_fingerMeterData;
@@ -484,9 +465,14 @@ void NLSimple::addBolusData( const ConsentrationGraph &newData,
 {
   if( newData.getGraphType() == InsulinGraph )
   {
-    m_freePlasmaInsulin = m_freePlasmaInsulin.getTotal( newData );
+    cerr << "It is no longer allowed to add a predifined rfee plasma insulin"
+         << " graph to the model.  Please update code" << endl;
+    throw runtime_error( "Adding plasma insulin concetration to the "
+                         "model is no longer allowed" );
+    // m_freePlasmaInsulin = m_freePlasmaInsulin.getTotal( newData );
   }else if( newData.getGraphType() == BolusGraph )
   {
+    m_boluses.addNewDataPoints( newData );
     ConsentrationGraph
     insulinConc = CgmsDataImport::bolusGraphToInsulinGraph( newData,
                                              m_settings.m_personsWeight );
@@ -2483,6 +2469,7 @@ void NLSimple::serialize( Archive &ar, const unsigned int version )
   ar & m_paramaterErrorMinus;
 
   ar & m_cgmsData;
+  ar & m_boluses;
   ar & m_freePlasmaInsulin;
   ar & m_glucoseAbsorbtionRate;
   ar & m_fingerMeterData;
