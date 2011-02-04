@@ -128,6 +128,7 @@ Wt::WDateTime DateTimeSelect::dateTime() const
 void DateTimeSelect::setTop( const Wt::WDateTime &top )
 {
   m_top = top;
+  m_datePicker->setTop( top.date() );
   validate();
   m_topBottomChanged.emit();
 }//setTop( const Wt::WDateTime &top )
@@ -135,6 +136,7 @@ void DateTimeSelect::setTop( const Wt::WDateTime &top )
 void DateTimeSelect::setBottom( const Wt::WDateTime &bottom )
 {
   m_bottom = bottom;
+  m_datePicker->setBottom( bottom.date() );
   validate();
   m_topBottomChanged.emit();
 }//setBottom( const Wt::WDateTime &bottom )

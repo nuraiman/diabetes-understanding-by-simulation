@@ -12,6 +12,7 @@
 #include <Wt/WApplication>
 #include <Wt/WPointF>
 #include <Wt/WString>
+#include <Wt/Chart/WChartPalette>
 
 #include "TMath.h"
 
@@ -34,7 +35,7 @@ WChartWithLegend::WChartWithLegend( WtGui *parentGui, WContainerWidget *parent )
   m_height(0), m_legTopOffset(30), m_legRightOffset(245),
   m_parentGui(parentGui)
 {
-  setMinimumSize( 250, 250 );
+  setMinimumSize( 250, 150 );
 }//WChartWithLegend constructor
 
 WChartWithLegend::~WChartWithLegend()
@@ -89,7 +90,16 @@ void WChartWithLegend::paint( WPainter& painter, const WRectF& rectangle ) const
     }//foreach custom event
 
 
+    painter.setPen( palette()->strokePen( WtGui::kFreePlasmaInsulin ) );
+    foreach( const GraphElement &el, modelPtr->m_boluses )
+    {
+      WPointF pos = mapToDevice( WDateTime::fromPosixTime(el.m_time), 5*el.m_value );
+      //WRectF loc( pos.x(), pos.y(), 0.1, 0.1 );
+      painter.drawImage( pos, WPainter::Image("local_resources/syringe.png","local_resources/syringe.png") );
+      //painter.drawText( loc, AlignLeft, WString(Form("%i", TMath::Nint(el.m_value))) );
+    }//foreach( const GraphElement &el, modelPtr->m_customEvents )
 
+    painter.setPen( Wt::WPen() );
   }//if( m_parentGui )
 }//paint
 
@@ -148,7 +158,7 @@ void NLSimpleDisplayModel::useAllColums()
 
  void NLSimpleDisplayModel::setDiabeticModel( NLSimple *diabeticModel )
  {
-   const int nOldRow = rowCount();
+   //const int nOldRow = rowCount();
    NLSimple *old = m_diabeticModel;
    m_diabeticModel = diabeticModel;
 
@@ -184,8 +194,44 @@ void NLSimpleDisplayModel::useAllColums()
  }//void NLSimpleDisplayModel::setDiabeticModel( NLSimple *diabeticModel )
 
 
- const ConsentrationGraph &NLSimpleDisplayModel::graph( const Columns col ) const
- {
+
+ConsentrationGraph &NLSimpleDisplayModel::graphFromColumn( const int col )
+{
+  assert( col > 0 );
+  assert( col < static_cast<int>(m_cachedData.size()) );
+
+  const Columns colums = m_cachedData[col-1].first;
+
+  return graph(colums);
+}//ConsentrationGraph &NLSimpleDisplayModel::graphFromRow( const int row )
+
+
+
+ConsentrationGraph &NLSimpleDisplayModel::graph( const Columns col )
+{
+  static ConsentrationGraph errorGraph (kGenericT0, TimeDuration(0,5,0), CustomEvent );
+  if( !m_diabeticModel ) return errorGraph;
+
+  switch( col )
+  {
+    case TimeColumn:            assert(0); //return errorGraph;
+    case CgmsData:              return m_diabeticModel->m_cgmsData;
+    case FreePlasmaInsulin:     return m_diabeticModel->m_freePlasmaInsulin;
+    case GlucoseAbsorbtionRate: return m_diabeticModel->m_glucoseAbsorbtionRate;
+    case MealData:              return m_diabeticModel->m_mealData;
+    case FingerMeterData:       return m_diabeticModel->m_fingerMeterData;
+    case CustomEvents:          return m_diabeticModel->m_customEvents;
+    case PredictedInsulinX:     return m_diabeticModel->m_predictedInsulinX;
+    case PredictedBloodGlucose: return m_diabeticModel->m_predictedBloodGlucose;
+    case NumColumns:            assert(0); //return errorGraph;
+  };//switch( col )
+
+  return errorGraph;
+}//ConsentrationGraph &graph( const Columns row )
+
+
+const ConsentrationGraph &NLSimpleDisplayModel::graph( const Columns col ) const
+{
    const static ConsentrationGraph errorGraph (kGenericT0, TimeDuration(0,5,0), CustomEvent );
    if( !m_diabeticModel ) return errorGraph;
 
@@ -254,7 +300,7 @@ boost::any NLSimpleDisplayModel::data( const WModelIndex& index, int role ) cons
 
     if( !wantTime && (row_n>wantedRow) ) return boost::any();
 
-    const bool isCorrColl = ((col+1) == columnWanted);
+    const bool isCorrColl = ((col+1) == static_cast<size_t>(columnWanted));
     const bool inThisData = ((row_n+dataSize) > wantedRow);
 
     if( isCorrColl && inThisData )     return boost::any( data[wantedRow-row_n].m_value );
@@ -355,7 +401,7 @@ boost::any NLSimpleDisplayModel::headerData( int section,
 
   if( section == TimeColumn ) return boost::any( WString("Time") );
 
-  assert( (section-1) < m_columnHeaderData.size() );
+  assert( static_cast<size_t>(section-1) < m_columnHeaderData.size() );
   const HeaderData &info = m_columnHeaderData[section-1];
 
   HeaderData::const_iterator i = info.find(role);
@@ -366,6 +412,7 @@ boost::any NLSimpleDisplayModel::headerData( int section,
 
 void NLSimpleDisplayModel::updateData()
 {
+  const int nOriginalRow = rowCount();
   foreach( ColumnDataPair &t, m_cachedData ) t.second.clear();
 
   if( !m_diabeticModel ) return;
@@ -390,8 +437,28 @@ void NLSimpleDisplayModel::updateData()
   }//foreach( row used )
 
   WApplication::UpdateLock appLock( m_wApp ); //we can get a deadlock without this
+
+  //should we emitt the rowsAboutToBeRemoved() signal as well?
+  if( nOriginalRow > rowCount() )
+    rowsRemoved().emit( WModelIndex(), rowCount(), nOriginalRow );
+  else if( nOriginalRow < rowCount() )
+    rowsInserted().emit( WModelIndex(), nOriginalRow, rowCount() );
   dataChanged().emit( index(0,0), index( rowCount(), columnCount() ) );
 }//void NLSimpleDisplayModel::updateData()
+
+
+void NLSimpleDisplayModel::dataExternallyChanged( Wt::WModelIndex upperLeft, Wt::WModelIndex lowerRight )
+{
+  //We need to avoid a recursive calling of the dataChanged.emit() function
+  //  (eg if we hook two NLSimpleDisplayModel's together to keep in sync)
+  //  so well just use a mutex that allows only one data change to happen
+  //  at a time, I think as long as we only change the model in one thread
+  //  at a time (like we should), all should be fine.
+  boost::mutex::scoped_lock lock( m_dataBeingChangedMutex, boost::try_to_lock );
+  if( lock.owns_lock() )  return;
+
+  dataChanged().emit( upperLeft, lowerRight );
+}//
 
 
 
@@ -433,7 +500,7 @@ WModelIndex WtGeneralArrayModel::parent( const Wt::WModelIndex& ) const
   return WModelIndex();
 }
 
-boost::any WtGeneralArrayModel::data( const Wt::WModelIndex& index, int role ) const
+boost::any WtGeneralArrayModel::data( const Wt::WModelIndex& index, int ) const
 {
   const int row = index.row();
   const int column = index.column();

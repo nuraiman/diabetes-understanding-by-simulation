@@ -357,7 +357,7 @@ void WtCreateNLSimple::addData( WtCreateNLSimple::DataType type )
 {
   using CgmsDataImport::importSpreadsheet;
 
-  CgmsDataImport::InfoType infoType;
+  CgmsDataImport::InfoType infoType = CgmsDataImport::InfoType(0);
 
   switch( type )
   {

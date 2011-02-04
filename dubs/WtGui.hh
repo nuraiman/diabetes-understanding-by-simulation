@@ -51,6 +51,7 @@ namespace Wt
   class WDialog;
   class WSpinBox;
   class WComboBox;
+  class WTableView;
   class WLineEdit;
   class WDateTime;
   class WPopupMenu;
@@ -189,6 +190,9 @@ public:
     void addData( EventInformation info );
     void addData( EntryType type, Wt::WFileUpload *fileUpload );
 
+    void delRawData();
+    void enableRawDataDelButton();
+
 
     boost::recursive_mutex &modelMutex() { return m_modelMutex; }
     DateTimeSelect *getBeginTimePicker() { return m_bsBeginTimePicker; }
@@ -225,6 +229,9 @@ public:
     ClarkErrorGridGraph        *m_errorGridGraph;
     Div                        *m_errorGridLegend;
 
+    Wt::WTableView             *m_rawDataView;
+    Wt::WPushButton            *m_delDataButton;
+
 
     friend class NLSimplePtr;
     //friend class DubEventEntry;
@@ -245,6 +252,7 @@ class DubEventEntry : public Wt::WContainerWidget
   Wt::WLineEdit     *m_value;
   Wt::WText         *m_units;
   Wt::WPushButton   *m_button;
+  Wt::WCheckBox     *m_saveModel;
   Wt::Signal<WtGui::EventInformation> m_signal;
   WtGui             *m_wtgui;
 
