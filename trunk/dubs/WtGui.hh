@@ -182,7 +182,8 @@ public:
     void updateClarkAnalysis();
     void updateClarkAnalysis( const ConsentrationGraph &xGraph,
                               const ConsentrationGraph &yGraph,
-                              bool isCgmsVMeter );
+                              bool isCgmsVMeter,
+                              bool isUsingCalibrationData );
     void updateDisplayedDateRange();
     void saveModelAsDialog();
     void saveModelConfirmation();

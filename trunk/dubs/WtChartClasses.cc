@@ -435,8 +435,8 @@ bool NLSimpleDisplayModel::addData( const CgmsDataImport::InfoType type,
   switch( type )
   {
     case CgmsReading:      modelPtr->addCgmsData( time, value );        break;
-    case MeterReading:     modelPtr->addFingerStickData( time, value ); break;
-    case MeterCalibration: modelPtr->addFingerStickData( time, value ); break;
+    case MeterReading:     modelPtr->addNonCalFingerStickData( time, value ); break;
+    case MeterCalibration: modelPtr->addCalibrationData( time, value ); break;
     case GlucoseEaten:     modelPtr->addConsumedGlucose( time, value ); break;
     case BolusTaken:       modelPtr->addBolusData( time, value );       break;
     case GenericEvent:     modelPtr->addCustomEvent( time, value );     break;
@@ -729,7 +729,27 @@ bool WtConsGraphModel::removeRows( int row, int count,
   beginRemoveRows( WModelIndex(), row, row+count-1 );
   NLSimplePtr ptr( m_wApp );
   ConsentrationGraph &g = NLSimpleDisplayModel::graph( ptr.get(), m_column );
-  g.erase( g.begin()+row, g.begin()+row+count );
+
+  vector<PosixTime> times;
+  for( int r = row; r < (row+count); ++r ) times.push_back( g[r].m_time );
+  foreach( const PosixTime &t, times ) g.erase( g.find( t ) );
+
+  endRemoveRows();
+  return true;
+}//removeRows
+
+bool WtConsGraphModel::removeRow( const boost::posix_time::ptime &t )
+{
+  NLSimplePtr ptr( m_wApp );
+  ConsentrationGraph &g = NLSimpleDisplayModel::graph( ptr.get(), m_column );
+
+  GraphIter pos = g.find( t );
+  if( pos == g.end() ) return false;
+
+  size_t row = pos - g.begin();
+
+  beginRemoveRows( WModelIndex(), row, row-1 );
+  g.erase( pos );
   endRemoveRows();
   return true;
 }//removeRows

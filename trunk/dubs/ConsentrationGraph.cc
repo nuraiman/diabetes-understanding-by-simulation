@@ -424,11 +424,7 @@ GraphIter ConsentrationGraph::find( const PosixTime &time )
   //return std::find( GraphElementSet::begin(), GraphElementSet::end(), GraphElement(time, kFailValue) );
 
   GraphIter lb = lower_bound(time);
-  if( lb->m_time == time )
-  {
-    cerr << "ConsentrationGraph::find(): found it" << endl;
-    return lb;
-  }
+  if( lb->m_time == time ) return lb;
   cerr << "ConsentrationGraph::find(): didn't find time " << time << endl;
   return end();
 }//find

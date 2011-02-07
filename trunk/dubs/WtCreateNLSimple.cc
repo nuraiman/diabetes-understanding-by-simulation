@@ -187,7 +187,7 @@ void WtCreateNLSimple::init()
       case kCGMS_ENTRY:  title = "<b>CGMS Data:</b>";   break;
       case kBOLUS_ENTRY: title = "<b>Bolus Data:</b>";  break;
       case kCARB_ENTRY:  title = "<b>Meal Data:</b>";   break;
-      case kMETER_ENTRY: title = "<b>Meter Data:</b>";  break;
+      case kMETER_ENTRY: title = "<b>Meter Data (non-cal):</b>";  break;
             //kCustom_ENTRY, kEXCERSIZE_ENTRY, kALL_ENTRY,
       case kNUM_DataType: assert(0);
     };//switch( det )
@@ -441,7 +441,7 @@ void WtCreateNLSimple::constructModel()
 
   m_model->addCgmsData( *(m_datas[kCGMS_ENTRY]) );
   m_model->addGlucoseAbsorption( *(m_datas[kCARB_ENTRY]) );
-  if( m_datas[kMETER_ENTRY] ) m_model->addFingerStickData( *(m_datas[kMETER_ENTRY]) );
+  if( m_datas[kMETER_ENTRY] ) m_model->addNonCalFingerStickData( *(m_datas[kMETER_ENTRY]) );
   //if( m_datas[kCustom_ENTRY] ) m_model->addCustomEvents( *(m_datas[kCustom_ENTRY]) );
 
 }//void WtCreateNLSimple::constructModel()
