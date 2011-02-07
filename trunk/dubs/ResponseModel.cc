@@ -1909,9 +1909,9 @@ bool NLSimple::removeInfoAfter( const PosixTime &cgmsEndTime, bool removeCgms )
 {
   //I think maybe
   const ptime time = cgmsEndTime - m_settings.m_cgmsDelay; ;
-  ConstGraphIter lastCgmsPoint = m_cgmsData.lower_bound( cgmsEndTime );
-  ConstGraphIter lastXPoint    = m_predictedInsulinX.lower_bound( time );
-  ConstGraphIter lastPBGPoint  = m_predictedBloodGlucose.lower_bound( time );
+  GraphIter lastCgmsPoint = m_cgmsData.lower_bound( cgmsEndTime );
+  GraphIter lastXPoint    = m_predictedInsulinX.lower_bound( time );
+  GraphIter lastPBGPoint  = m_predictedBloodGlucose.lower_bound( time );
 
   unsigned int nUpdated = 0;
   if( removeCgms && lastCgmsPoint != m_cgmsData.end() )
@@ -2130,8 +2130,8 @@ DVec NLSimple::chi2DofStudy( double endPredChi2Weight,
     const ptime startTime = selfCopy.findSteadyStateStartTime( tr.first, tr.second ) + m_settings.m_cgmsDelay;
     const ptime endTime = (tr.second != kGenericT0) ? tr.second : m_cgmsData.getEndTime();
 
-    ConstGraphIter lb = selfCopy.m_cgmsData.lower_bound( startTime );
-    ConstGraphIter ub = selfCopy.m_cgmsData.upper_bound( endTime );
+    GraphIter lb = selfCopy.m_cgmsData.lower_bound( startTime );
+    GraphIter ub = selfCopy.m_cgmsData.upper_bound( endTime );
 
     for( ; lb != ub; ++lb ) ++nCgmsPoints;
 

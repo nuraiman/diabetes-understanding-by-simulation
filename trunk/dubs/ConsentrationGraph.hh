@@ -11,6 +11,7 @@
 ////////////////////////////////////////////////////////////////////////////////
 
 #include <set>
+#include <vector>
 #include "boost/date_time/posix_time/posix_time.hpp"
 
 // include headers that implement a archive in simple text format
@@ -18,6 +19,7 @@
 #include <boost/archive/text_iarchive.hpp>
 #include <boost/serialization/string.hpp>
 #include <boost/serialization/set.hpp>
+#include <boost/serialization/vector.hpp>
 #include <boost/serialization/version.hpp>
 
 
@@ -85,8 +87,10 @@ class GraphElement
     template<class Archive>
     void serialize( Archive &ar, const unsigned int version );
 
-    //Sort based off of 'm_minutes' element
+    //Sort based off of 'm_minutes' element ONLY!
     bool operator<( const GraphElement &lhs ) const;
+//    bool operator>( const GraphElement &lhs ) const;
+//    bool operator==( const GraphElement &lhs ) const;
 };//class GraphElement
 
 BOOST_CLASS_VERSION(GraphElement, 0)
@@ -99,7 +103,8 @@ double toNMinutes( const TimeDuration &timeDuration );
 typedef  double Filter_Coef[6][10]; //for the butterworth filter
 typedef  double Memory_Coef[3][10]; //for the butterworth filter
 
-typedef std::set<GraphElement>          GraphElementSet;
+typedef std::vector<GraphElement>      GraphElementSet;
+typedef GraphElementSet::iterator GraphIter; //
 typedef GraphElementSet::const_iterator ConstGraphIter; //set iterators const always
 
 typedef double(*AbsFuncPointer)( double, double );
@@ -108,7 +113,7 @@ typedef double(*AbsFuncPointer)( double, double );
 // be based off of a map<ptime, double> object
 
 //set<> is an stl sorted storage array
-class ConsentrationGraph : public std::set<GraphElement>
+class ConsentrationGraph : public GraphElementSet
 {
   private:
     //The time GraphElement.m_minutes is relative to
@@ -189,14 +194,24 @@ class ConsentrationGraph : public std::set<GraphElement>
     //To add a single point use addNewDataPoint
     //  however, use of this function is mildly unsafe if you have previously
     //  used an add(...) function
-    ConstGraphIter addNewDataPoint( const PosixTime &time, double value );
+    GraphIter addNewDataPoint( const PosixTime &time, double value );
     //just calls addNewDataPoint
-    ConstGraphIter insert( const PosixTime &absoluteTime, double value );
+    GraphIter insert( const PosixTime &absoluteTime, double value );
+    GraphIter insert( const GraphElement &element );
+
 
     unsigned int addNewDataPoints( const ConsentrationGraph &newDataPoints );
 
+
+    GraphIter lower_bound( const PosixTime &time );
+    GraphIter upper_bound( const PosixTime &time );
     ConstGraphIter lower_bound( const PosixTime &time ) const;
     ConstGraphIter upper_bound( const PosixTime &time ) const;
+
+    GraphIter find( const PosixTime &time );
+    ConstGraphIter find( const PosixTime &time ) const;
+//    GraphIter find( const GraphElement &element );
+//    ConstGraphIter find( const GraphElement &element ) const;
 
     TimeDuration getMostCommonDt() const;
 
