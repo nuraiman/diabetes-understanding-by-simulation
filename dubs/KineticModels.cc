@@ -85,7 +85,7 @@ double NovologConsentrationFunc( double unitsPerKilogram, double nMinutes )
   
   //All the '-19.0' below is to makeup for what looks like the baseline insulin
   //  consentration in the chart.
-  static const GraphElementSet data = list_of(GraphElement(kGenericT0 + toTimeDuration(0), 19.0-19.0))
+  static const set<GraphElement > data = list_of(GraphElement(kGenericT0 + toTimeDuration(0), 19.0-19.0))
                (kGenericT0 + toTimeDuration(15), 45.0-19.0) 
                (kGenericT0 + toTimeDuration(30), 70.0-19.0) 
                (kGenericT0 + toTimeDuration(40), 75.0-19.0) 
@@ -108,8 +108,8 @@ double NovologConsentrationFunc( double unitsPerKilogram, double nMinutes )
   if( nMinutes < 0.0 || nMinutes > 225 ) return consentration;
   
   const PosixTime timeNMinutes = kGenericT0 + toTimeDuration(nMinutes);
-  ConstGraphIter lb = data.lower_bound( GraphElement(timeNMinutes, 0.0) );
-  ConstGraphIter ub = data.upper_bound( GraphElement(timeNMinutes, 0.0) );
+  set<GraphElement >::const_iterator lb = data.lower_bound( GraphElement(timeNMinutes, 0.0) );
+  set<GraphElement >::const_iterator ub = data.upper_bound( GraphElement(timeNMinutes, 0.0) );
   
   if( lb == ub ) //no exact match
   {

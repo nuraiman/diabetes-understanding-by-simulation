@@ -8,6 +8,7 @@
 #include <math.h>  //contains M_PI
 #include <stdlib.h>
 #include <fstream>
+#include <algorithm>
 #include <cmath>
 
 //ROOT includes (using root 5.14)
@@ -84,6 +85,17 @@ bool GraphElement::operator<( const GraphElement &lhs ) const
   return (m_time < lhs.m_time);
 }//GraphElement::operator<(...)
 
+// bool GraphElement::operator>( const GraphElement &lhs ) const
+// {
+//   return (m_time > lhs.m_time);
+// }//GraphElement::operator<(...)
+
+// bool GraphElement::operator==( const GraphElement &lhs ) const
+// {
+//   return (m_time == lhs.m_time);
+// }//GraphElement::operator<(...)
+
+
 
 double toNMinutes( const TimeDuration &timeDuration )
 {
@@ -150,7 +162,7 @@ const ConsentrationGraph &ConsentrationGraph::operator=(
   m_dt = rhs.m_dt;
   m_yOffsetForDrawing = rhs.m_yOffsetForDrawing;
 
-  std::set<GraphElement>::operator=( rhs );
+  GraphElementSet::operator=( rhs );
 
   return *this;
 }//operator=
@@ -227,8 +239,8 @@ void ConsentrationGraph::trim( const PosixTime &t_start, const PosixTime &t_end,
 
   if( t_start != kGenericT0 )
   {
-    ConstGraphIter ub = upper_bound(t_start);
-    ConstGraphIter lb = lower_bound(t_start);
+    GraphIter ub = upper_bound(t_start);
+    GraphIter lb = lower_bound(t_start);
 
     if( lb == end() )
     {
@@ -242,7 +254,7 @@ void ConsentrationGraph::trim( const PosixTime &t_start, const PosixTime &t_end,
     if( lb == ub )//the set<> does not exactly contain this time
     {
       double val = value(t_start);
-      GraphElementSet::erase( begin(), lb );
+      GraphElementSet::erase( GraphElementSet::begin(), lb );
       if( interpTrimmed ) insert( t_start, val );
     }else //the set<> exactly contains this time
     {
@@ -252,8 +264,8 @@ void ConsentrationGraph::trim( const PosixTime &t_start, const PosixTime &t_end,
 
   if( t_end != kGenericT0 )
   {
-    ConstGraphIter ub = upper_bound(t_end);
-    ConstGraphIter lb = lower_bound(t_end);
+    GraphIter ub = upper_bound(t_end);
+    GraphIter lb = lower_bound(t_end);
 
     if( ub == begin() )
     {
@@ -267,11 +279,11 @@ void ConsentrationGraph::trim( const PosixTime &t_start, const PosixTime &t_end,
     if( lb == ub )//the set<> does not exactly contain this time
     {
       double val = value(t_end);
-      GraphElementSet::erase( ub, end() );
+      GraphElementSet::erase( ub, GraphElementSet::end() );
       if( interpTrimmed ) insert( t_end, val );
     }else //the set<> exactly contains this time
     {
-      GraphElementSet::erase( ub, end() );
+      GraphElementSet::erase( ub, GraphElementSet::end() );
     }//
 
   }//if( remove end )
@@ -287,7 +299,7 @@ void ConsentrationGraph::trim( const PosixTime &t_start, const PosixTime &t_end,
 bool ConsentrationGraph::containsTime( ptime absoluteTime ) const
 {
   ConstGraphIter ending = GraphElementSet::end();
-  ConstGraphIter lowB = GraphElementSet::lower_bound( GraphElement(absoluteTime, 0.0) );
+  ConstGraphIter lowB = lower_bound( absoluteTime );
 
   const bool timeMatch = (lowB != ending) && (lowB->m_time == absoluteTime );
 
@@ -330,30 +342,128 @@ double ConsentrationGraph::value( const PosixTime &time ) const
 }//double ConsentrationGraph::value( unsigned int nOffsetminutes ) const
 
 
-
-ConstGraphIter ConsentrationGraph::insert( const PosixTime &time, double value )
+GraphIter ConsentrationGraph::addNewDataPoint( const PosixTime &time, double value )
 {
-  return addNewDataPoint(time, value );
+  return insert( GraphElement(time,value) );
+}//addNewDataPoint
+
+
+GraphIter ConsentrationGraph::insert( const PosixTime &time, double value )
+{
+  return insert( GraphElement(time, value) );
 }//insert
+
+
+GraphIter ConsentrationGraph::insert( const GraphElement &element )
+{
+  const double &value = element.m_value;
+  const PosixTime &time = element.m_time;
+  //ConstGraphIter posIter = GraphElementSet::lower_bound( element );
+  GraphIter posIter = std::lower_bound( begin(), end(), element );
+  //assert( posIter == posIter2 );
+  //cerr << element.m_time << " Pos 1 = Pos2" << endl;
+
+  if( !empty() && posIter != end() && posIter->m_time == time )
+  {
+    if( posIter->m_value == value ) return end();
+    if( posIter->m_value != 0.0 )
+    {
+      ptime lastTime = getEndTime();
+
+      cout << "ConstGraphIter ConsentrationGraph::addNewDataPoint(double, double):"
+           << " can not add time " << time << " with value " << value
+           << " to current graph with t0 of " << m_t0
+           << " and end time of " << lastTime << endl
+           << "Already have a value of " << posIter->m_value << " for that time "
+           << posIter->m_time << " compared to " << time << endl;
+      return end();
+    }else
+    {
+      GraphElementSet::erase( posIter );
+      GraphIter newPos = GraphElementSet::insert( posIter, element );
+      assert( newPos == posIter );
+      return newPos;
+    }//if( posIter->m_value != 0.0 ) / else
+  }//if( need to protect against improperly added points )
+
+  return GraphElementSet::insert( posIter, element );
+
+  //If we made it here, we are in the clear
+  //pair<GraphIter,bool> pos = GraphElementSet::insert( element );
+  // cout << "Succesfully inserted " << pos.first->m_time << "  " << pos.first->m_value << endl;
+  //return pos.first;
+}//GraphIter insert( const GraphElement &element )
+
+GraphIter ConsentrationGraph::lower_bound( const PosixTime &time )
+{
+  return std::lower_bound( begin(), end(), GraphElement(time, kFailValue) );
+}
+
+GraphIter ConsentrationGraph::upper_bound( const PosixTime &time )
+{
+  return std::upper_bound( begin(), end(), GraphElement(time, kFailValue) );
+}
 
 
 ConstGraphIter ConsentrationGraph::lower_bound( const PosixTime &time ) const
 {
-  return GraphElementSet::lower_bound( GraphElement(time, kFailValue) );
+  //return GraphElementSet::lower_bound( GraphElement(time, kFailValue) );
+  return std::lower_bound( begin(), end(), GraphElement(time, kFailValue) );
 }//lower_bound( ptime )
 
 ConstGraphIter ConsentrationGraph::upper_bound( const PosixTime &time ) const
 {
-  return GraphElementSet::upper_bound( GraphElement(time, kFailValue) );
+  //return GraphElementSet::upper_bound( GraphElement(time, kFailValue) );
+  return std::upper_bound( begin(), end(), GraphElement(time, kFailValue) );
 }//upper_bound( ptime )
+
+
+
+GraphIter ConsentrationGraph::find( const PosixTime &time )
+{
+  //return std::find( GraphElementSet::begin(), GraphElementSet::end(), GraphElement(time, kFailValue) );
+
+  GraphIter lb = lower_bound(time);
+  if( lb->m_time == time )
+  {
+    cerr << "ConsentrationGraph::find(): found it" << endl;
+    return lb;
+  }
+  cerr << "ConsentrationGraph::find(): didn't find time " << time << endl;
+  return end();
+}//find
+
+ConstGraphIter ConsentrationGraph::find( const PosixTime &time ) const
+{
+  //return std::find( GraphElementSet::begin(), GraphElementSet::end(), GraphElement(time, kFailValue) );
+  ConstGraphIter lb = lower_bound(time);
+  if( lb->m_time == time )
+  {
+    cerr << "ConsentrationGraph::find(): found it" << endl;
+    return lb;
+  }
+  cerr << "ConsentrationGraph::find(): didn't find time " << time << endl;
+  return end();
+}
+
+//GraphIter ConsentrationGraph::find( const GraphElement &element )
+//{
+//  return ConsentrationGraph::find( element.m_time );
+//}
+
+//ConstGraphIter ConsentrationGraph::find( const GraphElement &element ) const
+//{
+//  return ConsentrationGraph::find( element.m_time );
+//}
+
 
 
 
 unsigned int ConsentrationGraph::addNewDataPoints( const ConsentrationGraph &rhs )
 {
-   if( m_graphType != rhs.m_graphType )
+  if( m_graphType != rhs.m_graphType )
   {
-    cout << "ConsentrationGraph::getTotal(...): I can't add data points from "
+    cout << "ConsentrationGraph::addNewDataPoints(...): I can't add data points from "
          << " a graph of type " << rhs.getGraphTypeStr()
          << " to this graph of type " <<  getGraphTypeStr() << endl;
     exit(1);
@@ -370,43 +480,6 @@ unsigned int ConsentrationGraph::addNewDataPoints( const ConsentrationGraph &rhs
 }//addNewDataPoints( const ConsentrationGraph &newDataPoints )
 
 
-ConstGraphIter ConsentrationGraph::addNewDataPoint( const PosixTime &time, double value )
-{
-  const GraphElement newElement( time, value );
-  ConstGraphIter posIter = GraphElementSet::lower_bound( newElement );
-
-  if( !empty() && posIter != end() && /*posIter != begin()*/ posIter->m_time == time )
-  {
-    if( posIter->m_value == value ) return end();
-    if( posIter->m_value != 0.0 )
-    {
-      ptime lastTime = getEndTime();
-
-      cout << "ConstGraphIter ConsentrationGraph::addNewDataPoint(double, double):"
-           << " can not add time " << time << " with value " << value
-           << " to current graph with t0 of " << m_t0
-           << " and end time of " << lastTime << endl
-           << "Already have a value of " << posIter->m_value << " for that time "
-           << posIter->m_time << " compared to " << time << endl;
-           // << CgmsDataImport::convertToNavigatorDate(time) << endl;
-      return end();
-    }else
-    {
-      GraphElementSet::erase( posIter );
-      ConstGraphIter newPos = GraphElementSet::insert( posIter, newElement );
-      assert( newPos == posIter );
-      return newPos;
-    }//if( posIter->m_value != 0.0 ) / else
-  }//if( need to protect against improperly added points )
-
-  //If we made it here, we are in the clear
-  pair<ConstGraphIter,bool> pos = GraphElementSet::insert( newElement );
-
-  // cout << "Succesfully inserted " << pos.first->m_time << "  " << pos.first->m_value << endl;
-
-  return pos.first;
-}//addNewDataPoint
-
 
 
 
@@ -414,14 +487,14 @@ unsigned int ConsentrationGraph::removeNonInfoAddingPoints()
 {
   if( size() < 3 ) return 0;
 
-  vector<ConstGraphIter> pointsToErase;
-  ConstGraphIter endPoint = end();
+  vector<GraphIter> pointsToErase;
+  GraphIter endPoint = end();
   --endPoint;  //endPoint is now last define element in ::GraphElementSet
 
-  ConstGraphIter leftPoint =  begin();
-  ConstGraphIter midPoint = begin();
+  GraphIter leftPoint =  begin();
+  GraphIter midPoint = begin();
   ++midPoint;
-  ConstGraphIter rightPoint = begin();
+  GraphIter rightPoint = begin();
   ++rightPoint;
   ++rightPoint;
 
@@ -464,9 +537,9 @@ unsigned int ConsentrationGraph::removeNonInfoAddingPoints()
   }//if( more than one point left, remove leading zeros )
 
 
-  foreach( const ConstGraphIter &iter, pointsToErase )
+  foreach( const GraphIter &iter, pointsToErase )
   {
-    std::set<GraphElement>::erase( iter );
+    GraphElementSet::erase( iter );
   }
 
   return pointsToErase.size();
@@ -495,7 +568,7 @@ unsigned int ConsentrationGraph::add( double amountPerVol,
 
     if( !containsTime( currTime ) )
     {
-      GraphElementSet::insert( GraphElement(currTime, 0.0) );
+      insert( GraphElement(currTime, 0.0) );
       ++nPointsAdded;
     }//if( we don't have an element for this time yet )
 
@@ -506,7 +579,7 @@ unsigned int ConsentrationGraph::add( double amountPerVol,
 
   //We have to do is loop through already defined times, and update those values
   //The first place equal to, or past beginTimeOffset
-  ConstGraphIter posIter = upper_bound(beginTime);
+  GraphIter posIter = upper_bound(beginTime);
 
   for( ; posIter != GraphElementSet::end(); ++posIter )
   {
@@ -518,13 +591,14 @@ unsigned int ConsentrationGraph::add( double amountPerVol,
     const double addValue = absorbFunc( amountPerVol, thisAbsorbOffsetTime );
     const double totalValue = addValue + value( currentTime );
 
-    GraphElement newElement( currentTime, totalValue );
+    posIter->m_value = totalValue;
 
-    GraphElementSet::erase( posIter );
+    //GraphElement newElement( currentTime, totalValue );
+    //GraphElementSet::erase( posIter );
     //posIter = GraphElementSet::insert( posIter, newElement );
-    posIter = GraphElementSet::insert( newElement ).first;
+    //posIter = GraphElementSet::insert( newElement ).first;
 
-    //ConstGraphIter newPos = GraphElementSet::insert( posIter, newElement );
+    //GraphIter newPos = GraphElementSet::insert( posIter, newElement );
     //assert( newPos == posIter );
   }//for( loop over previously defined times )
 
@@ -624,7 +698,6 @@ ConsentrationGraph ConsentrationGraph::getTotal( double amountPerVol,
 
   foreach( const GraphElement &ge, static_cast<GraphElementSet &>(duplicateGraph) )
   {
-
     const double functionRelOffset = toNMinutes( functionT0 - ge.m_time );
     double val = ge.m_value + f( amountPerVol, functionRelOffset);
 
@@ -711,7 +784,7 @@ TimeDuration ConsentrationGraph::getMostCommonDt( ) const
 
   TimeValueVec timeValues;
 
-  foreach( const GraphElement &el, static_cast< set<GraphElement> >(*this) )
+  foreach( const GraphElement &el, static_cast< GraphElementSet >(*this) )
   {
     timeValues.push_back( TimeValuePair(el.m_time, el.m_value) );
   }//foreach( base pair )
@@ -835,7 +908,7 @@ ConsentrationGraph::differntiate( int nPoint )
   //Change the type of the graph
   m_graphType = BloodGlucoseConcenDeriv;
 
-  GraphElementSet theDerivs;
+  set<GraphElement > theDerivs;
 
   const TimeDuration h0 = (nPoint == 3) ? h : h*2;
   double deriv = -999.9;
@@ -876,7 +949,7 @@ ConsentrationGraph::differntiate( int nPoint )
   //remove all the current data points
   clear();
 
-  foreach( const GraphElement &e, theDerivs ) insert( e.m_time, e.m_value );
+  foreach( const GraphElement &e, theDerivs ) insert( e );
 
 }//differntiate( int )
 
@@ -920,8 +993,7 @@ ConsentrationGraph::bSplineSmoothOrDeriv(  bool takeDeriv,
   const PosixTime tEnd = getEndTime();
 
   size_t position = 0;
-  ConstGraphIter iter;
-  for( iter = begin(); iter != end(); ++iter )
+  for( GraphIter iter = begin(); iter != end(); ++iter )
   {
     double weight = 1.0 / pow( readingUncert*iter->m_value, 2 );
     double relTime = toNMinutes(iter->m_time - tStart);
@@ -1039,7 +1111,7 @@ void ConsentrationGraph::fastFourierSmooth( double lambda_min, double time_windo
 
   if( empty() ) return;
 
-  GraphElementSet xFormResult;
+  set<GraphElement > xFormResult;
 
   //Since this is primarily intended for CGMS readings, using a dt of the
   //  most common time would be adequate.
@@ -1108,8 +1180,8 @@ void ConsentrationGraph::fastFourierSmooth( double lambda_min, double time_windo
   delete [] xformed_real;
   delete [] xformed_imag;
 
-  std::set<GraphElement>::erase( begin(), end() );
-  std::set<GraphElement>::insert( xFormResult.begin(), xFormResult.end() );
+  GraphElementSet::clear();
+  GraphElementSet::insert( begin(), xFormResult.begin(), xFormResult.end() );
 }//void fastFourierSmooth( double ohmega_min = 20.0, double time_window = 180.0 )
 
 
@@ -1217,7 +1289,7 @@ void ConsentrationGraph::butterWorthFilter( double timescale, int filterOrder )
 
   if( empty() ) return;
 
-  GraphElementSet xFormResult;
+  set<GraphElement > xFormResult;
 
   const PosixTime endTime = getEndTime();
   const PosixTime startTime = begin()->m_time;
@@ -1260,8 +1332,8 @@ void ConsentrationGraph::butterWorthFilter( double timescale, int filterOrder )
 
   delete [] input;
 
-  std::set<GraphElement>::erase( begin(), end() );
-  std::set<GraphElement>::insert( xFormResult.begin(), xFormResult.end() );
+  GraphElementSet::clear();
+  GraphElementSet::insert( begin(), xFormResult.begin(), xFormResult.end() );
 }//
 
 
@@ -1543,7 +1615,7 @@ void ConsentrationGraph::serialize( Archive &ar, const unsigned int version )
   ar & m_dt;
   ar & m_yOffsetForDrawing;
   ar & m_graphType;
-  ar & boost::serialization::base_object< std::set<GraphElement> >(*this);
+  ar & boost::serialization::base_object< GraphElementSet >(*this);
 }//serialize
 
 

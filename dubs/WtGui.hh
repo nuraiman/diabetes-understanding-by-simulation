@@ -31,6 +31,7 @@ class DubEventEntry;
 class DubUser;
 class UsersModel;
 class ModelSettings;
+class WtConsGraphModel;
 class ConsentrationGraph;
 
 class ClarkErrorGridGraph;
@@ -190,8 +191,8 @@ public:
     void addData( EventInformation info );
     void addData( EntryType type, Wt::WFileUpload *fileUpload );
 
-    void delRawData();
-    void enableRawDataDelButton();
+    void delRawData( Wt::WTableView *view );
+    void enableRawDataDelButton( Wt::WTableView *view, Wt::WPushButton *button );
 
 
     boost::recursive_mutex &modelMutex() { return m_modelMutex; }
@@ -219,7 +220,7 @@ public:
     Wt::WTabWidget *m_tabs;
 
     boost::shared_ptr<NLSimpleDisplayModel> m_nlSimleDisplayModel;
-    boost::shared_ptr<NLSimpleDisplayModel> m_enteredDataModel;
+
     Wt::WStandardItemModel     *m_bsModel;
     WChartWithLegend           *m_bsGraph;
     DateTimeSelect             *m_bsBeginTimePicker;
@@ -231,6 +232,8 @@ public:
 
     Wt::WTableView             *m_rawDataView;
     Wt::WPushButton            *m_delDataButton;
+
+    std::vector<WtConsGraphModel*> m_inputModels;
 
 
     friend class NLSimplePtr;

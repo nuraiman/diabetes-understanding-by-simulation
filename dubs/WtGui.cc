@@ -164,8 +164,7 @@ WtGui::WtGui( const Wt::WEnvironment& env, DubUserServer &server )
   m_upperEqnDiv( NULL ),
   m_fileMenuPopup( NULL ),
   m_tabs( NULL ),
-  m_nlSimleDisplayModel( new NLSimpleDisplayModel( NULL, this, NULL ) ),
-  m_enteredDataModel( new NLSimpleDisplayModel( NULL, this, NULL ) ),
+  m_nlSimleDisplayModel( new NLSimpleDisplayModel( this, NULL ) ),
   m_bsModel( NULL ),
   m_bsGraph( NULL ),
   m_bsBeginTimePicker( NULL ),
@@ -177,9 +176,6 @@ WtGui::WtGui( const Wt::WEnvironment& env, DubUserServer &server )
 {
   enableUpdates(true);
   setTitle( "dubs" );
-
-  m_nlSimleDisplayModel->dataChanged().connect( boost::bind( &NLSimpleDisplayModel::dataExternallyChanged, m_enteredDataModel, _1, _2 ) );
-  m_enteredDataModel->dataChanged().connect( boost::bind( &NLSimpleDisplayModel::dataExternallyChanged, m_nlSimleDisplayModel, _1, _2 ) );
 
   string urlStr = "local_resources/dubs_style.css";
   if( boost::algorithm::contains( url(), "dubs.app" ) )
@@ -226,9 +222,9 @@ void WtGui::requireLogin()
 void WtGui::logout()
 {
   boost::recursive_mutex::scoped_lock lock( m_modelMutex );
+  m_nlSimleDisplayModel->aboutToSetNewModel();
   m_model = NLSimpleShrdPtr();
-  m_nlSimleDisplayModel->setDiabeticModel( NULL );
-  m_enteredDataModel->setDiabeticModel( NULL );
+  m_nlSimleDisplayModel->doneSettingNewModel();
   DubsLogin::insertCookie( m_userDbPtr->name, 0, m_dbSession ); //deltes the cookie
   m_server.logout( m_userDbPtr->name );
   m_userDbPtr = Wt::Dbo::ptr<DubUser>();
@@ -265,9 +261,11 @@ void WtGui::resetGui()
     return;
   }//if( couldn't get the lock )
 
+
+  m_nlSimleDisplayModel->aboutToSetNewModel();
   m_model = NLSimpleShrdPtr();
-  m_nlSimleDisplayModel->setDiabeticModel( NULL );
-  m_enteredDataModel->setDiabeticModel( NULL );
+  m_nlSimleDisplayModel->doneSettingNewModel();
+
   init( m_userDbPtr->name );
 }//void resetGui()
 
@@ -595,95 +593,65 @@ void WtGui::init( const string username )
 
 
   Div *cgmsDataTableDiv = new Div( "cgmsDataTableDiv" );
-  WBorderLayout *cgmsDataTableLayout = new WBorderLayout();
+  WGridLayout *cgmsDataTableLayout = new WGridLayout();
   cgmsDataTableDiv->setLayout( cgmsDataTableLayout );
-  m_rawDataView = new WTableView();
-  cgmsDataTableLayout->addWidget( m_rawDataView, WBorderLayout::Center );
-
-  m_enteredDataModel->useColumn( NLSimpleDisplayModel::MealData );
-  m_enteredDataModel->useColumn( NLSimpleDisplayModel::FingerMeterData );
-  m_enteredDataModel->useColumn( NLSimpleDisplayModel::CustomEvents );
-  m_enteredDataModel->useColumn( NLSimpleDisplayModel::CgmsData );
-
-  WSortFilterProxyModel *sortModel = new WSortFilterProxyModel( this );
-  sortModel->setSourceModel( m_enteredDataModel.get() );
-  sortModel->setDynamicSortFilter(true);
-  //m_enteredDataModel->dataChanged().connect(  );
 
 
-  //m_rawDataView->setModel( m_enteredDataModel.get() );
-  m_rawDataView->setModel( sortModel );
-  m_rawDataView->setSortingEnabled(true);
-  m_rawDataView->setColumnResizeEnabled(true);
-  m_rawDataView->setAlternatingRowColors(true);
-  m_rawDataView->setSelectionBehavior( SelectRows );
-  m_rawDataView->setSelectionMode( ExtendedSelection );
-  m_rawDataView->setRowHeight(22);
-  m_rawDataView->setColumnWidth( 0, 150 );
-  m_rawDataView->setColumnWidth( 1, 150 );
-  m_rawDataView->setColumnWidth( 2, 150 );
-  m_rawDataView->setMinimumSize( 200, 150 );
+  m_inputModels.push_back( new WtConsGraphModel( this, NLSimpleDisplayModel::MealData, this ) );
+  m_inputModels.push_back( new WtConsGraphModel( this, NLSimpleDisplayModel::FingerMeterData, this ) );
+  m_inputModels.push_back( new WtConsGraphModel( this, NLSimpleDisplayModel::CustomEvents, this ) );
+  m_inputModels.push_back( new WtConsGraphModel( this, NLSimpleDisplayModel::CgmsData, this ) );
 
-/*
- //As of Wt 3.1.7a calling the setColumnHidden(...) function before the
- //  WTableView widget renders causes the program to crash
-  m_rawDataView->refresh(); //without this statment the setColumnHidden(...) statments below will cause the app to crash
-
-  for( int i = 0; i < m_bsModel->columnCount(); ++i )
-    m_rawDataView->setColumnHidden( i, true );
-
-  m_rawDataView->setColumnHidden( kTimeData, false );
-  m_rawDataView->setColumnHidden( kCgmsData, false );
-  m_rawDataView->setColumnHidden( kMealData, false );
-  m_rawDataView->setColumnHidden( kFingerStickData, false );
-  m_rawDataView->setColumnHidden( kCustomEventData, false );
-
-
-  // m_rawDataView->setColumnHidden( kFreePlasmaInsulin, true );
-  // m_rawDataView->setColumnHidden( kGlucoseAbsRate, true );
-  // m_rawDataView->setColumnHidden( kPredictedBloodGlucose, true );
-  // m_rawDataView->setColumnHidden( kPredictedInsulinX, true );
-*/
-
-  /*
-  Div *topRawDataDiv = new Div();
-  cgmsDataTableLayout->addWidget( topRawDataDiv, WBorderLayout::North );
-
-
-  for( int i = 0; i < m_bsModel->columnCount(); ++i )
+  for( size_t i = 0; i < m_inputModels.size(); ++i )
   {
-    try
+    NLSimpleDisplayModel::Columns type = m_inputModels[i]->type();
+    WString title;
+    switch(type)
     {
-      WString name = boost::any_cast<WString>( m_bsModel->headerData(i) );
+      case NLSimpleDisplayModel::TimeColumn:            title = "Time"; break;
+      case NLSimpleDisplayModel::CgmsData:              title = "CGMS Data"; break;
+      case NLSimpleDisplayModel::GlucoseAbsorbtionRate: title = "Gluc. Abs. Rate"; break;
+      case NLSimpleDisplayModel::MealData:              title = "Carbohydrates"; break;
+      case NLSimpleDisplayModel::FingerMeterData:       title = "Finger Stick"; break;
+      case NLSimpleDisplayModel::CustomEvents:          title = "Custom Events"; break;
+      case NLSimpleDisplayModel::PredictedInsulinX:     title = "Pred. Ins. X"; break;
+      case NLSimpleDisplayModel::PredictedBloodGlucose: title = "Pred. Blood Gluc."; break;
+      case NLSimpleDisplayModel::FreePlasmaInsulin:     title = "Plasma Insulin"; break;
+      case NLSimpleDisplayModel::NumColumns:            title = ""; break;
+    };//enum Columns
 
-      WPushButton *removeB = new WPushButton( "Remove " + name, topRawDataDiv );
-      WPushButton *addB = new WPushButton( "Show " + name, topRawDataDiv );
-      removeB->resize( m_rawDataView->columnWidth(i), WLength::Auto );
-      addB->resize( m_rawDataView->columnWidth(i), WLength::Auto );
-      addB->hide();
-      removeB->clicked().connect( removeB, &WPushButton::hide );
-      removeB->clicked().connect( addB, &WPushButton::show );
-      addB->clicked().connect( removeB, &WPushButton::show );
-      addB->clicked().connect( addB, &WPushButton::hide );
-      removeB->clicked().connect( boost::bind( &WTableView::setColumnHidden, m_rawDataView, i, true ) );
-      addB->clicked().connect( boost::bind( &WTableView::setColumnHidden, m_rawDataView, i, false ) );
-    }catch(...){}
-  }//for( loop over the columns )
-*/
+    title = "<b>" + title + ":</b>";
+    WText *text = new WText( title, XHTMLUnsafeText );
+    cgmsDataTableLayout->addWidget( text, 0, i, 1, 1, AlignLeft | AlignTop );
+
+    WTableView *rawDataView = new WTableView();
+    cgmsDataTableLayout->addWidget( rawDataView, 1, i, 1, 1 );
+    rawDataView->setModel( m_inputModels[i] );
+    rawDataView->setColumnResizeEnabled(true);
+    rawDataView->setAlternatingRowColors(true);
+    rawDataView->setSelectionBehavior( SelectRows );
+    rawDataView->setSelectionMode( ExtendedSelection );
+    rawDataView->setRowHeight(22);
+    rawDataView->setColumnWidth( 0, 125 );
+    rawDataView->setColumnWidth( 1, 70 );
+    rawDataView->setMinimumSize( 195, 150 );
+
+    WPushButton *delDataButton = new WPushButton( "Delete Selected" );
+    delDataButton->clicked().connect( boost::bind( &WtGui::delRawData, this, rawDataView ) );
+    delDataButton->disable();
+    cgmsDataTableLayout->addWidget( delDataButton, 2, i, 1, 1, AlignCenter | AlignTop );
+    rawDataView->selectionChanged().connect( boost::bind( &WtGui::enableRawDataDelButton, this, rawDataView, delDataButton ) );
+  }//for( loop over ... )
+
+  cgmsDataTableLayout->setRowStretch( 0, 0 );
+  cgmsDataTableLayout->setRowStretch( 1, 10 );
+  cgmsDataTableLayout->setRowStretch( 2, 0 );
+  cgmsDataTableLayout->setRowStretch( 3, 0 );
 
   Div *bottomRawDataDiv = new Div();
-  cgmsDataTableLayout->addWidget( bottomRawDataDiv, WBorderLayout::South );
-
+  cgmsDataTableLayout->addWidget( bottomRawDataDiv, 3, 0, 1, m_inputModels.size(), AlignLeft | AlignTop );
   WPushButton *addDataButton = new WPushButton( "Add Data", bottomRawDataDiv );
   addDataButton->clicked().connect( this, &WtGui::addDataDialog );
-
-  m_delDataButton = new WPushButton( "Delete Data", bottomRawDataDiv );
-  m_delDataButton->clicked().connect( this, &WtGui::delRawData );
-  m_delDataButton->disable();
-
-  m_rawDataView->selectionChanged().connect(  this, &WtGui::enableRawDataDelButton );
-
-
 
 
   m_tabs->addTab( cgmsDataTableDiv, "Raw Data" );
@@ -700,16 +668,17 @@ void WtGui::init( const string username )
 }//WtGui::init()
 
 
-void WtGui::delRawData()
+void WtGui::delRawData( WTableView *view )
 {
-  WSortFilterProxyModel *model;
-  model = dynamic_cast<WSortFilterProxyModel *>( m_rawDataView->model() );
+  WtConsGraphModel *model = dynamic_cast<WtConsGraphModel *>( view->model() );
   assert( model );
-  const WModelIndexSet selected = m_rawDataView->selectedIndexes();
+  const WModelIndexSet selected = view->selectedIndexes();
   //'selected' is column zero of the selected rows
+  view->setSelectedIndexes( WModelIndexSet() );
 
   WDialog dialog( "Confirmation" );
-  const string msg = Form( "Are you sure you would like to delete these %u data points?" , static_cast<unsigned int>(selected.size()) );
+  const string msg = Form( "Are you sure you would like to delete these %u "
+                           "data points?" , static_cast<unsigned int>(selected.size()) );
   new WText( msg, dialog.contents() );
   new WBreak( dialog.contents() );
   WPushButton *ok = new WPushButton( "Yes", dialog.contents() );
@@ -719,53 +688,20 @@ void WtGui::delRawData()
   WDialog::DialogCode code = dialog.exec();
   if( code == WDialog::Rejected ) return;
 
-
   foreach( const WModelIndex &index, selected )
   {
-    WModelIndex sourceIndex = model->mapToSource( index );
-    const int row = sourceIndex.row();
-
-    const int ncolumn = m_enteredDataModel->columnCount();
-    for( int colum = 1; colum < ncolumn; ++colum )
-    {
-      try
-      {
-        const WDateTime dt = boost::any_cast<WDateTime>( index.data() );
-        const PosixTime pdt = dt.toPosixTime();
-        const boost::any data = m_enteredDataModel->index( row, colum ).data();
-        const double value = boost::any_cast<double>( data );
-        ConsentrationGraph &origGraph = m_enteredDataModel->graphFromColumn(colum);
-
-        const GraphElement el( pdt, value ); //we don't actually need value
-        const ConsentrationGraph::const_iterator iter = origGraph.find( el );
-        if( iter != origGraph.end() )
-        {
-          origGraph.erase( iter );
-          colum = ncolumn;
-        }else
-        {
-          cerr << "Couldn't find it in the graph though: " << pdt << " = "
-                << value << endl;
-        }//if( found it, else )
-      }catch(...){}
-    }//for( loop over columns )
+    cerr << "Removing row " << index.row() << endl;
+    model->removeRow( index.row() );
   }//foreach selected index
 
-  //const int startRow = model->rowCount()-selected.size();
-  //const int endRow = model->rowCount();
-  //m_rawDataView->model()->rowsAboutToBeRemoved().emit( WModelIndex(), startRow, endRow );
-  m_rawDataView->setSelectedIndexes( WModelIndexSet() );
-  m_nlSimleDisplayModel->updateData();
-  m_rawDataView->refresh();
-  //m_nlSimleDisplayModel->updateData();
-  //m_rawDataView->model()->rowsRemoved().emit( WModelIndex(), startRow, endRow );
+  syncDisplayToModel();
 }//void WtGui::delRawData()
 
 
-void WtGui::enableRawDataDelButton()
+void WtGui::enableRawDataDelButton( WTableView *view, Wt::WPushButton *button )
 {
-  if( m_rawDataView->selectedIndexes().empty() ) m_delDataButton->disable();
-  else m_delDataButton->enable();
+  if( view->selectedIndexes().empty() ) button->disable();
+  else button->enable();
 }//void WtGui::enableRawDataDelButton()
 
 
@@ -934,32 +870,49 @@ void WtGui::addData( WtGui::EventInformation info )
   NLSimplePtr modelPtr( this, false, SRC_LOCATION );
   if( !modelPtr ) return;
 
+
+  CgmsDataImport::InfoType type = CgmsDataImport::ISig;
   switch( info.type )
   {
-    case WtGui::kNotSelected: break;
-    case WtGui::kCgmsReading:
-      modelPtr->addCgmsData( info.dateTime.toPosixTime(), info.value );
-    break;
-    case WtGui::kMeterReading:
-      modelPtr->addFingerStickData( info.dateTime.toPosixTime(), info.value );
-    break;
-    case WtGui::kMeterCalibration:
-      modelPtr->addFingerStickData( info.dateTime.toPosixTime(), info.value );
-    break;
-    case WtGui::kGlucoseEaten:
-      modelPtr->addConsumedGlucose( info.dateTime.toPosixTime(), info.value );
-    break;
-    case WtGui::kBolusTaken:
-      modelPtr->addBolusData( info.dateTime.toPosixTime(), info.value );
-    break;
-    case WtGui::kGenericEvent:
-      modelPtr->addCustomEvent( info.dateTime.toPosixTime(), info.value );
-    break;
-    case WtGui::kNumEntryType: break;
+    case WtGui::kNotSelected: assert(0); break;
+    case WtGui::kCgmsReading:      type = CgmsDataImport::CgmsReading; break;
+    case WtGui::kMeterReading:     type = CgmsDataImport::MeterReading; break;
+    case WtGui::kMeterCalibration: type = CgmsDataImport::MeterCalibration; break;
+    case WtGui::kGlucoseEaten:     type = CgmsDataImport::GlucoseEaten; break;
+    case WtGui::kBolusTaken:       type = CgmsDataImport::BolusTaken; break;
+    case WtGui::kGenericEvent:     type = CgmsDataImport::GenericEvent; break;
+    case WtGui::kNumEntryType: assert(0); break;
   };//switch( et )
 
+  m_nlSimleDisplayModel->addData( type, info.dateTime.toPosixTime(), info.value );
+
+/*
+  switch( info.type )
+  {
+  case WtGui::kNotSelected: break;
+  case WtGui::kCgmsReading:
+    modelPtr->addCgmsData( info.dateTime.toPosixTime(), info.value );
+    break;
+  case WtGui::kMeterReading:
+    modelPtr->addFingerStickData( info.dateTime.toPosixTime(), info.value );
+    break;
+  case WtGui::kMeterCalibration:
+    modelPtr->addFingerStickData( info.dateTime.toPosixTime(), info.value );
+    break;
+  case WtGui::kGlucoseEaten:
+    modelPtr->addConsumedGlucose( info.dateTime.toPosixTime(), info.value );
+    break;
+  case WtGui::kBolusTaken:
+    modelPtr->addBolusData( info.dateTime.toPosixTime(), info.value );
+    break;
+  case WtGui::kGenericEvent:
+    modelPtr->addCustomEvent( info.dateTime.toPosixTime(), info.value );
+    break;
+  case WtGui::kNumEntryType: break;
+  };//switch( et )
+*/
   syncDisplayToModel(); //taking the lazy way out and just reloading
-                        //all data to the model
+  //all data to the model
 }//void addData( EventInformation info );
 
 
@@ -1053,13 +1006,13 @@ void WtGui::addData( WtGui::EntryType type, Wt::WFileUpload *fileUpload )
 
 void WtGui::syncDisplayToModel()
 {
+  //TODO: Whenever this function is called, we could much more efficiently
+  //      tell the WViews what has changed...
   WApplication::UpdateLock appLock( this );
-
-  m_nlSimleDisplayModel->updateData();
-  m_enteredDataModel->updateData();
 
   updateDataRange();
   m_bsGraph->update();
+  foreach( WtConsGraphModel *model, m_inputModels ) model->refresh();
 }//void syncDisplayToModel()
 
 
@@ -1239,10 +1192,9 @@ void WtGui::newModel()
 
   if( (code==WDialog::Accepted) && new_model)
   {
+    m_nlSimleDisplayModel->aboutToSetNewModel();
     m_model = NLSimpleShrdPtr( new_model );
-
-    m_nlSimleDisplayModel->setDiabeticModel( new_model );
-    m_enteredDataModel->setDiabeticModel( new_model );
+    m_nlSimleDisplayModel->doneSettingNewModel();
 
     setModelFileName( "" );
     init( m_userDbPtr->name );
@@ -1340,16 +1292,18 @@ void WtGui::setModel( const std::string &fileName )
     return;
   }//if( couldn't get the lock )
 
+  m_nlSimleDisplayModel->aboutToSetNewModel();
+
   try{
     m_model = NLSimpleShrdPtr( new NLSimple( formFileSystemName(fileName) ) );
-    m_nlSimleDisplayModel->setDiabeticModel( m_model.get() );
-    m_enteredDataModel->setDiabeticModel( m_model.get() );
     setModelFileName( fileName );
   }catch(...){
     cerr << "Failed to open NLSimple named " << fileName << endl;
     wApp->doJavaScript( "alert( \"Failed to open NLSimple named " + fileName + "\" )", true );
     deleteModelFile( fileName );
   }//try/catch
+
+  m_nlSimleDisplayModel->doneSettingNewModel();
 }//void setModel( const std::string &fileName )
 
 
