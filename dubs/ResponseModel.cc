@@ -93,6 +93,7 @@ NLSimple::NLSimple( const string &description, double basalUnitsPerKiloPerhour,
      m_glucoseAbsorbtionRate(t0, 5.0, GlucoseAbsorbtionRateGraph),
      m_mealData(t0, 5.0, GlucoseConsumptionGraph),
      m_fingerMeterData(t0, 5.0, GlucoseConsentrationGraph),
+     m_calibrationData(t0, 5.0, GlucoseConsentrationGraph),
      m_customEvents(t0, 5.0, CustomEvent),
      m_predictedInsulinX(t0, 5.0, InsulinGraph),
      m_predictedBloodGlucose(t0, 5.0, GlucoseConsentrationGraph),
@@ -122,6 +123,7 @@ NLSimple::NLSimple( std::string fileName ) :
      m_glucoseAbsorbtionRate(kGenericT0, 5.0, GlucoseAbsorbtionRateGraph),
      m_mealData(kGenericT0, 5.0, GlucoseConsumptionGraph),
      m_fingerMeterData(kGenericT0, 5.0, GlucoseConsentrationGraph),
+     m_calibrationData(kGenericT0, 5.0, GlucoseConsentrationGraph),
      m_customEvents(kGenericT0, 5.0, CustomEvent),
      m_predictedInsulinX(kGenericT0, 5.0, InsulinGraph),
      m_predictedBloodGlucose(kGenericT0, 5.0, GlucoseConsentrationGraph),
@@ -194,6 +196,7 @@ const NLSimple &NLSimple::operator=( const NLSimple &rhs )
   m_freePlasmaInsulin          = rhs.m_freePlasmaInsulin;
   m_glucoseAbsorbtionRate      = rhs.m_glucoseAbsorbtionRate;
   m_fingerMeterData            = rhs.m_fingerMeterData;
+  m_calibrationData            = rhs.m_calibrationData;
   m_customEvents               = rhs.m_customEvents;
   m_mealData                   = rhs.m_mealData;
 
@@ -517,22 +520,38 @@ void NLSimple::addConsumedGlucose( ptime time, double amount )
 
 
 
-void NLSimple::addFingerStickData( const PosixTime &time, double value )
+void NLSimple::addNonCalFingerStickData( const PosixTime &time, double value )
 {
   ConsentrationGraph newData(m_t0, 5.0, GlucoseConsentrationGraph);
   newData.insert( time, value );
-  addFingerStickData( newData );
-}//void NLSimple::addFingerStickData( PosixTime, double value )
+  addNonCalFingerStickData( newData );
+}//void NLSimple::addNonCalFingerStickData( PosixTime, double value )
 
 
-void NLSimple::addFingerStickData( const ConsentrationGraph &newData )
+void NLSimple::addNonCalFingerStickData( const ConsentrationGraph &newData )
 {
   foreach( const GraphElement &el, newData )
   {
     m_fingerMeterData.addNewDataPoint( el.m_time, el.m_value );
   }//foreach(....)
-}//void NLSimple::addFingerStickData( const ConsentrationGraph &newData )
+}//void NLSimple::addNonCalFingerStickData( const ConsentrationGraph &newData )
 
+
+void NLSimple::addCalibrationData( const PosixTime &time, double value )
+{
+  ConsentrationGraph newData(m_t0, 5.0, GlucoseConsentrationGraph);
+  newData.insert( time, value );
+  addCalibrationData( newData );
+}//void NLSimple::addCalibrationData( PosixTime, double value )
+
+
+void NLSimple::addCalibrationData( const ConsentrationGraph &newData )
+{
+  foreach( const GraphElement &el, newData )
+  {
+    m_calibrationData.addNewDataPoint( el.m_time, el.m_value );
+  }//foreach(....)
+}//void NLSimple::addCalibrationData( const ConsentrationGraph &newData )
 
 
 void NLSimple::addCustomEvent( const PosixTime &time, int eventType )
@@ -658,7 +677,15 @@ TimeDuration NLSimple::findCgmsDelayFromFingerStick() const
 {
   // return toTimeDuration(15.0);
   using namespace ROOT::Minuit2;
-  CgmsFingerCorrFCN chi2Fcn( m_cgmsData,  m_fingerMeterData );
+
+  ConsentrationGraph data = m_fingerMeterData;
+  if( m_fingerMeterData.size() < m_settings.m_minFingerStickForCharacterization )
+  {
+    data.addNewDataPoints( m_calibrationData );
+    cerr << "Warning, using fingersticks and CGMS calibration data to find delay" << endl;
+  }//if( we dont have enough fingersticks )
+
+  CgmsFingerCorrFCN chi2Fcn( m_cgmsData, data );
 
   MnUserParameters upar;
   upar.Add( "CGMS_delay"   , 15.0, 1.0 );
@@ -692,7 +719,16 @@ double NLSimple::findCgmsErrorFromFingerStick( const TimeDuration cgms_delay ) c
   double fractionalErrUp(0.0), fractionalErrDown(0.0);
 
 
-  foreach( const GraphElement &el, m_fingerMeterData )
+  ConsentrationGraph data = m_fingerMeterData;
+  if( m_fingerMeterData.size() < m_settings.m_minFingerStickForCharacterization )
+  {
+    data.addNewDataPoints( m_calibrationData );
+    cerr << "Warning, using fingersticks and CGMS calibration data to find CGMS error" << endl;
+  }//if( we dont have enough fingersticks )
+
+
+
+  foreach( const GraphElement &el, data )
   {
     const PosixTime &time    = el.m_time;
     const double fingerValue = el.m_value;
@@ -2473,6 +2509,7 @@ void NLSimple::serialize( Archive &ar, const unsigned int version )
   ar & m_freePlasmaInsulin;
   ar & m_glucoseAbsorbtionRate;
   ar & m_fingerMeterData;
+  ar & m_calibrationData;
   ar & m_customEvents;
   ar & m_mealData;
 

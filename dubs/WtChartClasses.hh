@@ -189,6 +189,7 @@ public:
                                  int role = Wt::DisplayRole ) const;
   virtual bool removeRows( int row, int count,
                            const Wt::WModelIndex& parent = Wt::WModelIndex() );
+  bool removeRow( const boost::posix_time::ptime &t );
   virtual void refresh();
   NLSimpleDisplayModel::Columns type() const { return m_column; }
 };//class WtGeneralArrayModel

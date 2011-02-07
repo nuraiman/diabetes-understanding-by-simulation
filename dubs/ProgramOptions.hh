@@ -111,6 +111,8 @@ class ModelSettings
     double m_genSigmaMult;           //ProgramOptions::kGenSigmaMult
     double m_genConvergCriteria;     //ProgramOptions::kGenConvergCriteria
 
+    int m_minFingerStickForCharacterization;
+
     //Will leave serialization funtion in header
     friend class boost::serialization::access;
     template<class Archive>
@@ -145,6 +147,8 @@ class ModelSettings
       ar & m_genNStepImprove;
       ar & m_genSigmaMult;
       ar & m_genConvergCriteria;
+
+      ar & m_minFingerStickForCharacterization;
     }//serialize
 };//class ModelSettings
 

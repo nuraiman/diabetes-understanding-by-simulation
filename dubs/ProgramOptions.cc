@@ -175,6 +175,8 @@ ModelSettings::ModelSettings()
   m_genNStepImprove        = ProgramOptions::kGenNStepImprove;
   m_genSigmaMult           = ProgramOptions::kGenSigmaMult;
   m_genConvergCriteria     = ProgramOptions::kGenConvergCriteria;
+
+  m_minFingerStickForCharacterization = 10;
 }//ModelSettings::ModelSettings()
 
 ModelSettings::~ModelSettings(){}

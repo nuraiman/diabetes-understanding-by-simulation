@@ -145,8 +145,8 @@ class NLSimple
     ConsentrationGraph m_freePlasmaInsulin;
     ConsentrationGraph m_glucoseAbsorbtionRate;
     ConsentrationGraph m_mealData;
-    ConsentrationGraph m_fingerMeterData;
-    //should add a m_fingerCalibrationData; object that just has calibrations
+    ConsentrationGraph m_fingerMeterData; //assumed to be non-calibration only
+    ConsentrationGraph m_calibrationData;
     ConsentrationGraph m_customEvents;
 
     ConsentrationGraph m_predictedInsulinX;       //currently stored 10x what I use, bug waiting to happen, should be changed some time
@@ -200,8 +200,10 @@ class NLSimple
     //  passing in glucose absorption rate is preffered method
     void addGlucoseAbsorption( const ConsentrationGraph &newData );
 
-    void addFingerStickData( const PosixTime &time, double value );
-    void addFingerStickData( const ConsentrationGraph &newData );
+    void addNonCalFingerStickData( const PosixTime &time, double value );
+    void addNonCalFingerStickData( const ConsentrationGraph &newData );
+    void addCalibrationData( const PosixTime &time, double value );
+    void addCalibrationData( const ConsentrationGraph &newData );
 
     bool defineCustomEvent( int recordType, std::string name,
                             TimeDuration eventDuration,

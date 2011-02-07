@@ -688,11 +688,21 @@ void WtGui::delRawData( WTableView *view )
   WDialog::DialogCode code = dialog.exec();
   if( code == WDialog::Rejected ) return;
 
+  //We have to be careful here, since if we delete data cooresponding to an
+  //  index then the rest of the indices become invalid
+  vector<PosixTime> toDelete;
+
   foreach( const WModelIndex &index, selected )
   {
-    cerr << "Removing row " << index.row() << endl;
-    model->removeRow( index.row() );
+    //model->removeRow( index.data() );
+    try
+    {
+      const WDateTime wdt = boost::any_cast<WDateTime>( index.data() );
+      toDelete.push_back( wdt.toPosixTime() );
+    }catch(...){ cerr << SRC_LOCATION << " Failed cast :(" << endl; }
   }//foreach selected index
+
+  foreach( const PosixTime &t, toDelete ) model->removeRow( t );
 
   syncDisplayToModel();
 }//void WtGui::delRawData()
@@ -894,10 +904,10 @@ void WtGui::addData( WtGui::EventInformation info )
     modelPtr->addCgmsData( info.dateTime.toPosixTime(), info.value );
     break;
   case WtGui::kMeterReading:
-    modelPtr->addFingerStickData( info.dateTime.toPosixTime(), info.value );
+    modelPtr->addNonCalFingerStickData( info.dateTime.toPosixTime(), info.value );
     break;
   case WtGui::kMeterCalibration:
-    modelPtr->addFingerStickData( info.dateTime.toPosixTime(), info.value );
+    modelPtr->addCalibrationData( info.dateTime.toPosixTime(), info.value );
     break;
   case WtGui::kGlucoseEaten:
     modelPtr->addConsumedGlucose( info.dateTime.toPosixTime(), info.value );
@@ -981,10 +991,10 @@ void WtGui::addData( WtGui::EntryType type, Wt::WFileUpload *fileUpload )
       modelPtr->addCgmsData( *newData, findNewSteadyState );
     break;
     case WtGui::kMeterReading:
-      modelPtr->addFingerStickData( *newData );
+      modelPtr->addNonCalFingerStickData( *newData );
     break;
     case WtGui::kMeterCalibration:
-      modelPtr->addFingerStickData( *newData );
+      modelPtr->addCalibrationData( *newData );
     break;
     case WtGui::kGlucoseEaten:
       modelPtr->addGlucoseAbsorption( *newData );
@@ -1022,12 +1032,24 @@ void WtGui::updateClarkAnalysis()
   NLSimplePtr modelPtr( this, false, SRC_LOCATION );
   if( !modelPtr ) return;
 
-  updateClarkAnalysis( modelPtr->m_fingerMeterData, modelPtr->m_cgmsData, true );
+  const ConsentrationGraph &finger = modelPtr->m_fingerMeterData;
+  const ConsentrationGraph &calibration = modelPtr->m_calibrationData;
+  const ConsentrationGraph &cgms = modelPtr->m_cgmsData;
+  const size_t nMin = size_t( modelPtr->m_settings.m_minFingerStickForCharacterization );
+
+  if( finger.size() >= nMin ) updateClarkAnalysis( finger, cgms, true, false );
+  else
+  {
+    ConsentrationGraph combined = finger;
+    combined.addNewDataPoints( calibration );
+    updateClarkAnalysis( combined, cgms, true, true );
+  }//
 }//void updateClarkAnalysis()
 
 void WtGui::updateClarkAnalysis( const ConsentrationGraph &xGraph,
                                  const ConsentrationGraph &yGraph,
-                                 bool isCgmsVMeter )
+                                 bool isCgmsVMeter,
+                                 bool isUsingCalibrationData )
 {
   typedef ConsentrationGraph::value_type cg_type;
 
@@ -1127,6 +1149,9 @@ void WtGui::updateClarkAnalysis( const ConsentrationGraph &xGraph,
   }//if( !isCgmsVsMeter )
 
   m_errorGridLegend->clear();
+
+  if( isUsingCalibrationData )
+    new WText( "<font color=\"red\">Using Calib. Data!</font>", XHTMLUnsafeText, m_errorGridLegend );
 
   new WText( delayStr, XHTMLUnsafeText, m_errorGridLegend );
   new WBreak( m_errorGridLegend );
@@ -1769,6 +1794,16 @@ void WtModelSettingsGui::init()
 
   sb = new DoubleSpinBox( &(m_settings->m_genConvergCriteria), "", "", 0.0, 20 );
   layout->addWidget( new WText("Gen. Conv. Criteria"), row, column, 1, 1, AlignRight );
+  layout->addWidget( sb, row, column+1, 1, 1, AlignLeft );
+  m_memVarSpinBox.push_back( sb );
+  sb->valueChanged().connect( this, &WtModelSettingsGui::emitChanged );
+  //sb->valueChanged().connect( this, &WtModelSettingsGui::emitPredictionChanged );
+  row    = (row<maxRows) ? row + 1 : 0;
+  column = (row==0) ? column + 2: column;
+
+
+  sb = new IntSpinBox( &(m_settings->m_minFingerStickForCharacterization), "", "", 0.0, 50 );
+  layout->addWidget( new WText("Min FS 4 CGMS Charac"), row, column, 1, 1, AlignRight );
   layout->addWidget( sb, row, column+1, 1, 1, AlignLeft );
   m_memVarSpinBox.push_back( sb );
   sb->valueChanged().connect( this, &WtModelSettingsGui::emitChanged );
