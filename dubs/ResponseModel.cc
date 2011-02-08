@@ -2483,7 +2483,49 @@ std::vector<std::string> NLSimple::getEquationDescription() const
 }//getEquationDescription
 
 
+ConsentrationGraph &NLSimple::dataGraph( const NLSimple::DataGraphs type )
+{
+  switch( type )
+  {
+    case kCgmsData:              return m_cgmsData;
+    case kBoluses:               return m_boluses;
+    case kFreePlasmaInsulin:     return m_freePlasmaInsulin;
+    case kGlucoseAbsorbtionRate: return m_glucoseAbsorbtionRate;
+    case kMealData:              return m_mealData;
+    case kFingerMeterData:       return m_fingerMeterData;
+    case kCalibrationData:       return m_calibrationData;
+    case kCustomEvents:          return m_customEvents;
+    case kPredictedInsulinX:     return m_predictedInsulinX;
+    case kPredictedBloodGlucose: return m_predictedBloodGlucose;
+    case kNumDataGraphs:         throw std::runtime_error( "NLSimple::dataGraph( DataGraphs ): kNumDataGraphs is invalid input" );
+  }//switch( type )
 
+  assert(0);
+  return m_cgmsData;
+}//ConsentrationGraph &dataGraph( const DataGraphs type )
+
+
+const ConsentrationGraph &NLSimple::dataGraph( const NLSimple::DataGraphs type ) const
+{
+  switch( type )
+  {
+    case kCgmsData:              return m_cgmsData;
+    case kBoluses:               return m_boluses;
+    case kFreePlasmaInsulin:     return m_freePlasmaInsulin;
+    case kGlucoseAbsorbtionRate: return m_glucoseAbsorbtionRate;
+    case kMealData:              return m_mealData;
+    case kFingerMeterData:       return m_fingerMeterData;
+    case kCalibrationData:       return m_calibrationData;
+    case kCustomEvents:          return m_customEvents;
+    case kPredictedInsulinX:     return m_predictedInsulinX;
+    case kPredictedBloodGlucose: return m_predictedBloodGlucose;
+    case kNumDataGraphs:
+      throw std::runtime_error( "NLSimple::dataGraph( DataGraphs ) const: kNumDataGraphs is invalid input" );
+  }//switch( type )
+
+  assert(0);
+  return m_cgmsData;
+}//const ConsentrationGraph &dataGraph( const DataGraphs type ) const
 
 
 template<class Archive>

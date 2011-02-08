@@ -474,7 +474,7 @@ void WtGui::init( const string username )
   m_bsGraph = new WChartWithLegend(this);
   m_nlSimleDisplayModel->useAllColums();
   m_bsGraph->setModel( m_nlSimleDisplayModel.get() );
-  m_bsGraph->setXSeriesColumn(0);
+  m_bsGraph->setXSeriesColumn( NLSimple::kNumDataGraphs );
   m_bsGraph->setLegendEnabled(false);
   m_bsGraph->setPlotAreaPadding( 25, Wt::Right );
   m_bsGraph->setPlotAreaPadding( 70, Wt::Bottom );
@@ -488,23 +488,19 @@ void WtGui::init( const string username )
   m_bsGraph->setMinimumSize( 200, 150 );
 
 
-  Chart::WDataSeries cgmsSeries(NLSimpleDisplayModel::CgmsData, Chart::LineSeries);
+  Chart::WDataSeries cgmsSeries(NLSimple::kCgmsData, Chart::LineSeries);
   cgmsSeries.setShadow(WShadow(3, 3, WColor(0, 0, 0, 127), 3));
   m_bsGraph->addSeries( cgmsSeries );
-  Chart::WDataSeries fingerSeries( NLSimpleDisplayModel::FingerMeterData, Chart::PointSeries );
+  Chart::WDataSeries fingerSeries( NLSimple::kFingerMeterData, Chart::PointSeries );
   m_bsGraph->addSeries( fingerSeries );
-  Chart::WDataSeries mealSeries( NLSimpleDisplayModel::MealData, Chart::PointSeries, Chart::Y2Axis );
+  Chart::WDataSeries calibrationSeries( NLSimple::kCalibrationData, Chart::PointSeries );
+  m_bsGraph->addSeries( calibrationSeries );
+  Chart::WDataSeries mealSeries( NLSimple::kMealData, Chart::PointSeries, Chart::Y2Axis );
   m_bsGraph->addSeries( mealSeries );
-  Chart::WDataSeries predictSeries( NLSimpleDisplayModel::PredictedBloodGlucose, Chart::LineSeries );
+  Chart::WDataSeries predictSeries( NLSimple::kPredictedBloodGlucose, Chart::LineSeries );
   m_bsGraph->addSeries( predictSeries );
-  Chart::WDataSeries insulinSeries( NLSimpleDisplayModel::FreePlasmaInsulin, Chart::LineSeries );
+  Chart::WDataSeries insulinSeries( NLSimple::kFreePlasmaInsulin, Chart::LineSeries );
   m_bsGraph->addSeries( insulinSeries );
-
-  //NLSimpleDisplayModel::TimeColumn,
-  //NLSimpleDisplayModel::GlucoseAbsorbtionRate,
-  //NLSimpleDisplayModel::CustomEvents,
-  //NLSimpleDisplayModel::PredictedInsulinX,
-
 
 
   m_errorGridModel = new WStandardItemModel(  this );
@@ -514,7 +510,6 @@ void WtGui::init( const string username )
   m_errorGridLegend = new Div( "m_errorGridLegend" );
   m_errorGridGraph->setModel( m_errorGridModel );
   m_errorGridGraph->setXSeriesColumn(0);
-  //m_errorGridGraph->setLegendEnabled(true);
   m_errorGridGraph->setPlotAreaPadding( 50, Wt::Left );
   m_errorGridGraph->setPlotAreaPadding( 20, Wt::Right );
   m_errorGridGraph->setPlotAreaPadding( 50, Wt::Bottom );
@@ -597,35 +592,44 @@ void WtGui::init( const string username )
   cgmsDataTableDiv->setLayout( cgmsDataTableLayout );
 
 
-  m_inputModels.push_back( new WtConsGraphModel( this, NLSimpleDisplayModel::MealData, this ) );
-  m_inputModels.push_back( new WtConsGraphModel( this, NLSimpleDisplayModel::FingerMeterData, this ) );
-  m_inputModels.push_back( new WtConsGraphModel( this, NLSimpleDisplayModel::CustomEvents, this ) );
-  m_inputModels.push_back( new WtConsGraphModel( this, NLSimpleDisplayModel::CgmsData, this ) );
+  m_inputModels.push_back( new WtConsGraphModel( this, NLSimple::kMealData,        this ) );
+  m_inputModels.push_back( new WtConsGraphModel( this, NLSimple::kFingerMeterData, this ) );
+  m_inputModels.push_back( new WtConsGraphModel( this, NLSimple::kCalibrationData, this ) );
+  m_inputModels.push_back( new WtConsGraphModel( this, NLSimple::kCustomEvents,    this ) );
+  m_inputModels.push_back( new WtConsGraphModel( this, NLSimple::kCgmsData,        this ) );
+  m_inputModels.push_back( new WtConsGraphModel( this, NLSimple::kBoluses,         this ) );
+
+
 
   for( size_t i = 0; i < m_inputModels.size(); ++i )
   {
-    NLSimpleDisplayModel::Columns type = m_inputModels[i]->type();
+    NLSimple::DataGraphs type = m_inputModels[i]->type();
     WString title;
     switch(type)
     {
-      case NLSimpleDisplayModel::TimeColumn:            title = "Time"; break;
-      case NLSimpleDisplayModel::CgmsData:              title = "CGMS Data"; break;
-      case NLSimpleDisplayModel::GlucoseAbsorbtionRate: title = "Gluc. Abs. Rate"; break;
-      case NLSimpleDisplayModel::MealData:              title = "Carbohydrates"; break;
-      case NLSimpleDisplayModel::FingerMeterData:       title = "Finger Stick"; break;
-      case NLSimpleDisplayModel::CustomEvents:          title = "Custom Events"; break;
-      case NLSimpleDisplayModel::PredictedInsulinX:     title = "Pred. Ins. X"; break;
-      case NLSimpleDisplayModel::PredictedBloodGlucose: title = "Pred. Blood Gluc."; break;
-      case NLSimpleDisplayModel::FreePlasmaInsulin:     title = "Plasma Insulin"; break;
-      case NLSimpleDisplayModel::NumColumns:            title = ""; break;
+      case NLSimple::kCgmsData:              title = "CGMS Data";         break;
+      case NLSimple::kGlucoseAbsorbtionRate: title = "Gluc. Abs. Rate";   break;
+      case NLSimple::kMealData:              title = "Carbohydrates";     break;
+      case NLSimple::kFingerMeterData:       title = "Finger Stick";      break;
+      case NLSimple::kCalibrationData:       title = "Calibration Stick"; break;
+      case NLSimple::kCustomEvents:          title = "Custom Events";     break;
+      case NLSimple::kBoluses:               title = "Boluses";           break;
+      case NLSimple::kPredictedInsulinX:     title = "Pred. Ins. X";      break;
+      case NLSimple::kPredictedBloodGlucose: title = "Pred. Blood Gluc."; break;
+      case NLSimple::kFreePlasmaInsulin:     title = "Plasma Insulin";    break;
+      case NLSimple::kNumDataGraphs:         title = "Time";              break;
     };//enum Columns
 
     title = "<b>" + title + ":</b>";
+
+    const int local_row = 3 * (i/3);
+    const int local_col = i%3;
+
     WText *text = new WText( title, XHTMLUnsafeText );
-    cgmsDataTableLayout->addWidget( text, 0, i, 1, 1, AlignLeft | AlignTop );
+    cgmsDataTableLayout->addWidget( text, local_row, local_col, 1, 1, AlignLeft | AlignTop );
 
     WTableView *rawDataView = new WTableView();
-    cgmsDataTableLayout->addWidget( rawDataView, 1, i, 1, 1 );
+    cgmsDataTableLayout->addWidget( rawDataView, 1+local_row, local_col, 1, 1 );
     rawDataView->setModel( m_inputModels[i] );
     rawDataView->setColumnResizeEnabled(true);
     rawDataView->setAlternatingRowColors(true);
@@ -639,23 +643,22 @@ void WtGui::init( const string username )
     WPushButton *delDataButton = new WPushButton( "Delete Selected" );
     delDataButton->clicked().connect( boost::bind( &WtGui::delRawData, this, rawDataView ) );
     delDataButton->disable();
-    cgmsDataTableLayout->addWidget( delDataButton, 2, i, 1, 1, AlignCenter | AlignTop );
+    cgmsDataTableLayout->addWidget( delDataButton, 2+local_row, local_col, 1, 1, AlignCenter | AlignTop );
     rawDataView->selectionChanged().connect( boost::bind( &WtGui::enableRawDataDelButton, this, rawDataView, delDataButton ) );
+
+    cgmsDataTableLayout->setRowStretch( local_row, 0 );
+    cgmsDataTableLayout->setRowStretch( 1+local_row, 10 );
+    cgmsDataTableLayout->setRowStretch( 2+local_row, 0 );
   }//for( loop over ... )
 
-  cgmsDataTableLayout->setRowStretch( 0, 0 );
-  cgmsDataTableLayout->setRowStretch( 1, 10 );
-  cgmsDataTableLayout->setRowStretch( 2, 0 );
-  cgmsDataTableLayout->setRowStretch( 3, 0 );
+  cgmsDataTableLayout->setRowStretch( 3 * (m_inputModels.size()/3), 0 );
 
   Div *bottomRawDataDiv = new Div();
-  cgmsDataTableLayout->addWidget( bottomRawDataDiv, 3, 0, 1, m_inputModels.size(), AlignLeft | AlignTop );
+  cgmsDataTableLayout->addWidget( bottomRawDataDiv, 3*m_inputModels.size()/3, 0, 1, 3, AlignLeft | AlignTop );
   WPushButton *addDataButton = new WPushButton( "Add Data", bottomRawDataDiv );
   addDataButton->clicked().connect( this, &WtGui::addDataDialog );
 
-
   m_tabs->addTab( cgmsDataTableDiv, "Raw Data" );
-
 
   WtCustomEventTab *customEventTab = new WtCustomEventTab( this );
   m_tabs->addTab( customEventTab, "Custom Events" );

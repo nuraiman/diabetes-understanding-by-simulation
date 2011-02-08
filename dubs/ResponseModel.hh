@@ -113,6 +113,21 @@ class NLSimple
     };//enum NLSimplePars
 
 
+    enum DataGraphs
+    {
+      kCgmsData,
+      kBoluses,
+      kFreePlasmaInsulin,
+      kGlucoseAbsorbtionRate,
+      kMealData,
+      kFingerMeterData,
+      kCalibrationData,
+      kCustomEvents,
+      kPredictedInsulinX,
+      kPredictedBloodGlucose,
+      kNumDataGraphs
+    };//enum DataGraphs
+
 
     //begin variable that matter to *this
     std::string m_description;                  //Useful for later checking
@@ -339,6 +354,9 @@ class NLSimple
     std::vector<std::string> getEquationDescription() const;
 
     bool saveToFile( std::string filename = "" );
+
+    ConsentrationGraph &dataGraph( const DataGraphs type );
+    const ConsentrationGraph &dataGraph( const DataGraphs type ) const ;
 
     friend class boost::serialization::access;
   private:

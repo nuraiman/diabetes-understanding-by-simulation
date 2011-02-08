@@ -15,9 +15,10 @@
 
 #include "ConsentrationGraph.hh"
 #include "CgmsDataImport.hh" //for the CgmsDataImport::InfoType enum
+#include "ResponseModel.hh"
 
 class WtGui;
-class NLSimple;
+
 
 namespace Wt
 {
@@ -50,33 +51,19 @@ public:
 class NLSimpleDisplayModel : public Wt::WAbstractItemModel
 {
   //Right now this class is a model that meets some of the purposes I wanted:
-  //  I wanted to just use the NLSimple model to supply the data, but
-  //  accessing any given element of a std::set is so slow this isn't
-  //  practicle.
-  //Right now the 0th axis is the time axis, and it is implicitly always
-  //  defined (eg no entry in m_columnHeaderData or m_cachedData exists
-  //  for it), and its header data cannot be set.
+  //Right now the NLSimple::kNumDataGraphs'th axis is the time axis,
+  //  and it is implicitly always defined (eg no entry in m_columnHeaderData
+  //  or m_cachedData exists for it), and its header data cannot be set.
   //The upside to using this model is it's easy to only use the columns
   //  you want, and have them in the same order you add them in (using
-  //  useColumn(Columns) ).
+  //  useColumn(NLSimple::DataGraphs) ).
   //updateData() only emits the dataChanged() signal
 
 public:
   const static boost::posix_time::time_duration sm_plasmaInsulinDt;  //15 minutes
 
-  enum Columns
-  {
-    TimeColumn,
-    CgmsData,
-    GlucoseAbsorbtionRate,
-    MealData,
-    FingerMeterData,
-    CustomEvents,
-    PredictedInsulinX,
-    PredictedBloodGlucose,
-    FreePlasmaInsulin,
-    NumColumns
-  };//enum Columns
+  typedef NLSimple::DataGraphs DataGraphs;
+  //NLSimple::kNumDataGraphs is used for the time series
 
 protected:
   WtGui *m_wApp;
@@ -84,10 +71,7 @@ protected:
   typedef std::map<int, boost::any> HeaderData;
   std::vector<HeaderData> m_columnHeaderData;
 
-  //typedef std::pair<Columns,std::vector<GraphElement> &> ColumnDataPair;
-  //typedef std::vector<ColumnDataPair > DataVec;
-  //DataVec m_cachedData;
-  std::vector<Columns> m_columns;
+  std::vector<NLSimple::DataGraphs> m_columns;
 
   boost::mutex m_dataBeingChangedMutex;
 
@@ -111,7 +95,7 @@ public:
   void clear();
 
   void useAllColums();
-  void useColumn( Columns col );
+  void useColumn( NLSimple::DataGraphs col );
 
   virtual bool removeRows( int row, int count,
                            const Wt::WModelIndex& parent = Wt::WModelIndex() );
@@ -125,17 +109,7 @@ public:
   void aboutToSetNewModel();  //call before setting a new model (sends out notifcation all rows are being removed)
   void doneSettingNewModel(); //call after setting a new model (sends out notifcation rows have been added)
 
-  int begginingRow( Columns col );  //the row of the zeroth element graph(col)
-
-  //For graphFromColumn(), the first column added (with useColumn())
-  //  cooresponds to column 1; therefore columNumber must be >=1
-  virtual ConsentrationGraph &graphFromColumn( const int columNumber );
-
-  static ConsentrationGraph &graph( NLSimple *model, const Columns row );
-  static const ConsentrationGraph &graph( const NLSimple *model, const Columns row );
-
-  virtual ConsentrationGraph &graph( const Columns row );
-  virtual const ConsentrationGraph &graph( const Columns row ) const;
+  int begginingRow( NLSimple::DataGraphs col );  //the row of the zeroth element graph(col)
 
   void updateData();
   void dataExternallyChanged();
@@ -174,11 +148,10 @@ class WtConsGraphModel : public Wt::WAbstractItemModel
 {
 
   WtGui *m_wApp;
-  NLSimpleDisplayModel::Columns m_column;
+  NLSimple::DataGraphs m_column;
 
 public:
-  WtConsGraphModel( WtGui *app, NLSimpleDisplayModel::Columns,
-                    Wt::WObject *parent = 0  );
+  WtConsGraphModel( WtGui *app, NLSimple::DataGraphs, Wt::WObject *parent = 0  );
   virtual int columnCount( const Wt::WModelIndex& parent = Wt::WModelIndex() ) const;
   virtual int rowCount( const Wt::WModelIndex& parent = Wt::WModelIndex() ) const;
   virtual Wt::WModelIndex parent( const Wt::WModelIndex& index) const;
@@ -191,7 +164,7 @@ public:
                            const Wt::WModelIndex& parent = Wt::WModelIndex() );
   bool removeRow( const boost::posix_time::ptime &t );
   virtual void refresh();
-  NLSimpleDisplayModel::Columns type() const { return m_column; }
+  NLSimple::DataGraphs type() const { return m_column; }
 };//class WtGeneralArrayModel
 
 
