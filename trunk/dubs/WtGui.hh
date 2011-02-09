@@ -195,6 +195,8 @@ public:
     void delRawData( Wt::WTableView *view );
     void enableRawDataDelButton( Wt::WTableView *view, Wt::WPushButton *button );
 
+    void refreshInsConcFromBoluses();
+    void refreshClucoseConcFromMealData();
 
     boost::recursive_mutex &modelMutex() { return m_modelMutex; }
     DateTimeSelect *getBeginTimePicker() { return m_bsBeginTimePicker; }

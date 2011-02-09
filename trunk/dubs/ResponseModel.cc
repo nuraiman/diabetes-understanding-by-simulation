@@ -2482,6 +2482,16 @@ std::vector<std::string> NLSimple::getEquationDescription() const
   return descrip;
 }//getEquationDescription
 
+void NLSimple::refreshInsConcFromBoluses()
+{
+  m_freePlasmaInsulin = CgmsDataImport::bolusGraphToInsulinGraph( m_boluses,
+                                           m_settings.m_personsWeight );
+}//void NLSimple::refreshInsConcFromBoluses()
+
+void NLSimple::refreshClucoseConcFromMealData()
+{
+  m_glucoseAbsorbtionRate = CgmsDataImport::carbConsumptionToSimpleCarbAbsorbtionGraph( m_mealData );
+}//void NLSimple::refreshClucoseConcFromMealData()
 
 ConsentrationGraph &NLSimple::dataGraph( const NLSimple::DataGraphs type )
 {
