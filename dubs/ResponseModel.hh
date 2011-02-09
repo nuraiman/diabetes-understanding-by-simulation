@@ -358,6 +358,9 @@ class NLSimple
     ConsentrationGraph &dataGraph( const DataGraphs type );
     const ConsentrationGraph &dataGraph( const DataGraphs type ) const ;
 
+    void refreshInsConcFromBoluses();
+    void refreshClucoseConcFromMealData();
+
     friend class boost::serialization::access;
   private:
     template<class Archive>

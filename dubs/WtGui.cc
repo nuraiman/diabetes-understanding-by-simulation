@@ -552,6 +552,7 @@ void WtGui::init( const string username )
   m_bsBeginTimePicker->set( start );
 
 
+
   Div *bsTabDiv = new Div( "bsTabDiv" );
   WBorderLayout *bsTabLayout = new WBorderLayout();
   bsTabLayout->setSpacing( 0 );
@@ -582,10 +583,8 @@ void WtGui::init( const string username )
   WtModelSettingsGui *settings = new WtModelSettingsGui( &(modelPtr->m_settings) );
   m_tabs->addTab( settings, "Settings" );
 
-
-
   syncDisplayToModel();
-
+  zoomToFullDateRange();
 
   Div *cgmsDataTableDiv = new Div( "cgmsDataTableDiv" );
   WGridLayout *cgmsDataTableLayout = new WGridLayout();
@@ -640,11 +639,27 @@ void WtGui::init( const string username )
     rawDataView->setColumnWidth( 1, 70 );
     rawDataView->setMinimumSize( 195, 150 );
 
-    WPushButton *delDataButton = new WPushButton( "Delete Selected" );
+    Div *buttonDiv = new Div();
+    WPushButton *delDataButton = new WPushButton( "Delete Selected", buttonDiv );
+    // if( type == NLSimple::kBoluses ) delDataButton->clicked().connect( boost::bind( &WtGui::refreshInsConcFromBoluses, this) );
+    // if( type == NLSimple::kMealData ) delDataButton->clicked().connect( boost::bind( &WtGui::refreshClucoseConcFromMealData, this) );
     delDataButton->clicked().connect( boost::bind( &WtGui::delRawData, this, rawDataView ) );
     delDataButton->disable();
-    cgmsDataTableLayout->addWidget( delDataButton, 2+local_row, local_col, 1, 1, AlignCenter | AlignTop );
+    cgmsDataTableLayout->addWidget( buttonDiv, 2+local_row, local_col, 1, 1, AlignCenter | AlignTop );
     rawDataView->selectionChanged().connect( boost::bind( &WtGui::enableRawDataDelButton, this, rawDataView, delDataButton ) );
+
+    if( type == NLSimple::kBoluses )
+    {
+      WPushButton *refreshButton = new WPushButton( "Rebuild Insulin Conc.", buttonDiv );
+      refreshButton->clicked().connect( boost::bind( &WtGui::refreshInsConcFromBoluses, this) );
+    }//if( type == NLSimple::kBoluses )
+
+    if( type == NLSimple::kMealData )
+    {
+      WPushButton *refreshButton = new WPushButton( "Rebuild Clucose Conc.", buttonDiv );
+      refreshButton->clicked().connect( boost::bind( &WtGui::refreshClucoseConcFromMealData, this) );
+    }//if( type == NLSimple::kGlucoseAbsorbtionRate )
+
 
     cgmsDataTableLayout->setRowStretch( local_row, 0 );
     cgmsDataTableLayout->setRowStretch( 1+local_row, 10 );
@@ -717,6 +732,27 @@ void WtGui::enableRawDataDelButton( WTableView *view, Wt::WPushButton *button )
   else button->enable();
 }//void WtGui::enableRawDataDelButton()
 
+
+
+
+void WtGui::refreshInsConcFromBoluses()
+{
+  NLSimplePtr modelPtr( this, false, SRC_LOCATION );
+  if( !modelPtr ) return;
+
+  modelPtr->refreshInsConcFromBoluses();
+  syncDisplayToModel();
+}//void WtGui::refreshInsConcFromBoluses()
+
+
+void WtGui::refreshClucoseConcFromMealData()
+{
+  NLSimplePtr modelPtr( this, false, SRC_LOCATION );
+  if( !modelPtr ) return;
+
+  modelPtr->refreshClucoseConcFromMealData();
+  syncDisplayToModel();
+}
 
 
 void WtGui::addDataDialog()
@@ -825,31 +861,20 @@ void WtGui::updateDataRange()
   NLSimplePtr modelPtr( this );
   if( !modelPtr ) return;
 
-  PosixTime ptimeStart = boost::posix_time::second_clock::local_time();
-  PosixTime ptimeEnd   = boost::posix_time::second_clock::local_time();
-  if( !modelPtr->m_cgmsData.empty() ) ptimeStart = modelPtr->m_cgmsData.getStartTime();
-  if( !modelPtr->m_cgmsData.empty() ) ptimeEnd = modelPtr->m_cgmsData.getEndTime();
+  PosixTime ptimeStart(boost::posix_time::max_date_time);
+  PosixTime ptimeEnd(boost::posix_time::min_date_time);
 
-  if( !modelPtr->m_fingerMeterData.empty() )
-    ptimeStart = min( ptimeStart, modelPtr->m_fingerMeterData.getStartTime() );
-  if( !modelPtr->m_fingerMeterData.empty() )
-    ptimeEnd = max( ptimeEnd, modelPtr->m_fingerMeterData.getEndTime() );
-  if( !modelPtr->m_mealData.empty() )
-    ptimeStart = min( ptimeStart, modelPtr->m_mealData.getStartTime() );
-  if( !modelPtr->m_mealData.empty() )
-    ptimeEnd = max( ptimeEnd, modelPtr->m_mealData.getEndTime() );
-  if( !modelPtr->m_predictedBloodGlucose.empty() )
-    ptimeStart = min( ptimeStart, modelPtr->m_predictedBloodGlucose.getStartTime() );
-  if( !modelPtr->m_predictedBloodGlucose.empty() )
-    ptimeEnd = max( ptimeEnd, modelPtr->m_predictedBloodGlucose.getEndTime() );
-  if( !modelPtr->m_customEvents.empty() )
-    ptimeStart = min( ptimeStart, modelPtr->m_customEvents.getStartTime() );
-  if( !modelPtr->m_customEvents.empty() )
-    ptimeEnd = max( ptimeEnd, modelPtr->m_customEvents.getEndTime() );
-  if( !modelPtr->m_predictedInsulinX.empty() )
-    ptimeStart = min( ptimeStart, modelPtr->m_predictedInsulinX.getStartTime() );
-  if( !modelPtr->m_predictedInsulinX.empty() )
-    ptimeEnd = max( ptimeEnd, modelPtr->m_predictedInsulinX.getEndTime() );
+  for( NLSimple::DataGraphs graph = NLSimple::DataGraphs(0);
+       graph < NLSimple::kNumDataGraphs;
+       graph = NLSimple::DataGraphs(graph+1) )
+  {
+    const ConsentrationGraph &data = modelPtr->dataGraph(graph);
+    if( !data.empty() )
+    {
+      ptimeEnd = max( ptimeEnd, data.getEndTime() );
+      ptimeStart = min( ptimeStart, data.getStartTime() );
+    }//if( !data.empty() )
+  }//for(...)
 
   WDateTime start, end;
   end.setPosixTime( ptimeEnd );

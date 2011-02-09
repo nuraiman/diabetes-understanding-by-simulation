@@ -14,6 +14,7 @@
 #include <Wt/WPointF>
 #include <Wt/WString>
 #include <Wt/Chart/WChartPalette>
+#include <Wt/WRectArea>
 
 #include "TMath.h"
 
@@ -23,6 +24,8 @@
 #include "ResponseModel.hh"
 #include "CgmsDataImport.hh"
 #include "ArtificialPancrease.hh"
+
+#include "boost/algorithm/string.hpp"
 
 using namespace Wt;
 using namespace std;
@@ -91,15 +94,30 @@ void WChartWithLegend::paint( WPainter& painter, const WRectF& rectangle ) const
       painter.drawText( loc, AlignLeft, WString(Form("%i", TMath::Nint(el.m_value))) );
     }//foreach custom event
 
+    string url = "local_resources/";
+    //if( boost::algorithm::contains( wApp->url(), "dubs.app" ) )
+    //  url = "dubs/exec/" + url;
 
     painter.setPen( palette()->strokePen( WtGui::kFreePlasmaInsulin ) );
     foreach( const GraphElement &el, modelPtr->m_boluses )
     {
       WPointF pos = mapToDevice( WDateTime::fromPosixTime(el.m_time), 5*el.m_value );
-      //WRectF loc( pos.x(), pos.y(), 0.1, 0.1 );
-      painter.drawImage( pos, WPainter::Image("local_resources/syringe.png","local_resources/syringe.png") );
-      //painter.drawText( loc, AlignLeft, WString(Form("%i", TMath::Nint(el.m_value))) );
+      painter.drawImage( pos, WPainter::Image( url+"syringe.png", url+"syringe.png") );
     }//foreach( const GraphElement &el, modelPtr->m_customEvents )
+
+    painter.setPen( palette()->strokePen( WtGui::kFreePlasmaInsulin ) );
+    foreach( const GraphElement &el, modelPtr->m_mealData)
+    {
+      WPointF pos = mapToDevice( WDateTime::fromPosixTime(el.m_time), el.m_value, Wt::Chart::Y2Axis );
+      //WPainter::Image burger("local_resources/hamburger.png","local_resources/hamburger.png");
+      //Wt::WRectArea *value = new Wt::WRectArea( 0, 0, burger.width(), burger.height() );
+      //value->setToolTip( boost::lexical_cast<string>(el.m_value)
+      //                   + " grams of carbs at "
+      //                   + boost::lexical_cast<string>(el.m_time) );
+      //addArea( value );
+      painter.drawImage( pos, WPainter::Image("local_resources/hamburger.png","local_resources/hamburger.png") );
+    }//foreach( const GraphElement &el, modelPtr->m_mealData )
+
 
     painter.setPen( Wt::WPen() );
   }//if( m_parentGui )
@@ -268,7 +286,7 @@ bool NLSimpleDisplayModel::setHeaderData( int section,
   if( section == NLSimple::kNumDataGraphs ) return true;
 
   if( role == EditRole ) role = DisplayRole;
-  m_columnHeaderData[section-1][role] = value;
+  m_columnHeaderData[section][role] = value;
 
   headerDataChanged().emit(orientation, section, section);
   return true;
@@ -460,7 +478,7 @@ void NLSimpleDisplayModel::useColumn( NLSimple::DataGraphs col )
     case NLSimple::kNumDataGraphs:         title = "Time";                       break;
   };//switch( col )
 
-  setHeaderData( m_columnHeaderData.size(), Horizontal, title );
+  setHeaderData( m_columnHeaderData.size()-1, Horizontal, title );
 }//void NLSimpleDisplayModel::useColumn( Columns col )
 
 
@@ -477,7 +495,7 @@ boost::any NLSimpleDisplayModel::headerData( int section,
   if( section == NLSimple::kNumDataGraphs ) return boost::any( WString("Time") );
 
   assert( static_cast<size_t>(section) < m_columnHeaderData.size() );
-  const HeaderData &info = m_columnHeaderData[section-1];
+  const HeaderData &info = m_columnHeaderData[section];
 
   HeaderData::const_iterator i = info.find(role);
 
