@@ -116,11 +116,8 @@ class ModelSettings
     //Will leave serialization funtion in header
     friend class boost::serialization::access;
     template<class Archive>
-    void serialize( Archive &ar, const unsigned int version )
+    void serialize( Archive &ar, const unsigned int /*version*/ )
     {
-      unsigned int ver = version; //keep compiler from complaining
-      ver = ver;
-
       ar & m_personsWeight;
       //ar & m_basalGlucConc;
 

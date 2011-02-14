@@ -83,6 +83,20 @@ typedef std::pair<PosixTime,double> FoodConsumption;
 typedef std::pair<PosixTime,double> InsulinInjection;
 
 
+class TimeTextPair
+{
+public:
+  PosixTime time;
+  std::string text;
+  TimeTextPair() : time(kGenericT0), text(""){}
+  TimeTextPair( const PosixTime tm, const std::string &tx) : time(tm),text(tx){}
+  bool operator<( const TimeTextPair &lhs ) const { return time < lhs.time; }
+  bool operator==( const TimeTextPair &lhs ) const { return (time==lhs.time && text==lhs.text); }
+  friend class boost::serialization::access;
+  template<class Archive>
+  void serialize( Archive &ar, const unsigned int ) { ar & time & text; }
+};//class TimeTextPair
+
 
 //lets find the amount of insulin to be taken between startTime
 //  and startTime & endTime such that when X->2% of it's max,
@@ -166,6 +180,11 @@ class NLSimple
 
     ConsentrationGraph m_predictedInsulinX;       //currently stored 10x what I use, bug waiting to happen, should be changed some time
     ConsentrationGraph m_predictedBloodGlucose;
+
+    //The below should be sorted always, although it is not implemented yet
+    TimeRangeVec m_doNotUseTimeRanges;
+    typedef std::vector< TimeTextPair > NotesVector;
+    NotesVector m_userNotes;
 
 
     PTimeVec m_startSteadyStateTimes;
@@ -329,15 +348,15 @@ class NLSimple
     typedef boost::function<bool (void)> ContinueFcn;
     typedef boost::function<void (double bestChi2)> Chi2CalbackFcn;
     double geneticallyOptimizeModel( double endPredChi2Weight,
-                                     TimeRangeVec timeRanges = TimeRangeVec(0),
+                                     TimeRangeVec timeRanges = EmptyTimeRangeVec,
                                      Chi2CalbackFcn genBestCallBackFcn = Chi2CalbackFcn(),
                                      ContinueFcn continueFcn = ContinueFcn() );
 
     double fitModelToDataViaMinuit2( double endPredChi2Weight,
-                                     TimeRangeVec timeRanges = TimeRangeVec(0) );
+                                     TimeRangeVec timeRanges = EmptyTimeRangeVec );
 
     DVec chi2DofStudy( double endPredChi2Weight,
-                             TimeRangeVec timeRanges = TimeRangeVec(0) ) const;
+                             TimeRangeVec timeRanges = EmptyTimeRangeVec ) const;
 
     // timeRanges -- the time range of events your fitting
     // paramaterV -- contains answers and starting values
@@ -562,7 +581,7 @@ std::vector<TObject *> getClarkeErrorGridObjs( const ConsentrationGraph &cmgsGra
 
 
 
-BOOST_CLASS_VERSION(NLSimple, 0)
+BOOST_CLASS_VERSION(NLSimple, 1)
 BOOST_CLASS_VERSION(EventDef, 0)
 
 

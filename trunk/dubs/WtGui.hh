@@ -30,6 +30,7 @@ class DubEventEntry;
 
 class DubUser;
 class UsersModel;
+class TimeTextPair;
 class ModelSettings;
 class WtConsGraphModel;
 class ConsentrationGraph;
@@ -39,10 +40,12 @@ class WtModelSettingsGui;
 class MemVariableSpinBox;
 class MemGuiTimeDate;
 
+class WtNotesTab;
 class NLSimplePtr;
 class NLSimpleDisplayModel;
 class WChartWithLegend;
 class WtGeneralArrayModel;
+class WtNotesVectorModel;
 
 namespace Wt
 {
@@ -55,6 +58,7 @@ namespace Wt
   class WTableView;
   class WLineEdit;
   class WDateTime;
+  class WTextArea;
   class WPopupMenu;
   class WTableView;
   class WTabWidget;
@@ -202,6 +206,7 @@ public:
     DateTimeSelect *getBeginTimePicker() { return m_bsBeginTimePicker; }
     DateTimeSelect *getEndTimePicker() { return m_bsEndTimePicker; }
 
+    void notesTabClickedCallback( int clickedINdex );
 
   private:
     //m_model should never be accessed in any situation where multithreaded
@@ -236,6 +241,8 @@ public:
     Wt::WTableView             *m_rawDataView;
     Wt::WPushButton            *m_delDataButton;
 
+    WtNotesTab                 *m_notesTab;
+
     std::vector<WtConsGraphModel*> m_inputModels;
 
 
@@ -265,10 +272,7 @@ class DubEventEntry : public Wt::WContainerWidget
   void typeChanged();
   void reset();
   void emitEntered();
-
-  void setTimeToNow();
   void setTimeToLastData();
-
 
 public:
   DubEventEntry( WtGui *wtguiparent, Wt::WContainerWidget *parent = NULL );
@@ -409,6 +413,42 @@ public:
   bool undefineCustomEvent( int index );
   void confirmUndefineCustomEventDialog(); //currently selected event type
 };//class WtCustomEventTab:
+
+
+class WtNotesTab : public Wt::WContainerWidget
+{
+protected:
+  WtGui                      *m_parentWtGui;
+  DateTimeSelect             *m_dateSelect;
+  WtNotesVectorModel         *m_model;
+  Wt::WTableView             *m_tableView;
+  Wt::WTextArea              *m_textArea;
+
+  TimeTextPair *m_beingEdited;  //this should really be replaced with an index to the point being edited
+                                //  as the pointer can change if an element is added/removed
+
+  Wt::WCheckBox   *m_saveCheckBox;
+  Wt::WPushButton *m_newNoteButton;
+  Wt::WPushButton *m_saveButton;
+  Wt::WPushButton *m_cancelButton;
+  Wt::WPushButton *m_deleteButton;
+
+
+public:
+  WtNotesTab( WtGui *wtGuiParent, Wt::WContainerWidget *parent = NULL );
+  virtual ~WtNotesTab(){}
+
+  void newEntry();
+  void cancelEdit();
+  void saveCurrent( const bool askUserFirst = true );
+  void removeCurrentEntry();
+  void handleSelectionChange();
+
+  void updateViewTable();
+  void userNavigatedToTab();
+};//class WtNotesTab : public Wt::WContainerWidget
+
+
 
 
 #endif // WTGUI_H

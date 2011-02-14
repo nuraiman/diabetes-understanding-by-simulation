@@ -53,17 +53,21 @@ class DateTimeSelect : public Wt::WContainerWidget
   void validate( bool emitChanged = false );
 
 public:
+  //If no initial time is given, will be set to current time
   DateTimeSelect( const std::string &label,
-                  const Wt::WDateTime &initialTime,
+                  const Wt::WDateTime &initialTime = Wt::WDateTime(),
                   Wt::WContainerWidget *parent = NULL );
+
   virtual ~DateTimeSelect();
 
   void set( const Wt::WDateTime &dateTime );
+  void setToCurrentTime();
   Wt::WDateTime dateTime() const;
   void setTop( const Wt::WDateTime &top );
   void setBottom( const Wt::WDateTime &bottom );
   const Wt::WDateTime &top() const;
   const Wt::WDateTime &bottom() const;
+
 
   Wt::Signal<> &changed();
   Wt::Signal<> &topBottomUpdated();

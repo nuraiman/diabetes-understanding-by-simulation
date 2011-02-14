@@ -14,6 +14,7 @@
 #include "boost/algorithm/string.hpp"
 #include <boost/thread/thread.hpp>
 #include <boost/thread/mutex.hpp>
+#include <boost/thread.hpp>
 
 #include <Wt/Dbo/backend/Sqlite3>
 #include <Wt/WApplication>
@@ -59,6 +60,8 @@
 #include <Wt/WPushButton>
 #include <Wt/WPanel>
 #include <Wt/WHBoxLayout>
+#include <Wt/WTextArea>
+#include <Wt/WMenuItem>
 
 #include "TH1.h"
 #include "TH1F.h"
@@ -172,7 +175,8 @@ WtGui::WtGui( const Wt::WEnvironment& env, DubUserServer &server )
   m_errorGridModel( NULL ),
   m_errorGridGraph( NULL ),
   m_rawDataView( NULL ),
-  m_delDataButton( NULL )
+  m_delDataButton( NULL ),
+  m_notesTab( NULL )
 {
   enableUpdates(true);
   setTitle( "dubs" );
@@ -583,9 +587,6 @@ void WtGui::init( const string username )
   WtModelSettingsGui *settings = new WtModelSettingsGui( &(modelPtr->m_settings) );
   m_tabs->addTab( settings, "Settings" );
 
-  syncDisplayToModel();
-  zoomToFullDateRange();
-
   Div *cgmsDataTableDiv = new Div( "cgmsDataTableDiv" );
   WGridLayout *cgmsDataTableLayout = new WGridLayout();
   cgmsDataTableDiv->setLayout( cgmsDataTableLayout );
@@ -682,8 +683,17 @@ void WtGui::init( const string username )
   layout->addWidget( dataEntry, WBorderLayout::South );
   dataEntry->entered().connect( boost::bind(&WtGui::addData, this, _1) );
 
+
+  //Create 'Notes' Tabs
+  m_notesTab = new WtNotesTab( this );
+  /*WMenuItem *tabItem = */m_tabs->addTab( m_notesTab, "Notes", WTabWidget::PreLoading );
+  m_tabs->currentChanged().connect( boost::bind( &WtGui::notesTabClickedCallback, this, _1 ) );
+
+  syncDisplayToModel();
+  zoomToFullDateRange();
   NLSimplePtr::resetCount( this );
 }//WtGui::init()
+
 
 
 void WtGui::delRawData( WTableView *view )
@@ -1051,6 +1061,7 @@ void WtGui::syncDisplayToModel()
   updateDataRange();
   m_bsGraph->update();
   foreach( WtConsGraphModel *model, m_inputModels ) model->refresh();
+  //m_notesTab->updateViewTable();
 }//void syncDisplayToModel()
 
 
@@ -1370,6 +1381,18 @@ void WtGui::setModelFileName( const std::string &fileName )
 }//void setModelFileName( const std::string &fileName )
 
 
+void WtGui::notesTabClickedCallback( int clickedINdex )
+{
+  const int notesTabIndex = m_tabs->indexOf(m_notesTab);
+
+  if( clickedINdex != notesTabIndex )
+  {
+    m_notesTab->saveCurrent();
+    return;
+  }//if( clickedINdex != notesTabIndex )
+
+  m_notesTab->userNavigatedToTab();
+}//void notesTabClickedCallback(int);
 
 
 
@@ -1400,7 +1423,8 @@ DubEventEntry::DubEventEntry( WtGui *wtguiparent, WContainerWidget *parent )
   WPushButton *lastTimeB = new WPushButton( "data end", timeSelectDiv );
   nowB->setStyleClass( "dubEventEntryTimeButton" );
   lastTimeB->setStyleClass( "dubEventEntryTimeButton" );
-  nowB->clicked().connect( this, &DubEventEntry::setTimeToNow );
+  nowB->clicked().connect( m_time, &DateTimeSelect::setToCurrentTime );
+
   lastTimeB->clicked().connect( this, &DubEventEntry::setTimeToLastData );
 
   m_saveModel->setCheckState( Checked );
@@ -1504,11 +1528,6 @@ void DubEventEntry::reset()
   m_customTypes->setHidden(true);
 }//void DubEventEntry::reset()
 
-
-void DubEventEntry::setTimeToNow()
-{
-  m_time->set( WDateTime::fromPosixTime(boost::posix_time::second_clock::local_time()) );
-}//void setTimeToNow()
 
 
 void DubEventEntry::setTimeToLastData()
@@ -1830,7 +1849,7 @@ void WtModelSettingsGui::init()
   column = (row==0) ? column + 2: column;
 
 
-  sb = new IntSpinBox( &(m_settings->m_minFingerStickForCharacterization), "", "", 0.0, 50 );
+  sb = new IntSpinBox( &(m_settings->m_minFingerStickForCharacterization), "", "", 0.0, 5000 );
   layout->addWidget( new WText("Min FS 4 CGMS Charac"), row, column, 1, 1, AlignRight );
   layout->addWidget( sb, row, column+1, 1, 1, AlignLeft );
   m_memVarSpinBox.push_back( sb );
@@ -2584,5 +2603,283 @@ bool WtCustomEventTab::undefineCustomEvent( int recordType )
   return status;
 }//bool undefineCustomEvent( int recordType )
 
+
+
+
+WtNotesTab::WtNotesTab( WtGui *wtGuiParent, Wt::WContainerWidget *parent )
+  : WContainerWidget( parent ),
+    m_parentWtGui( wtGuiParent ),
+    m_dateSelect( new DateTimeSelect( "Note Date/Time:" ) ),
+    m_model( new WtNotesVectorModel( m_parentWtGui, this ) ),
+    m_tableView( new WTableView() ),
+    m_textArea( new WTextArea() ),
+    m_beingEdited( NULL ),
+    m_saveCheckBox( new WCheckBox( "Auto save to disk upon edit" ) ),
+    m_newNoteButton( new WPushButton( "New Note" ) ),
+    m_saveButton( new WPushButton( "Update Current" ) ),
+    m_cancelButton( new WPushButton( "Cancel Edit" ) ),
+    m_deleteButton( new WPushButton( "Delete Selected" ) )
+{
+  WGridLayout *layout = new WGridLayout();
+  setLayout( layout );
+
+  m_saveCheckBox->setChecked();
+
+  Div *header = new Div();
+  new WText( "On this tab you can enter notes for yourself about anything "
+             "you&apos;de like:&nbsp;&nbsp;&nbsp;", XHTMLUnsafeText, header );
+//  header->addWidget( m_saveCheckBox );
+  layout->addWidget( header, 0, 0, 1, 1, AlignTop | AlignLeft );
+  layout->setRowStretch( 0, 0 );
+
+  m_tableView->setModel( m_model );
+  m_tableView->setStyleClass( m_tableView->styleClass() + " WtNotesTabTableView" );
+  m_tableView->setSelectable(true);
+  m_tableView->setSelectionBehavior( SelectRows );
+  m_tableView->setSelectionMode( SingleSelection );
+  m_tableView->setAlternatingRowColors( true );
+  m_tableView->setColumnResizeEnabled(true);
+  m_tableView->setColumnWidth( 1, WLength( 30, WLength::FontEx ) );
+  m_tableView->setSortingEnabled( false );
+  m_tableView->selectionChanged().connect( this, &WtNotesTab::handleSelectionChange );
+  layout->addWidget( m_tableView, 1, 0, 1, 1  );
+  layout->setRowStretch( 1, 5 );
+
+
+  //m_deleteButton->setFloatSide( Right );
+  m_deleteButton->setHiddenKeepsGeometry(true);
+  m_deleteButton->clicked().connect( this, &WtNotesTab::removeCurrentEntry );
+  layout->addWidget( m_deleteButton, 2, 0, 1, 1, AlignTop | AlignLeft );
+  layout->setRowStretch( 2, 0 );
+
+  Div *timestampDiv = new Div();
+  WPushButton *nowButton = new WPushButton( "Set to Now" );
+  timestampDiv->addWidget( m_dateSelect );
+  timestampDiv->addWidget( nowButton );
+
+  nowButton->clicked().connect( m_dateSelect, &DateTimeSelect::setToCurrentTime );
+  layout->addWidget( timestampDiv, 3, 0, 1, 1, AlignTop | AlignLeft );
+  layout->setRowStretch( 3, 0 );
+
+  layout->addWidget( m_textArea, 4, 0, 1, 1 );
+  layout->setRowStretch( 4, 10 );
+
+  Div *buttonDiv = new Div();
+  m_newNoteButton->clicked().connect( this, &WtNotesTab::newEntry );
+  m_saveButton->clicked().connect( boost::bind( &WtNotesTab::saveCurrent, this, false ) );
+  m_cancelButton->clicked().connect( this, &WtNotesTab::cancelEdit );
+  buttonDiv->addWidget( m_newNoteButton );
+  buttonDiv->addWidget( m_saveButton );
+  buttonDiv->addWidget( m_cancelButton );
+  buttonDiv->addWidget( new WText( "&nbsp;&nbsp;&nbsp;", XHTMLUnsafeText) );
+  buttonDiv->addWidget( m_saveCheckBox );
+
+  layout->addWidget( buttonDiv, 5, 0, 1, 1, AlignTop | AlignLeft );
+  layout->setRowStretch( 5, 0 );
+}//WtNotesTab constructor
+
+void WtNotesTab::newEntry()
+{
+  saveCurrent();
+  m_beingEdited = NULL;
+
+  m_saveButton->enable();
+  m_saveButton->setHidden( false );
+
+  m_newNoteButton->enable();
+  m_newNoteButton->setHidden( false );
+
+  m_cancelButton->enable();
+  m_cancelButton->setHidden( false );
+
+  m_deleteButton->disable();
+  m_deleteButton->setHidden( true );
+
+  m_textArea->setText( "" );
+  m_dateSelect->setToCurrentTime();
+  m_tableView->setSelectedIndexes( WModelIndexSet() );
+}//void WtNotesTab::newEntry()
+
+
+void WtNotesTab::cancelEdit()
+{
+  if( !m_beingEdited )
+  {
+    m_dateSelect->setToCurrentTime();
+    m_textArea->setText( "" );
+    return;
+  }//if( !m_beingEdited )
+
+  m_dateSelect->set( WDateTime::fromPosixTime(m_beingEdited->time) );
+  m_textArea->setText( m_beingEdited->text );
+}//void WtNotesTab::cancelEdit()
+
+
+void WtNotesTab::saveCurrent( const bool askUserFirst )
+{
+  const PosixTime time = m_dateSelect->dateTime().toPosixTime();
+  const string text = m_textArea->text().narrow();
+
+  if( m_beingEdited )
+  {
+    const bool textIsSame = ( text == m_beingEdited->text );
+    const bool timeIsSame = ( (time - m_beingEdited->time) <= boost::posix_time::minutes(1) );
+    if( textIsSame && timeIsSame ) return;
+  }else if( text == "" ) return;
+
+  if( askUserFirst )
+  {
+    WDialog dialog( "Save Current Note?" );
+    new WText("Would you like to save changes to current note?", dialog.contents() );
+    new WBreak( dialog.contents() );
+    WPushButton *yes = new WPushButton(  "Yes", dialog.contents() );
+    WPushButton *no = new WPushButton(  "No", dialog.contents() );
+    yes->clicked().connect( &dialog, &WDialog::accept );
+    no->clicked().connect( &dialog, &WDialog::reject );
+    WDialog::DialogCode code = dialog.exec();
+
+    if( code == WDialog::Rejected ) return;
+  }//if( !forceSave )
+
+  if( !m_beingEdited )
+  {
+    if( text == "" ) return;
+    NLSimple::NotesVector::iterator pos = m_model->addRow( time, text );
+    m_beingEdited = &(*pos);
+    WModelIndexSet indset;
+    indset.insert( m_model->index( pos ) );
+    m_tableView->setSelectedIndexes( indset );
+    if( m_saveCheckBox->isChecked() ) m_parentWtGui->saveCurrentModel();
+    return;
+  }//if( !m_beingEdited )
+
+  //if we made it here we are editing a pre-existing note, with the date
+  //  having been changed
+  const bool timeIsSame = ( (time - m_beingEdited->time) <= boost::posix_time::minutes(1) );
+  if( timeIsSame )
+  {
+    m_beingEdited->text = text;
+    if( m_saveCheckBox->isChecked() ) m_parentWtGui->saveCurrentModel();
+    return;
+  }//if( timeIsSame )
+
+  //First delete the current entry, then insert a new one
+  m_model->removeRow( m_beingEdited );
+  NLSimple::NotesVector::iterator pos = m_model->addRow( time, text );
+  m_beingEdited = &(*pos);
+  WModelIndexSet indset;
+  indset.insert( m_model->index( pos ) );
+  m_tableView->setSelectedIndexes( indset );
+  if( m_saveCheckBox->isChecked() ) m_parentWtGui->saveCurrentModel();
+}//void WtNotesTab::saveCurrent()
+
+
+void WtNotesTab::removeCurrentEntry()
+{
+  const WModelIndexSet selected = m_tableView->selectedIndexes();
+  if( selected.empty() ) assert( !m_beingEdited );
+  if( selected.empty() ) return;
+
+  assert( m_beingEdited );
+
+  const WModelIndex selectedIndex = *(selected.begin());
+  assert( selectedIndex.isValid() );
+  const boost::any selectedTime = m_model->data( selectedIndex );
+  WDateTime dateTime;
+  try{ dateTime = boost::any_cast<WDateTime>( selectedTime ); }
+  catch(...){ assert(0); }
+  assert( m_beingEdited->time == dateTime.toPosixTime() );
+
+  WDialog dialog( "Confirmation" );
+  const WString text = "Are you sure you would like to delete the note from "
+                       + dateTime.toString() + "?";
+  new WText( text, dialog.contents() );
+  new WBreak( dialog.contents() );
+  WPushButton *yes = new WPushButton(  "Yes", dialog.contents() );
+  WPushButton *no = new WPushButton(  "No", dialog.contents() );
+  yes->clicked().connect( &dialog, &WDialog::accept );
+  no->clicked().connect( &dialog, &WDialog::reject );
+  WDialog::DialogCode code = dialog.exec();
+
+  if( code == WDialog::Rejected ) return;
+
+  m_model->removeRow( m_beingEdited );
+  m_beingEdited = NULL;
+
+  m_textArea->setText( "" );
+  m_dateSelect->setToCurrentTime();
+  m_tableView->setSelectedIndexes( WModelIndexSet() );
+
+  m_deleteButton->disable();
+  m_deleteButton->setHidden( true );
+}//void WtNotesTab::removeCurrentEntry()
+
+
+void WtNotesTab::handleSelectionChange()
+{
+  //problem: at the end of this function we re-select the row of m_tableView
+  //         the user intended, incase we inserted a row  when we call
+  //         saveCurrent(); when we re-select the row, we recursively call
+  //         this function, so we need a mutex to make sure we don't mess
+  //         things up.
+
+  //make sure only one thread at a time can access this function
+  NLSimplePtr dummyPtrForMutex( m_parentWtGui );
+
+  //now make sure this thread can only access this function one time
+  static boost::mutex mymutex;
+  boost::mutex::scoped_lock mylock( mymutex, boost::try_to_lock );
+  if( !mylock ) return;
+
+  const WModelIndexSet selected = m_tableView->selectedIndexes();
+
+  if( selected.empty() )
+  {
+    m_beingEdited = NULL;
+    m_textArea->setText( "" );
+    m_dateSelect->setToCurrentTime();
+    m_deleteButton->disable();
+    m_deleteButton->setHidden( true );
+    return;
+  }//if( selected.empty() )
+
+  WModelIndex selectedIndex = *(selected.begin());
+  assert( selectedIndex.isValid() );
+  const TimeTextPair newlySelected = *(m_model->dataPointer( selectedIndex ));
+
+  saveCurrent();
+
+  m_beingEdited = m_model->find( newlySelected );
+  assert( m_beingEdited );
+
+  m_deleteButton->enable();
+  m_deleteButton->setHidden( false );
+
+  m_textArea->setText( m_beingEdited->text );
+  m_dateSelect->set( WDateTime::fromPosixTime(m_beingEdited->time) );
+
+  //Now incase saveCurrent() inserted a row into the model, make sure
+  //  the desired row is selected
+  selectedIndex = m_model->index( m_beingEdited );
+
+  WModelIndexSet selectedSet;
+  selectedSet.insert( selectedIndex );
+  m_tableView->setSelectedIndexes( selectedSet );
+
+  m_deleteButton->enable();
+  m_deleteButton->setHidden( false );
+}//void WtNotesTab::handleSelectionChange()
+
+void WtNotesTab::updateViewTable()
+{
+  //What did I want this function to do?
+  m_model->refresh();
+}//void WtNotesTab::updateViewTable()
+
+void WtNotesTab::userNavigatedToTab()
+{
+  //What did I want this function to do?
+  //const WModelIndexSet selected = m_tableView->selectedIndexes();
+}//void WtNotesTab::userNavigatedToTab()
 
 

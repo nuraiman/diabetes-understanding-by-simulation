@@ -21,7 +21,8 @@
 #include <boost/serialization/set.hpp>
 #include <boost/serialization/vector.hpp>
 #include <boost/serialization/version.hpp>
-
+#include "boost/date_time/posix_time/time_serialize.hpp"
+#include "boost/date_time/gregorian/greg_serialize.hpp"
 
 #include "ArtificialPancrease.hh" //contains useful typedefs and constants
 
@@ -296,6 +297,24 @@ class ConsentrationGraph : public GraphElementSet
 };//class ConsentrationGraph
 
 BOOST_CLASS_VERSION(ConsentrationGraph, 0)
+
+
+template<class Archive>
+void GraphElement::serialize( Archive &ar, const unsigned int /*version*/ )
+{
+  ar & m_time & m_value;
+}//serialize
+
+template<class Archive>
+void ConsentrationGraph::serialize( Archive &ar, const unsigned int /*version*/ )
+{
+  ar & m_t0;
+  ar & m_dt;
+  ar & m_yOffsetForDrawing;
+  ar & m_graphType;
+  ar & boost::serialization::base_object< GraphElementSet >(*this);
+}//serialize
+
 
 
 #endif //CONSENTRATION_GRAPH_HH

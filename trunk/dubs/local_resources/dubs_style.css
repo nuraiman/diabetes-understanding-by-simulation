@@ -126,6 +126,12 @@ br.Wt-tabs-clear
 {
 }
 
+.WtNotesTabTableView
+{
+  border: solid 2px #D5D8E2;
+  margin-left: 20px;
+  width: 60ex;
+}
 
 .newUserTextDiv
 {

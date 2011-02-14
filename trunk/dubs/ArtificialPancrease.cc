@@ -57,8 +57,7 @@ void testKineticModels();
 void saveMar31ThorughApr7GraphsToDisk();
 
 
-
-int _main( int argc, char** argv )
+int _main( int /*argc*/, char** /*argv*/ )
 {
     return 1;
   using namespace boost;

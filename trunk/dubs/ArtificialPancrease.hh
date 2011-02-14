@@ -23,7 +23,8 @@ typedef boost::posix_time::ptime          PosixTime;
 typedef boost::posix_time::time_duration  TimeDuration;
 typedef std::vector<PosixTime>            PTimeVec;
 typedef std::vector<TimeDuration>         PTimeDurationVec;
-typedef std::pair<PosixTime, PosixTime>   TimeRange;
+typedef boost::posix_time::time_period    TimeRange;
+//typedef std::pair<PosixTime, PosixTime>   TimeRange;
 typedef std::vector<TimeRange>            TimeRangeVec;
 
 //A typedef for functions that take only one argument
@@ -36,10 +37,16 @@ typedef boost::function< double(const PosixTime &time) > PTimeForcingFunction;
 typedef boost::function< DVec (double x, DVec y) > RK_DerivFuntion;
 typedef boost::function< DVec (const PosixTime &time, const DVec &yi) > RK_PTimeDFunc;
 
+inline bool lessThan( const boost::posix_time::time_period &l,
+                     const boost::posix_time::time_period &r )
+                     { return l.begin() < r.begin(); }
+
 
 const PosixTime kGenericT0( boost::gregorian::date(1982,
                             boost::gregorian::Jul, 28),
                             TimeDuration( 0, 0, 0, 0) );
+const TimeRange kInvalidTimeRange( kGenericT0, TimeDuration( 0, 0, 0, -1) );
+#define EmptyTimeRangeVec TimeRangeVec(0,TimeRange(kGenericT0,kGenericT0))
 
 const PosixTime kTGraphStartTime( boost::gregorian::date(2008,
                                   boost::gregorian::Jan, 1),

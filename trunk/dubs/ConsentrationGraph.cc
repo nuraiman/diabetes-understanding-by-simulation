@@ -37,8 +37,7 @@
 #include "boost/algorithm/string/trim.hpp"
 #include "boost/date_time/gregorian/gregorian.hpp"
 #include "boost/date_time/posix_time/posix_time.hpp"
-#include "boost/date_time/posix_time/time_serialize.hpp"
-#include "boost/date_time/gregorian/greg_serialize.hpp"
+
 
 #include "boost/foreach.hpp"
 #include "boost/assign/list_of.hpp" //for 'list_of()'
@@ -69,15 +68,7 @@ GraphElement::GraphElement( const PosixTime &time, double value ) :
      m_time(time), m_value(value)
 {}
 
-template<class Archive>
-void GraphElement::serialize( Archive &ar, const unsigned int version )
-{
-  unsigned int ver = version; //keep compiler from complaining
-  ver = ver;
 
-  ar & m_time;
-  ar & m_value;
-}//serialize
 
 
 bool GraphElement::operator<( const GraphElement &lhs ) const
@@ -1601,18 +1592,7 @@ TGraph* ConsentrationGraph::draw( string options,
 
 
 
-template<class Archive>
-void ConsentrationGraph::serialize( Archive &ar, const unsigned int version )
-{
-  unsigned int ver = version; //keep compiler from complaining
-  ver = ver;
 
-  ar & m_t0;
-  ar & m_dt;
-  ar & m_yOffsetForDrawing;
-  ar & m_graphType;
-  ar & boost::serialization::base_object< GraphElementSet >(*this);
-}//serialize
 
 
 
