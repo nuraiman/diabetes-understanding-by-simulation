@@ -99,7 +99,8 @@ DateTimeSelect::DateTimeSelect( const std::string &labelText,
   addWidget( new WText(":") );
   addWidget( m_minuteSelect );
 
-  set( initialTime );
+  if( initialTime.isValid() ) set( initialTime );
+  else                        setToCurrentTime();
 }//DateTimeSelect constructor
 
 DateTimeSelect::~DateTimeSelect(){}
@@ -117,6 +118,10 @@ void DateTimeSelect::set( const Wt::WDateTime &dt )
   //validate();
 }//void set( const Wt::WDateTime *dateTime )
 
+void DateTimeSelect::setToCurrentTime()
+{
+  set(WDateTime::fromPosixTime(boost::posix_time::second_clock::local_time()));
+}
 
 Wt::WDateTime DateTimeSelect::dateTime() const
 {

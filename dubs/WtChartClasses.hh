@@ -146,7 +146,6 @@ public:
 
 class WtConsGraphModel : public Wt::WAbstractItemModel
 {
-
   WtGui *m_wApp;
   NLSimple::DataGraphs m_column;
 
@@ -166,6 +165,73 @@ public:
   virtual void refresh();
   NLSimple::DataGraphs type() const { return m_column; }
 };//class WtGeneralArrayModel
+
+
+//TODO: WtConsGraphModel WtNotesVectorModel (and maybe WtTimeRangeVecModel)
+//      could be combined into one (templated class) via something like the
+//      following but where the data() funtion is template specialized
+// template <class vectorType>
+//class WtVectorModel : public Wt::WAbstractItemModel
+//{
+//  WtGui *m_wApp;
+//  ptrdiff_t m_mOffset;
+ //..
+//};//class WtVectorModel : public Wt::WAbstractItemModel
+
+
+class WtTimeRangeVecModel : public Wt::WAbstractItemModel
+{
+  //A class to show a NLSimple::m_doNotUseTimeRanges object
+  //  that is of type std::vector<boost::posix_time::time_period>
+  WtGui *m_wApp;
+
+public:
+  WtTimeRangeVecModel( WtGui *app, Wt::WObject *parent = 0  );
+  virtual int columnCount( const Wt::WModelIndex& parent = Wt::WModelIndex() ) const;
+  virtual int rowCount( const Wt::WModelIndex& parent = Wt::WModelIndex() ) const;
+  virtual Wt::WModelIndex parent( const Wt::WModelIndex& index) const;
+  virtual boost::any data( const Wt::WModelIndex& index, int role = Wt::DisplayRole) const;
+  virtual Wt::WModelIndex index( int row, int column, const Wt::WModelIndex& parent = Wt::WModelIndex() ) const;
+  virtual boost::any headerData( int section,
+                                 Wt::Orientation orientation = Wt::Horizontal,
+                                 int role = Wt::DisplayRole ) const;
+  virtual bool removeRows( int row, int count,
+                           const Wt::WModelIndex& parent = Wt::WModelIndex() );
+  bool addRow( const PosixTime &start, const PosixTime &end );
+  virtual void refresh();
+};//class WtTimeRangeVecModel
+
+
+
+class WtNotesVectorModel : public Wt::WAbstractItemModel
+{
+  //A class to show/add-to/edit a NLSimple::m_userNotes object that
+  //  is of type std::vector<TimeTextPair>
+  WtGui *m_wApp;
+
+  static const size_t sm_maxStrLen = 25;
+
+public:
+  WtNotesVectorModel( WtGui *app, Wt::WObject *parent = 0  );
+  virtual int columnCount( const Wt::WModelIndex& parent = Wt::WModelIndex() ) const;
+  virtual int rowCount( const Wt::WModelIndex& parent = Wt::WModelIndex() ) const;
+  virtual Wt::WModelIndex parent( const Wt::WModelIndex& index) const;
+  virtual boost::any data( const Wt::WModelIndex& index, int role = Wt::DisplayRole) const;
+  virtual Wt::WModelIndex index( int row, int column, const Wt::WModelIndex& parent = Wt::WModelIndex() ) const;
+  size_t vectorIndex( TimeTextPair *pos );
+  Wt::WModelIndex index( TimeTextPair *ptr );
+  Wt::WModelIndex index( NLSimple::NotesVector::iterator iter );
+  virtual boost::any headerData( int section,
+                                 Wt::Orientation orientation = Wt::Horizontal,
+                                 int role = Wt::DisplayRole ) const;
+  virtual bool removeRows( int row, int count,
+                           const Wt::WModelIndex& parent = Wt::WModelIndex() );
+  bool removeRow( TimeTextPair *toBeRemoved );
+  TimeTextPair *find( const TimeTextPair &data );
+  TimeTextPair *dataPointer( const Wt::WModelIndex &index );
+  NLSimple::NotesVector::iterator addRow( const PosixTime &time, const std::string &text );
+  virtual void refresh();
+};//class WtNotesVectorModel
 
 
 #endif // WTCHARTCLASSES_HH

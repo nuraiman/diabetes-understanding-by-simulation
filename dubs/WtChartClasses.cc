@@ -346,7 +346,7 @@ int NLSimpleDisplayModel::begginingRow( NLSimple::DataGraphs wantedColumn )
     ConsentrationGraph &data = diabeticModel->dataGraph( column );
 
     const size_t dataSize = !isScaledColum ? data.size()
-                            : ((data.getEndTime() - data.getStartTime()).total_seconds()
+                            : static_cast<size_t>((data.getEndTime() - data.getStartTime()).total_seconds()
                                   / sm_plasmaInsulinDt.total_seconds());
     row_n += dataSize;
   }//for( loop over columns )
@@ -418,7 +418,7 @@ bool NLSimpleDisplayModel::removeRows( int row, int count, const WModelIndex & )
     ConsentrationGraph &data = diabeticModel->dataGraph( column );
 
     const size_t dataSize = !isScaledColum ? data.size()
-                            : ((data.getEndTime() - data.getStartTime()).total_seconds()
+                            : static_cast<size_t>((data.getEndTime() - data.getStartTime()).total_seconds()
                                   / sm_plasmaInsulinDt.total_seconds());
 
     const bool inThisData = ((row_n+dataSize) > static_cast<size_t>(row));
@@ -721,5 +721,216 @@ bool WtConsGraphModel::removeRow( const boost::posix_time::ptime &t )
   endRemoveRows();
   return true;
 }//removeRows
+
+
+//Implementation of WtTimeRangeVecModel is incredably brief/dense since I plan
+//  to rempliment all std::vector based models more elegantly
+WtTimeRangeVecModel::WtTimeRangeVecModel( WtGui *app, Wt::WObject *parent )
+  : WAbstractItemModel( parent ), m_wApp( app ){}
+int WtTimeRangeVecModel::columnCount( const WModelIndex& ) const{ return 2; }
+int WtTimeRangeVecModel::rowCount( const WModelIndex& ) const
+{ return static_cast<int>( NLSimplePtr(m_wApp)->m_doNotUseTimeRanges.size() ); }
+WModelIndex WtTimeRangeVecModel::parent( const WModelIndex& ) const { return WModelIndex(); }
+boost::any WtTimeRangeVecModel::data( const Wt::WModelIndex& index, int role ) const
+{
+  if( role != Wt::DisplayRole ) return boost::any();
+  NLSimplePtr ptr( m_wApp );
+  const TimeRangeVec &g = ptr->m_doNotUseTimeRanges;
+  const int row = index.row(), column = index.column();
+  if( row < 0 || column < 0 || size_t(row) >= g.size() || column >= 2 ) return boost::any();
+  if( column == 0 ) return boost::any( WDateTime::fromPosixTime(g[row].begin()) );
+  return boost::any( WDateTime::fromPosixTime(g[row].end()) );
+}//data
+Wt::WModelIndex WtTimeRangeVecModel::index( int row, int column, const Wt::WModelIndex& ) const
+{
+  NLSimplePtr ptr( m_wApp );
+  const TimeRangeVec &g = ptr->m_doNotUseTimeRanges;
+  if( row < 0 || column < 0 || size_t(row) >= g.size() || column >= 2 ) return WModelIndex();
+  return WAbstractItemModel::createIndex( row, column, (void *)this );
+}//indsx(...)
+boost::any WtTimeRangeVecModel::headerData( int section, Orientation orientation, int role  ) const
+{
+  if( role == LevelRole ) return 0;
+  if( orientation != Horizontal || role != DisplayRole ) return WAbstractItemModel::headerData( section, orientation, role );
+  if( !section ) return boost::any( WString("Start Time") );
+  return boost::any( WString("End Time") );
+}//headder data
+bool WtTimeRangeVecModel::removeRows( int row, int count, const Wt::WModelIndex& )
+{
+  beginRemoveRows( WModelIndex(), row, row+count-1 );
+  NLSimplePtr ptr( m_wApp );
+  TimeRangeVec &g = ptr->m_doNotUseTimeRanges;
+
+  TimeRangeVec times;
+  for( int r = row; r < (row+count); ++r ) times.push_back( g[r] );
+  for( size_t i=0; i<times.size(); ++i) g.erase( std::find( g.begin(), g.end(), times[i] ) );
+  endRemoveRows();
+  return true;
+}//removeRows
+bool WtTimeRangeVecModel::addRow( const PosixTime &start, const PosixTime &end )
+{
+  const TimeRange r(start,end);
+  NLSimplePtr ptr( m_wApp );
+  TimeRangeVec &g = ptr->m_doNotUseTimeRanges;
+  TimeRangeVec::iterator pos = std::lower_bound( g.begin(), g.end(), r, &lessThan );
+  if( pos!=g.end() && pos->begin()==start && pos->end()==end ) return false;
+  g.insert( pos, r );
+  return true;
+}//addRow
+void WtTimeRangeVecModel::refresh()
+{
+  beginRemoveRows	(	WModelIndex(), 0, rowCount() ); endRemoveRows();
+  beginInsertRows( WModelIndex(), 0, rowCount() ); endInsertRows();
+}//void refresh()
+
+
+//Implementation of WtNotesVectorModel is incredably brief/dense since I plan
+//  to rempliment all std::vector based models more elegantly
+WtNotesVectorModel::WtNotesVectorModel( WtGui *app, WObject *parent )
+    : WAbstractItemModel( parent ), m_wApp( app ){}
+int WtNotesVectorModel::columnCount( const Wt::WModelIndex& ) const{ return 2; }
+int WtNotesVectorModel::rowCount( const Wt::WModelIndex& ) const
+{ return static_cast<int>( NLSimplePtr(m_wApp)->m_userNotes.size() ); }
+WModelIndex WtNotesVectorModel::parent( const Wt::WModelIndex& ) const{ return WModelIndex(); }
+boost::any WtNotesVectorModel::data( const Wt::WModelIndex& index, int role ) const
+{
+  if( role != Wt::DisplayRole ) return boost::any();
+  NLSimplePtr ptr( m_wApp );
+  const NLSimple::NotesVector &g = ptr->m_userNotes;
+  const int row = index.row(), column = index.column();
+  if( row < 0 || column < 0 || size_t(row) >= g.size() || column >= 2 ) return boost::any();
+  if( column == 0 ) return boost::any( WDateTime::fromPosixTime(g[row].time) );
+  string text = g[row].text;
+  if( text.size() > sm_maxStrLen ) text = text.substr( 0, sm_maxStrLen );
+  return boost::any( WString(text) );
+}//data
+Wt::WModelIndex WtNotesVectorModel::index( int row, int column, const Wt::WModelIndex&) const
+{
+  NLSimplePtr ptr( m_wApp );
+  const NLSimple::NotesVector &g = ptr->m_userNotes;
+  if( row < 0 || column < 0 || size_t(row) >= g.size() || column >= 2 ) return WModelIndex();
+  return WAbstractItemModel::createIndex( row, column, (void *)this );
+}//indsx(...)
+boost::any WtNotesVectorModel::headerData( int section, Orientation orientation, int role ) const
+{
+  if( role == LevelRole ) return 0;
+  if( orientation != Horizontal || role != DisplayRole ) return WAbstractItemModel::headerData( section, orientation, role );
+  if( !section ) return boost::any( WString("Time") );
+  return boost::any( WString("Notes") );
+}//headder data
+bool WtNotesVectorModel::removeRows( int row, int count, const WModelIndex& )
+{
+  beginRemoveRows( WModelIndex(), row, row+count-1 );
+  NLSimplePtr ptr( m_wApp );
+  NLSimple::NotesVector &g = ptr->m_userNotes;
+
+  NLSimple::NotesVector toDelete;
+  for( int r = row; r < (row+count); ++r ) toDelete.push_back( g[r] );
+  for( size_t i=0; i<toDelete.size(); ++i) g.erase( std::find( g.begin(), g.end(), toDelete[i] ) );
+  endRemoveRows();
+  return true;
+}
+size_t WtNotesVectorModel::vectorIndex( TimeTextPair *pos )
+{
+  NLSimplePtr ptr( m_wApp );
+  NLSimple::NotesVector &g = ptr->m_userNotes;
+  if( g.empty() ) return g.size();
+  const TimeTextPair *start = &(g[0]);
+  const TimeTextPair *last = &(g[g.size()-1]);
+  assert( pos>=start && pos<=last );
+  return pos-start;
+}//size_t vectorIndex( TimeTextPair *pos )
+
+Wt::WModelIndex WtNotesVectorModel::index( NLSimple::NotesVector::iterator iter )
+{
+  NLSimplePtr ptr( m_wApp );
+  NLSimple::NotesVector &g = ptr->m_userNotes;
+  if( g.empty() ) return WModelIndex();
+  if( iter < g.begin() ) return WModelIndex();
+  if( iter >= g.end() ) return WModelIndex();
+
+  return index( iter-g.begin(), 0 );
+}//WModelIndex index( NLSimple::NotesVector::iterator iter );
+Wt::WModelIndex WtNotesVectorModel::index( TimeTextPair *ttptr )
+{
+  NLSimplePtr ptr( m_wApp );
+  NLSimple::NotesVector &g = ptr->m_userNotes;
+  const size_t ind = vectorIndex( ttptr );
+  return index( g.begin() + ind );
+}//Wt::WModelIndex WtNotesVectorModel::index( const TimeTextPair *ptr )
+TimeTextPair *WtNotesVectorModel::dataPointer( const WModelIndex &index )
+{
+  NLSimplePtr ptr( m_wApp );
+  NLSimple::NotesVector &g = ptr->m_userNotes;
+  if( g.empty() ) return NULL;
+  const int row = index.row();
+  if( row < 0 || static_cast<size_t>(row)>=g.size() ) return NULL;
+  return &(g[row]);
+}//NLSimple::NotesVector *WtNotesVectorModel::dataPointer( const WModelIndex &index )
+TimeTextPair *WtNotesVectorModel::find( const TimeTextPair &data )
+{
+  NLSimplePtr ptr( m_wApp );
+  NLSimple::NotesVector &g = ptr->m_userNotes;
+  NLSimple::NotesVector::iterator pos = std::find( g.begin(), g.end(), data );
+  if( pos == g.end() ) return NULL;
+  return &(*pos);
+}//TimeTextPair *WtNotesVectorModel::find( const TimeTextPair &data )
+bool WtNotesVectorModel::removeRow( TimeTextPair *toBeRemoved )
+{
+  NLSimplePtr ptr( m_wApp );
+  NLSimple::NotesVector &g = ptr->m_userNotes;
+  const size_t index = vectorIndex( toBeRemoved );
+
+  beginRemoveRows( WModelIndex(), index, index );
+
+  assert( index < g.size() );
+  TimeTextPair removed = g[index];
+  cerr << "WtNotesVectorModel::removeRow(): Removing index=" << index
+       << " with time='" << removed.time << "' and text='" << removed.text
+       << "'" << endl;
+  g.erase( g.begin()+index );
+
+  endRemoveRows();
+
+  return true;
+}//bool WtNotesVectorModel::removeRow( TimeTextPair *toBeRemoved )
+
+NLSimple::NotesVector::iterator WtNotesVectorModel::addRow( const PosixTime &time, const std::string &text )
+{
+  const TimeTextPair r(time,text);
+  NLSimplePtr ptr( m_wApp );
+  NLSimple::NotesVector &g = ptr->m_userNotes;
+  NLSimple::NotesVector::iterator pos = std::lower_bound( g.begin(), g.end(), r );
+  if( pos!=g.end() && pos->time==time && pos->text==text ) return g.end();
+
+  int newInd = pos-g.begin();
+
+  cerr << "pos=" << pos-g.begin() << endl;
+
+  beginInsertRows( WModelIndex(), newInd, 1 );
+
+  g.insert( pos, r );
+
+  endInsertRows();
+
+  NLSimple::NotesVector::iterator newPos = std::find( g.begin(), g.end(), r );
+
+  cerr << "newPos=" << newPos-g.begin() << endl;
+
+  assert( newPos->text==text );
+  assert( newPos->time==time );
+
+  return newPos;
+}
+void WtNotesVectorModel::refresh()
+{
+  beginRemoveRows	(	WModelIndex(), 0, rowCount() ); endRemoveRows();
+  beginInsertRows( WModelIndex(), 0, rowCount() ); endInsertRows();
+}//void refresh()
+
+
+
+
+
 
 
