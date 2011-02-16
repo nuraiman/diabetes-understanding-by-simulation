@@ -86,7 +86,8 @@ ifeq ($(ARCH),macosx)
 # MacOS X with cc (GNU cc 2.95.2 and gcc 3.3)
 MACOSX_MINOR := $(shell sw_vers | sed -n 's/ProductVersion://p' | cut -d . -f 2)
 MACOSXTARGET := MACOSX_DEPLOYMENT_TARGET=10.$(MACOSX_MINOR)
-CXX           = g++
+#CXX           = g++
+CXX           = /usr/local/bin/clang++
 CXXFLAGS      = $(OPT2) -pipe -Wall -W -Woverloaded-virtual
 LD            = $(MACOSXTARGET) g++
 LDFLAGS       = $(OPT2)
@@ -114,7 +115,8 @@ ifeq ($(ARCH),macosx64)
 # Only specific option (-m64) comes from root-config
 MACOSX_MINOR := $(shell sw_vers | sed -n 's/ProductVersion://p' | cut -d . -f 2)
 MACOSXTARGET := MACOSX_DEPLOYMENT_TARGET=10.$(MACOSX_MINOR)
-CXX           = g++
+#CXX           = g++
+CXX           = /usr/local/bin/clang++
 CXXFLAGS      = $(OPT2) -pipe -Wall -W -Woverloaded-virtual
 LD            = $(MACOSXTARGET) g++
 LDFLAGS       = $(OPT2)
@@ -211,20 +213,14 @@ LDFLAGS      += $(ROOTLDFLAGS)
 LIBS          = $(ROOTGLIBS) $(SYSLIBS)
 
 
-ifneq ($(ALTCC),)
-   CC  = $(ALTCC)
-endif
-ifneq ($(ALTCXX),)
-   CXX = $(ALTCXX)
-endif
-ifneq ($(ALTF77),)
-   F77 = $(ALTF77)
-endif
-ifneq ($(ALTLD),)
-   LD  = $(ALTLD)
-endif
+#ifneq ($(ALTCXX),)
+#   CXX = $(ALTCXX)
+#endif
+#ifneq ($(ALTLD),)
+#   LD  = $(ALTLD)
+#endif
 
-CXX = /usr/local/bin/clang++
+
 
 CXXFLAGS += $(INCS) $(ADDINCS)
 

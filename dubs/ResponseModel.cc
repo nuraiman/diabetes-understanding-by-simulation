@@ -26,6 +26,7 @@
 //#include "TGraph2d.h"
 #include "TLegendEntry.h"
 #include "TApplication.h"
+#include "TMath.h"
 
 
 //Roots Minuit2 includes
@@ -798,22 +799,28 @@ void NLSimple::setModelParameters( const std::vector<double> &newPar )
   m_paramaters.clear();
   if( newPar.empty() ) return;
 
+  assert( newPar.size() >= NumNLSimplePars );
+
   //number of para
   size_t nParExp = NumNLSimplePars;
   foreach( const EventDefPair &et, m_customEventDefs )
   {
-    nParExp += et.second.getNPoints();
+    if( m_customEvents.hasValueNear( et.first ) )
+      nParExp += et.second.getNPoints();
   }//foreach( custom event def )
 
   assert( newPar.size() == nParExp || newPar.empty() );
 
-  m_paramaters.resize(nParExp);
+  //m_paramaters.resize(nParExp);
+  m_paramaters = vector<double>( newPar.begin(), newPar.begin() + NumNLSimplePars );
 
   size_t parNum = 0;
   for( ; parNum < NumNLSimplePars; ++parNum ) m_paramaters[parNum] = newPar[parNum];
 
   foreach( EventDefPair &et, m_customEventDefs )
   {
+    if( !m_customEvents.hasValueNear(et.first) ) continue;
+
     const size_t nPoints = et.second.getNPoints();
 
     for( size_t pointN = 0; pointN < nPoints; ++pointN, ++parNum )
@@ -1414,13 +1421,13 @@ ConsentrationGraph NLSimple::glucPredUsingCgms( int nMinutesPredict,  //nMinutes
 
 void NLSimple::updateXUsingCgmsInfo( bool recomputeAll )
 {
-  if( m_paramaters.size() != NumNLSimplePars )
-  {
-    cout << "void NLSimple::updateXUsingCgmsInfo( bool recomputeAll ): You must"
-         << " have " << NumNLSimplePars << " in m_paramaters. You have "
-         << m_paramaters.size() << endl;
-    exit(1);
-  }//if( m_paramaters.size() != NumNLSimplePars )
+//  if( m_paramaters.size() != NumNLSimplePars )
+//  {
+//    cout << "void NLSimple::updateXUsingCgmsInfo( bool recomputeAll ): You must"
+//         << " have " << NumNLSimplePars << " in m_paramaters. You have "
+//         << m_paramaters.size() << endl;
+//    exit(1);
+//  }//if( m_paramaters.size() != NumNLSimplePars )
 
   if( recomputeAll ) m_predictedInsulinX.clear();
 
@@ -1451,7 +1458,7 @@ void NLSimple::updateXUsingCgmsInfo( bool recomputeAll )
     double cgmsX = m_predictedInsulinX.value(time) / 10.0;
 
     //for some really bad paramater choices we migh get screwy values
-    if( isnan(cgmsX) || isinf(cgmsX) || isinf(-cgmsX) )
+    if( cgmsX != cgmsX )
     {
       cout << "updateXUsingCgmsInfo(): Warning found X value of " << cgmsX
            << ", will not compute X" << endl;
@@ -1854,7 +1861,8 @@ double NLSimple::geneticallyOptimizeModel( double endPredChi2Weight,
   size_t nParExp = (size_t)NumNLSimplePars;
   foreach( const EventDefPair &et, m_customEventDefs )
   {
-    nParExp += et.second.getNPoints();
+    if( m_customEvents.hasValueNear( et.first ) )
+      nParExp += et.second.getNPoints();
   }//foreach( custom event def )
 
   vector<TMVA::Interval*> ranges(nParExp);
@@ -1876,6 +1884,8 @@ double NLSimple::geneticallyOptimizeModel( double endPredChi2Weight,
 
   foreach( const EventDefPair &et, m_customEventDefs )
   {
+    if( !m_customEvents.hasValueNear( et.first ) ) continue;
+
     const size_t nPoints = et.second.getNPoints();
     for( size_t pointN = 0; pointN < nPoints; ++pointN, ++parNum )
     {
@@ -3308,11 +3318,8 @@ const EventDef &EventDef::operator=( const EventDef &rhs )
 
 
 template<class Archive>
-void EventDef::save(Archive & ar, const unsigned int version) const
+void EventDef::save(Archive & ar, const unsigned int /*version*/ ) const
 {
-  unsigned int ver = version; //keep compiler from complaining
-  ver = ver;
-
   ar & m_name;
   ar & m_nPoints;
   ar & m_duration;
@@ -3334,11 +3341,8 @@ void EventDef::save(Archive & ar, const unsigned int version) const
 
 
 template<class Archive>
-void EventDef::load(Archive & ar, const unsigned int version)
+void EventDef::load(Archive & ar, const unsigned int /*version*/ )
 {
-  unsigned int ver = version; //keep compiler from complaining
-  ver = ver;
-
   ar & m_name;
   ar & m_nPoints;
   ar & m_duration;

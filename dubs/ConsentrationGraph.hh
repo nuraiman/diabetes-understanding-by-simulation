@@ -216,6 +216,8 @@ class ConsentrationGraph : public GraphElementSet
 
     TimeDuration getMostCommonDt() const;
 
+    bool hasValueNear( const double &value, const double &epsilon = 0.000001 ) const;
+
     //You probably should not call the folowing 2 functions,
     //  instead call 'getSmoothedGraph(...)'
     //For fastFourierSmoothing, lambda_min is wavelength of noise removed

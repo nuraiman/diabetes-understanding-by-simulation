@@ -254,6 +254,11 @@ class NLSimple
     void addCustomEvents( const ConsentrationGraph &newEvents );
 
     void resetPredictions();
+    //For the below, the vector of doubles you pass in must be empty, or equal
+    //  to, or larger in size than NumNLSimplePars; in the event the vector
+    //  is larger, the remaining values are passed into the m_customEventDefs
+    //  that have been used; a check is made to ensure there are a correct
+    //  number of parameters foreach used m_customEventDefs.
     void setModelParameters( const std::vector<double> &newPar );
     void setModelParameterErrors( std::vector<double> &newParErrorLow,
                                   std::vector<double> &newParErrorHigh );
