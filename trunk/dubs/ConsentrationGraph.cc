@@ -21,6 +21,7 @@
 #include "TApplication.h"
 #include "TLegend.h"
 #include "TROOT.h"
+#include "TMath.h"
 #include "TPaveText.h"
 #include "TVirtualFFT.h"
 
@@ -780,6 +781,16 @@ TimeDuration ConsentrationGraph::getMostCommonDt( ) const
 }//double ConsentrationGraph::getMostCommonDt( ) const
 
 
+
+bool ConsentrationGraph::hasValueNear( const double &value, const double &epsilon ) const
+{
+  for( ConstGraphIter iter = begin(); iter != end(); ++iter )
+  {
+    if( TMath::AreEqualAbs( iter->m_value, value, epsilon ) ) return true;
+  }//foreach( const GraphElement &e, m_customEvents )
+
+  return false;
+}//bool hasValueNear( const double &value, const double &epsilon ) const
 
 
 

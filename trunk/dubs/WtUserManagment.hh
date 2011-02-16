@@ -135,6 +135,8 @@ public:
   }//presist function
 };//class DubUser
 
+class OptimizationChi2;
+
 
 class UsersModel
 {
@@ -144,6 +146,7 @@ public:
   Wt::WDateTime modified;
 
   Wt::Dbo::ptr<DubUser> user;
+  Wt::Dbo::collection< Wt::Dbo::ptr<OptimizationChi2> > chi2s;
 
   template<class Action>
   void persist(Action& a)
@@ -152,9 +155,27 @@ public:
     Wt::Dbo::field(a, fileName, "fileName" );
     Wt::Dbo::field(a, created,  "created" );
     Wt::Dbo::field(a, created,  "modified" );
+    Wt::Dbo::hasMany(a, chi2s, Wt::Dbo::ManyToOne, "usermodel");
   }//presist function
 };//class UsersModel
 
+
+class OptimizationChi2
+{
+public:
+  int generation;
+  double chi2;
+
+  Wt::Dbo::ptr<UsersModel> usermodel;
+
+  template<class Action>
+  void persist(Action& a)
+  {
+    Wt::Dbo::belongsTo(a, usermodel, "usermodel");
+    Wt::Dbo::field(a, generation, "generation" );
+    Wt::Dbo::field(a, chi2,  "chi2" );
+  }//presist function
+};//class UsersModel
 
 
 #endif // WTUSERMANAGMENT_HH

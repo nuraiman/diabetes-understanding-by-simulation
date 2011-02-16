@@ -17,6 +17,7 @@
 #include <Wt/Chart/WCartesianChart>
 #include <Wt/WLineF>
 #include <Wt/WRectF>
+#include <Wt/Dbo/QueryModel>
 
 #include "ArtificialPancrease.hh"
 #include "WtUserManagment.hh"
@@ -208,6 +209,9 @@ public:
 
     void notesTabClickedCallback( int clickedINdex );
 
+    Wt::Dbo::ptr<DubUser> dubUserPtr(){ return m_userDbPtr; }
+    Wt::Dbo::Session &dbSession() { return m_dbSession; }
+
   private:
     //m_model should never be accessed in any situation where multithreaded
     //  access is any possibility, instead, a NLSimplePtr object should be
@@ -350,6 +354,7 @@ class WtGeneticallyOptimize: public Wt::WContainerWidget
 
   boost::mutex m_beingOptimizedMutex;
   std::vector<double> m_bestChi2;
+  Wt::Dbo::QueryModel< Wt::Dbo::ptr<OptimizationChi2> > *m_chi2DbModel;
 
   MemGuiTimeDate *m_endTrainingTimeSelect;
   MemGuiTimeDate *m_startTrainingTimeSelect;

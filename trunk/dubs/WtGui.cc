@@ -62,6 +62,7 @@
 #include <Wt/WHBoxLayout>
 #include <Wt/WTextArea>
 #include <Wt/WMenuItem>
+#include <Wt/Dbo/QueryModel>
 
 #include "TH1.h"
 #include "TH1F.h"
@@ -191,7 +192,12 @@ WtGui::WtGui( const Wt::WEnvironment& env, DubUserServer &server )
   m_dbBackend.setProperty("show-queries", "true");
   m_dbSession.mapClass<DubUser>("DubUser");
   m_dbSession.mapClass<UsersModel>("UsersModel");
-  try{ m_dbSession.createTables(); }catch(...){}
+  m_dbSession.mapClass<OptimizationChi2>("OptimizationChi2");
+
+
+  try{ m_dbSession.createTables(); }
+  catch(std::exception &e)
+  { cerr << "Failed to create DB: " << e.what() << endl; }
 
   requireLogin();
 }//WtGui constructor
@@ -564,13 +570,13 @@ void WtGui::init( const string username )
   bsTabDiv->setLayout( bsTabLayout );
   bsTabLayout->addWidget( m_bsGraph, WBorderLayout::Center );
   bsTabLayout->addWidget( datePickingDiv, WBorderLayout::South );
-  m_tabs->addTab( bsTabDiv, "Display" );
+  m_tabs->addTab( bsTabDiv, "Display", WTabWidget::PreLoading );
 
   /*Div *optionsTabDiv = new Div( "optionsTabDiv" );
   m_tabs->addTab( optionsTabDiv, "Options" );*/
 
   WtGeneticallyOptimize *optimizationTab = new WtGeneticallyOptimize( this );
-  m_tabs->addTab( optimizationTab, "Optimize" );
+  m_tabs->addTab( optimizationTab, "Optimize", WTabWidget::PreLoading );
 
 
   Div *errorGridTabDiv = new Div( "errorGridTabDiv" );
@@ -581,11 +587,11 @@ void WtGui::init( const string username )
   errorGridTabLayout->addWidget( m_errorGridLegend, WBorderLayout::West );
   errorGridTabLayout->addWidget( m_errorGridGraph, WBorderLayout::Center );
   m_errorGridGraph->setMinimumSize( 150, 150 );
-  m_tabs->addTab( errorGridTabDiv, "Error Grid" );
+  m_tabs->addTab( errorGridTabDiv, "Error Grid", WTabWidget::PreLoading );
 
 
   WtModelSettingsGui *settings = new WtModelSettingsGui( &(modelPtr->m_settings) );
-  m_tabs->addTab( settings, "Settings" );
+  m_tabs->addTab( settings, "Settings", WTabWidget::PreLoading );
 
   Div *cgmsDataTableDiv = new Div( "cgmsDataTableDiv" );
   WGridLayout *cgmsDataTableLayout = new WGridLayout();
@@ -635,6 +641,7 @@ void WtGui::init( const string username )
     rawDataView->setAlternatingRowColors(true);
     rawDataView->setSelectionBehavior( SelectRows );
     rawDataView->setSelectionMode( ExtendedSelection );
+    rawDataView->setSortingEnabled( false );
     rawDataView->setRowHeight(22);
     rawDataView->setColumnWidth( 0, 125 );
     rawDataView->setColumnWidth( 1, 70 );
@@ -646,7 +653,7 @@ void WtGui::init( const string username )
     // if( type == NLSimple::kMealData ) delDataButton->clicked().connect( boost::bind( &WtGui::refreshClucoseConcFromMealData, this) );
     delDataButton->clicked().connect( boost::bind( &WtGui::delRawData, this, rawDataView ) );
     delDataButton->disable();
-    cgmsDataTableLayout->addWidget( buttonDiv, 2+local_row, local_col, 1, 1, AlignCenter | AlignTop );
+    cgmsDataTableLayout->addWidget( buttonDiv, 2+local_row, local_col, 1, 1 );
     rawDataView->selectionChanged().connect( boost::bind( &WtGui::enableRawDataDelButton, this, rawDataView, delDataButton ) );
 
     if( type == NLSimple::kBoluses )
@@ -674,10 +681,10 @@ void WtGui::init( const string username )
   WPushButton *addDataButton = new WPushButton( "Add Data", bottomRawDataDiv );
   addDataButton->clicked().connect( this, &WtGui::addDataDialog );
 
-  m_tabs->addTab( cgmsDataTableDiv, "Raw Data" );
+  m_tabs->addTab( cgmsDataTableDiv, "Raw Data", WTabWidget::PreLoading );
 
   WtCustomEventTab *customEventTab = new WtCustomEventTab( this );
-  m_tabs->addTab( customEventTab, "Custom Events" );
+  m_tabs->addTab( customEventTab, "Custom Events", WTabWidget::PreLoading );
 
   DubEventEntry *dataEntry = new DubEventEntry( this );
   layout->addWidget( dataEntry, WBorderLayout::South );
@@ -1557,22 +1564,27 @@ void DubEventEntry::typeChanged()
     case WtGui::kCgmsReading:
       m_units->setText("mg/dL");
       m_value->setValidator( new WIntValidator(0,500) );
+      m_value->setFocus();
     break;
     case WtGui::kMeterReading:
       m_units->setText("mg/dL");
       m_value->setValidator( new WIntValidator(0,500) );
+      m_value->setFocus();
     break;
     case WtGui::kMeterCalibration:
       m_units->setText("mg/dL");
       m_value->setValidator( new WIntValidator(0,500) );
+      m_value->setFocus();
     break;
     case WtGui::kGlucoseEaten:
       m_units->setText("grams");
       m_value->setValidator( new WIntValidator(0,150) );
+      m_value->setFocus();
     break;
     case WtGui::kBolusTaken:
       m_units->setText("units");
       m_value->setValidator( new WDoubleValidator(0,50) );
+      m_value->setFocus();
     break;
     case WtGui::kGenericEvent:
     {
@@ -1588,6 +1600,7 @@ void DubEventEntry::typeChanged()
       foreach( const NLSimple::EventDefMap::value_type &p, customEvents )
         m_customTypes->addItem( p.second.getName() );
       break;
+      m_customTypes->setFocus();
     };//
 
     case WtGui::kNumEntryType:
@@ -1920,13 +1933,38 @@ WtGeneticallyOptimize::WtGeneticallyOptimize( WtGui *wtGuiParent, Wt::WContainer
   Chart::WDataSeries customSeries( WtGui::kCustomEventData, Chart::LineSeries );
   m_graph->addSeries( customSeries );
 
-  m_chi2Model = new WStandardItemModel( this );
-  m_chi2Model->insertColumns( m_chi2Model->columnCount(), 2 );
-  m_chi2Model->setHeaderData( 0, WString("Generation Number") );
-  m_chi2Model->setHeaderData( 1, WString("Best &chi;<sup>2</sup>") );
+//  m_chi2Model = new WStandardItemModel( this );
+//  m_chi2Model->insertColumns( m_chi2Model->columnCount(), 2 );
+//  m_chi2Model->setHeaderData( 0, WString("Generation Number") );
+//  m_chi2Model->setHeaderData( 1, WString("Best &chi;<sup>2</sup>") );
+
+
+  m_chi2DbModel = new Dbo::QueryModel< Dbo::ptr<OptimizationChi2> >(this);
+
+  {
+    Dbo::Session &session = m_parentWtGui->dbSession();
+    Dbo::Transaction transaction( session );
+    Dbo::ptr<DubUser> user = m_parentWtGui->dubUserPtr();
+    if( user )
+    {
+      const string fileName = user->currentFileName;
+      Dbo::ptr<UsersModel> usermodel = user->models.find().where("fileName = ?").bind(fileName);
+
+      if( usermodel )
+      {
+        m_chi2DbModel->setQuery( usermodel->chi2s.find() );
+        m_chi2DbModel->addColumn( "generation", "Generation" );
+        m_chi2DbModel->addColumn( "chi2", "chi2" );
+      }
+    }
+    if( !transaction.commit() ) cerr << "\nDid not commit adding to the chi2 of the optimization\n" << endl;
+  }
+
+
 
   m_chi2Graph = new Chart::WCartesianChart(Chart::ScatterPlot);
-  m_chi2Graph->setModel( m_chi2Model );
+//  m_chi2Graph->setModel( m_chi2Model );
+  m_chi2Graph->setModel( m_chi2DbModel );
   m_chi2Graph->setXSeriesColumn(0);
   m_chi2Graph->setLegendEnabled(false);
   m_chi2Graph->setPlotAreaPadding( 70, Wt::Bottom );
@@ -2095,7 +2133,27 @@ void WtGeneticallyOptimize::doGeneticOptimization()
     if( appLock ) m_parentWtGui->triggerUpdate();
   }//
 
-  m_bestChi2.clear();
+//  m_bestChi2.clear();
+  {
+    Dbo::Session &session = m_parentWtGui->dbSession();
+    Dbo::Transaction transaction( session );
+    Dbo::ptr<DubUser> user = m_parentWtGui->dubUserPtr();
+    if( user )
+    {
+      const string fileName = user->currentFileName;
+      Dbo::ptr<UsersModel> usermodel = user->models.find().where("fileName = ?").bind(fileName);
+
+      if( usermodel )
+      {
+        typedef Wt::Dbo::collection<Wt::Dbo::ptr<OptimizationChi2> > Chi2s;
+        Chi2s chi2s = usermodel->chi2s;
+        for( Chi2s::iterator iter = chi2s.begin(); iter != chi2s.end(); ++iter ) iter->remove();
+      }
+    }
+    if( !transaction.commit() ) cerr << "\nDid not commit adding to the chi2 of the optimization\n" << endl;
+  }
+
+
 
   NLSimple::Chi2CalbackFcn chi2Calback = boost::bind( &WtGeneticallyOptimize::optimizationUpdateFcn, this, _1);
   NLSimple::ContinueFcn continueFcn = boost::bind( &WtGeneticallyOptimize::continueOptimizing, this);
@@ -2162,7 +2220,22 @@ void WtGeneticallyOptimize::optimizationUpdateFcn( double chi2 )
     return;
   }//if( !lock )
 
-  m_bestChi2.push_back( chi2 );
+//  m_bestChi2.push_back( chi2 );
+
+  {
+    Dbo::Session &session = m_parentWtGui->dbSession();
+    Dbo::Transaction transaction( session );
+    Dbo::ptr<DubUser> user = m_parentWtGui->dubUserPtr();
+    const string fileName = user->currentFileName;
+    Dbo::ptr<UsersModel> usermodel = user->models.find().where("fileName = ?").bind(fileName);
+    Dbo::ptr<OptimizationChi2> newChi2;
+    newChi2 = session.add( new OptimizationChi2() );
+    newChi2.modify()->generation  = usermodel->chi2s.size();
+    newChi2.modify()->chi2        = chi2;
+    newChi2.modify()->usermodel   = usermodel;
+    if( !transaction.commit() ) cerr << "\nDid not commit adding to the chi2 of the optimization\n" << endl;
+  }
+
   syncGraphDataToNLSimple();
 
   if( m_saveAfterEachGeneration->isChecked() )
@@ -2182,13 +2255,20 @@ void WtGeneticallyOptimize::syncGraphDataToNLSimple()
   typedef ConsentrationGraph::value_type cg_type;
   WApplication::UpdateLock appLock( m_parentWtGui );
 
-  m_chi2Model->removeRows( 0, m_chi2Model->rowCount() );
-  m_chi2Model->insertRows( 0, m_bestChi2.size() );
-  for( size_t i = 0; i < m_bestChi2.size(); ++i )
   {
-    m_chi2Model->setData( i, 0, i );
-    m_chi2Model->setData( i, 1, m_bestChi2[i] );
-  }//for( add chi data to the model )
+    Dbo::Session &session = m_parentWtGui->dbSession();
+    Dbo::Transaction transaction( session );
+    m_chi2DbModel->reload();
+    transaction.commit();
+  }
+
+//  m_chi2Model->removeRows( 0, m_chi2Model->rowCount() );
+//  m_chi2Model->insertRows( 0, m_bestChi2.size() );
+//  for( size_t i = 0; i < m_bestChi2.size(); ++i )
+//  {
+//    m_chi2Model->setData( i, 0, i );
+//    m_chi2Model->setData( i, 1, m_bestChi2[i] );
+//  }//for( add chi data to the model )
 
   const string error_msg = "Failed to get thread lock for syncGraphDataToNLSimple."
                      " Are you optimizing in another thread?: "
@@ -2248,12 +2328,12 @@ void WtGeneticallyOptimize::syncGraphDataToNLSimple()
     m_graphModel->setData( row++, WtGui::kPredictedBloodGlucose, element.m_value );
   }//
 
-  PosixTime lastInsulin = modelPtr->m_freePlasmaInsulin.size() ? modelPtr->m_freePlasmaInsulin.getStartTime() : PosixTime(boost::posix_time::min_date_time);
+  PosixTime lastOne = modelPtr->m_freePlasmaInsulin.size() ? modelPtr->m_freePlasmaInsulin.getStartTime() : PosixTime(boost::posix_time::min_date_time);
 
   foreach( const cg_type &element, modelPtr->m_freePlasmaInsulin )
   {
-    if( (element.m_time-lastInsulin) < TimeDuration( 0, 5, 0 ) ) continue;
-    lastInsulin = element.m_time;
+    if( (element.m_time-lastOne) < NLSimpleDisplayModel::sm_plasmaInsulinDt ) continue;
+    lastOne = element.m_time;
 
     const WDateTime x = WDateTime::fromPosixTime( element.m_time );
     if( (x < start) || (x > end) ) continue;
@@ -2264,6 +2344,9 @@ void WtGeneticallyOptimize::syncGraphDataToNLSimple()
 
   foreach( const cg_type &element, modelPtr->m_glucoseAbsorbtionRate )
   {
+    if( (element.m_time-lastOne) < NLSimpleDisplayModel::sm_plasmaInsulinDt ) continue;
+    lastOne = element.m_time;
+
     const WDateTime x = WDateTime::fromPosixTime( element.m_time );
     if( (x < start) || (x > end) ) continue;
     m_graphModel->setData( row, WtGui::kTimeData, x );
@@ -2280,6 +2363,9 @@ void WtGeneticallyOptimize::syncGraphDataToNLSimple()
 
   foreach( const cg_type &element, modelPtr->m_predictedInsulinX )
   {
+    if( (element.m_time-lastOne) < NLSimpleDisplayModel::sm_plasmaInsulinDt ) continue;
+    lastOne = element.m_time;
+
     const WDateTime x = WDateTime::fromPosixTime( element.m_time );
     if( (x < start) || (x > end) ) continue;
     m_graphModel->setData( row, WtGui::kTimeData, x );
