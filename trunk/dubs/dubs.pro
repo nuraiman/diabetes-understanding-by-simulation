@@ -76,7 +76,7 @@ LIBS += /usr/local/lib/libboost_date_time.a \
     -L/usr/local/lib/  -lwt -lwtdbo -lwthttp
 
 INCLUDEPATH += /usr/local/include \
-               $$(ROOTSYS)/include
+               /Users/wjohnson/root/include/root
 
 #mac:QMAKE_INFO_PLIST=Info.plist
 #unix {

@@ -203,7 +203,8 @@ ADDLIBS=$(BOOSTLIB)/libboost_system.a \
         $(BOOSTLIB)/libboost_program_options.a \
         /usr/local/lib/libgsl.a \
         /usr/local/lib/libgslcblas.a \
-        $(SQLITE3LIB)
+        $(SQLITE3LIB) \
+	/opt/local/lib/libfftw3.a
 
 ADDINCS=-I$(WTINC) 
 
