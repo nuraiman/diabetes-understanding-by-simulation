@@ -232,6 +232,7 @@ ptime NLSimple::getAbsoluteTime( double nOffsetMinutes ) const
 double NLSimple::customEventEffect( const PosixTime &time,
                                     const double &carbAbsRate, const double &X ) const
 {
+//This function is the major time consumer of optimizing!
   double dGdT = 0.0;
 
   foreach( const EventDefPair &et, m_customEventDefs )
@@ -651,7 +652,14 @@ double CgmsFingerCorrFCN::testParamaters(const std::vector<double>& x ) const
     if( maxTimeToCgms < TimeDuration(0, 16, 0, 0) )
     {
       const double uncert2 = pow( fracUncert * fingerValue, 2 );
-      assert( uncert2 != 0.0 );
+      //  assert( uncert2 != 0.0 );
+      if( uncert2 == 0.0 )
+      {
+        cerr << "CgmsFingerCorrFCN::testParamaters(...): Found an incertainty"
+             << " of zero, fracUncert=" << fracUncert << ", fingerValue="
+             << fingerValue << " at time " << time << endl;
+        continue;
+      }
       chi2 += pow( fingerValue - cgmsValue, 2) / uncert2;
     }//if( maxTimeToCgms > TimeDuration(0, 16, 0, 0) )
   }//foreach( fingerstick data point )
@@ -1048,7 +1056,7 @@ void NLSimple::makeGlucosePredFromLastCgms( ConsentrationGraph &predBg,
   assert( m_cgmsData.value(cgmsEndTime) > 10.0 );
   gAndX[0] = m_cgmsData.value(cgmsEndTime) - m_basalGlucoseConcentration;
   gAndX[1] = m_predictedInsulinX.value(predStartTime) / 10.0;
-  RK_PTimeDFunc func = bind( &NLSimple::dGdT_and_dXdT, boost::cref(*this), _1, _2 );
+  RK_PTimeDFunc func = getRKDerivFunc();//bind( &NLSimple::dGdT_and_dXdT, boost::cref(*this), _1, _2 );
 
   //for some really bad paramater choices we migh get screwy values
   if( isnan(gAndX[1]) || isinf(gAndX[1]) || isinf(-gAndX[1]) )
@@ -1366,7 +1374,7 @@ ConsentrationGraph NLSimple::glucPredUsingCgms( int nMinutesPredict,  //nMinutes
       // below is the same as calling 'getRKDerivFunc()' but I want to leave
       //  explicit since I might make dX and dG have some hysteresis in the future
       //  which would make the below invalid
-      RK_PTimeDFunc func = bind( &NLSimple::dGdT_and_dXdT, boost::cref(*this), _1, _2 );
+      RK_PTimeDFunc func = getRKDerivFunc(); //bind( &NLSimple::dGdT_and_dXdT, boost::cref(*this), _1, _2 );
 
       for( ; previousCgmsTime < (time-m_settings.m_dt); previousCgmsTime += m_settings.m_dt )
       {
@@ -2065,6 +2073,7 @@ double NLSimple::fitModelToDataViaMinuit2( double endPredChi2Weight,
       ostringstream name;
       name << et.second.getName() << "_" << pointN;
 
+      if( !m_customEvents.hasValueNear( et.first ) ) continue;
       cout << "Adding paramater named " << name.str() << " to minuit optimization" << endl;
 
       upar.Add( name.str(), et.second.getPar(pointN), 0.1 );

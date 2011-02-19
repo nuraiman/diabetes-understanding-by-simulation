@@ -110,12 +110,14 @@ void WChartWithLegend::paint( WPainter& painter, const WRectF& rectangle ) const
     {
       WPointF pos = mapToDevice( WDateTime::fromPosixTime(el.m_time), el.m_value, Wt::Chart::Y2Axis );
       //WPainter::Image burger("local_resources/hamburger.png","local_resources/hamburger.png");
-      //Wt::WRectArea *value = new Wt::WRectArea( 0, 0, burger.width(), burger.height() );
+      WPainter::Image burger("dubs/exec/local_resources/hamburger.png","local_resources/hamburger.png");
+
+//      Wt::WRectArea *value = new Wt::WRectArea( 0, 0, burger.width(), burger.height() );
       //value->setToolTip( boost::lexical_cast<string>(el.m_value)
       //                   + " grams of carbs at "
       //                   + boost::lexical_cast<string>(el.m_time) );
       //addArea( value );
-      painter.drawImage( pos, WPainter::Image("local_resources/hamburger.png","local_resources/hamburger.png") );
+      painter.drawImage( pos, burger );
     }//foreach( const GraphElement &el, modelPtr->m_mealData )
 
 
@@ -259,7 +261,12 @@ boost::any NLSimpleDisplayModel::data( const WModelIndex& index, int role ) cons
 
     if( isCorrColl && inThisData )     return boost::any( data[wantedRow-row_n].m_value );
     else if( inThisData && !wantTime ) return boost::any();
-    else if( inThisData && wantTime )  return boost::any( WDateTime::fromPosixTime(data[wantedRow-row_n].m_time) );
+    else if( inThisData && wantTime )
+    {
+      if( column==NLSimple::kCgmsData )
+        return boost::any( WDateTime::fromPosixTime(data[wantedRow-row_n].m_time - diabeticModel->m_settings.m_cgmsDelay) );
+      return boost::any( WDateTime::fromPosixTime(data[wantedRow-row_n].m_time) );
+    }
     row_n += dataSize;
   }//for( loop over columns )
 
@@ -465,7 +472,7 @@ void NLSimpleDisplayModel::useColumn( NLSimple::DataGraphs col )
   WString title;
   switch( col )
   {
-    case NLSimple::kCgmsData:              title = "CGMS Readings";              break;
+    case NLSimple::kCgmsData:              title = "CGMS Readings (delay corr.)";break;
     case NLSimple::kFreePlasmaInsulin:     title = "Free Plasma Insulin (pred.)";break;
     case NLSimple::kGlucoseAbsorbtionRate: title = "Glucose Abs. Rate (pred.)";  break;
     case NLSimple::kMealData:              title = "Consumed Carbohydrates";     break;

@@ -24,6 +24,7 @@
 #include "TMath.h"
 #include "TPaveText.h"
 #include "TVirtualFFT.h"
+#include "TDecompLU.h"
 
 
 //GSL includes
@@ -1103,11 +1104,13 @@ ConsentrationGraph::bSplineSmoothOrDeriv(  bool takeDeriv,
 
 
 
-void ConsentrationGraph::fastFourierSmooth( double lambda_min, double time_window )
+void ConsentrationGraph::fastFourierSmooth( double lambda_min, bool doMinCoeffInstead )
 {
   removeNonInfoAddingPoints();
 
   if( empty() ) return;
+
+  if( doMinCoeffInstead ) assert( lambda_min>=0.0 && lambda_min<=1.0 );
 
   set<GraphElement > xFormResult;
 
@@ -1115,14 +1118,10 @@ void ConsentrationGraph::fastFourierSmooth( double lambda_min, double time_windo
   //  most common time would be adequate.
   const PosixTime startTime = begin()->m_time;
   const double dt = toNMinutes(getMostCommonDt());
-  const double freq_max = dt / lambda_min;
+
   const double totalTime = toNMinutes( getEndTime() - startTime );
 
-  // if((time_window > totalTime) || (time_window <= 0.0))
-  if(time_window >= 0.0) cout << "I am ignoring your time_window request" << endl;
-
-  time_window = totalTime;
-
+  double time_window = totalTime;
   const int nPoints = floor( totalTime / dt ); //we might miss a litle info
   int pointsPerWindow = floor( time_window / dt );
   const int nWindows = nPoints / pointsPerWindow;
@@ -1143,19 +1142,32 @@ void ConsentrationGraph::fastFourierSmooth( double lambda_min, double time_windo
       input[point] = value( startTime + toTimeDuration(t) );
     }//for
 
-
     TVirtualFFT *fft_own = TVirtualFFT::FFT(1, &pointsPerWindow, "R2C");
     fft_own->SetPoints(input);
     fft_own->Transform();
     fft_own->GetPointsComplex(xformed_real, xformed_imag);
 
-    //Below is just a guess as to how to filter off unwanted frequencies
-    int highestBin = freq_max * pointsPerWindow;
-    // cout << "removing bins>=" << highestBin << endl;
-    for( int point = highestBin; point < pointsPerWindow; ++point )
+    if( !doMinCoeffInstead )
     {
-      xformed_real[point] = 0.0;
-      xformed_imag[point] = 0.0;
+      //each bin represents a freq of 1.0/(2.0*dt), or rather a wavelenght of 2*dt
+    //Below is just a guess as to how to filter off unwanted frequencies
+      const int highestBin = dt * pointsPerWindow / (2.0 * lambda_min);
+
+      cerr << "I am zeroing out bins " << highestBin << " through " << pointsPerWindow << endl;
+      for( int point = highestBin; point < pointsPerWindow; ++point )
+        xformed_imag[point] = xformed_real[point] = 0.0;
+    }else
+    {
+      int *index_array = new int[pointsPerWindow];
+      for( int i = 0; i < pointsPerWindow; ++i ) index_array[i] = i;
+      TMath::Sort( pointsPerWindow, xformed_real, index_array  );
+      const int min_coef_ind = TMath::Nint( lambda_min * pointsPerWindow );
+      for( int point = min_coef_ind; point < pointsPerWindow; ++point )
+      {
+        const int index = index_array[point];
+        xformed_imag[index] = xformed_real[index] = 0.0;
+      }//for(...)
+      delete index_array;
     }
 
     TVirtualFFT *fft_back = TVirtualFFT::FFT(1, &pointsPerWindow, "C2R");
@@ -1333,6 +1345,104 @@ void ConsentrationGraph::butterWorthFilter( double timescale, int filterOrder )
   GraphElementSet::clear();
   GraphElementSet::insert( begin(), xFormResult.begin(), xFormResult.end() );
 }//
+
+
+ConsentrationGraph
+ConsentrationGraph::getSavitzyGolaySmoothedGraph( int num_left, int num_right, int order )
+{
+  //Performs the Savitzy-Golay filtering with provided coeffs.
+  //This function connects the beginning to the end of the data,
+
+  vector<double> coeffs =  getSavitzyGolayCoeffs( num_left, num_right, order, 0 );
+
+  const PosixTime endTime = getEndTime();
+  const PosixTime startTime = begin()->m_time;
+  const double dt = toNMinutes( getMostCommonDt() );
+  const double totalTime = toNMinutes(endTime - startTime);
+  const int nPoints = TMath::Nint( totalTime / dt );
+
+  vector<double> xAxis(nPoints);
+  vector<double> input(nPoints);
+
+  for( int point = 0; point < nPoints; ++point )
+  {
+    const double t = point*dt;
+    xAxis[point] = t;
+    input[point] = value( startTime + toTimeDuration(t) );
+  }//for
+
+  ConsentrationGraph results(startTime, dt, getGraphType() );
+  const Int_t nCoeffs = static_cast<Int_t>( coeffs.size() );
+
+  for( Int_t pos = 0; pos < nPoints; ++pos )
+  {
+    Double_t sum = 0.0;
+    for( Int_t coeff = 0; coeff < nCoeffs; ++coeff )
+    {
+      Int_t                         dataInd = pos - num_left + coeff;
+      if( dataInd < 0 )             dataInd += nPoints;
+      else if( dataInd >= nPoints ) dataInd -= nPoints;
+
+      assert( dataInd >= 0 );
+      assert( dataInd < nPoints );
+
+      sum += (coeffs[coeff] * input[dataInd]);
+    }//for( loop over coefficients )
+
+    const PosixTime realTime = startTime + toTimeDuration(xAxis[pos]);
+    results.insert( realTime, sum );
+  }//for( loop over input points )
+
+  return results;
+}//getSavitzyGolaySmoothedGraph(...)
+
+
+
+vector<double> ConsentrationGraph::getSavitzyGolayCoeffs(
+    int nl, //number of coef. to left of current point
+    int nr, //number of coef. to right of current point
+    int m,  //order of smoothing polynomial
+            //  (also highest conserved moment)
+    int ld //has to do with what derivative you want
+    )
+{
+  //Savitzy-Golay filter: smoothes data while preserving up to the m'th moment
+  //20100315: implemented loosely based on section 14.9 of Numerical Recipes
+  //Coefficients stored in order: [lnl, -nl+1, ..., 0, 1, ..., nr]
+  assert( !(nl<0 || nr<0 || ld>m || (nl+nr)<m ) );
+
+  TMatrixD  a(m+1, m+1);
+  vector<double> b(m+1, 0.0);
+  vector<double> coeff(nl+nr+1);
+
+  for( Int_t ipj=0; ipj <= (m<<1); ++ipj )
+  {
+    Double_t sum = ( ipj ? 0.0 : 1.0 );
+    for( Int_t k=1; k<=nr; ++k ) sum += pow( Double_t(k), Double_t(ipj) );
+    for( Int_t k=1; k<=nl; ++k ) sum += pow( Double_t(-k), Double_t(ipj) );
+    const int mm = min(ipj, 2*m-ipj);
+    for( int imj = -mm; imj<=mm; imj+=2 ) a[(ipj+imj)/2][(ipj-imj)/2] = sum;
+  }//for( loop over ipj )
+
+  //Invert the matrix a
+  TDecompLU alud( a );
+  if( !alud.Invert(a) ) exit(-1);  //should be an assert or warning message
+
+  //we need only the n^th row of the inverse matrix
+  //  meaning this function is computationally inefficient
+  for( Int_t i = 0; i <= m; ++i ) b[i] = a[ld][i];
+
+  for( Int_t k=-nl; k<=nr; ++k )
+  {
+    Double_t sum = b[0];
+    Double_t fac = 1.0;
+    for( Int_t mm=1; mm <=m; ++mm ) sum += b[mm]*(fac *= k);
+
+    coeff[ k + nl ] = sum;
+  }//for( loop over kk )
+
+  return coeff;
+}// void getSavitzyGolayCoeffs(...)
 
 
 
@@ -1553,6 +1663,7 @@ TGraph* ConsentrationGraph::draw( string options,
   TGraph *graph = getTGraph();
 
   if( color > 0 ) graph->SetLineColor( color );
+  graph->SetLineWidth( 2 );
 
 
   switch( m_graphType )

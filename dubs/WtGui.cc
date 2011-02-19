@@ -698,6 +698,7 @@ void WtGui::init( const string username )
 
   syncDisplayToModel();
   zoomToFullDateRange();
+
   NLSimplePtr::resetCount( this );
 }//WtGui::init()
 

@@ -224,7 +224,13 @@ class ConsentrationGraph : public GraphElementSet
     //  e.g. bumps/noise lasting less than 0.5*lambda_min are smoothed out
     //  tight now I do the bone head thing of just removing the frequencies
     //  above threshold, I think I should use a convoluton???
-    void fastFourierSmooth( double lambda_min = 30.0, double time_window = -1 );
+    //Note: lambda_min is in minutes
+    //If doMinCoeffInstead==true then frequencies with coefs below lambda_min
+    //  (which must be between zero and one for this case) are removed
+    //  eg. if lambda_min==0.1, then the smallest 90% of coeficients will be
+    //  zeroed out
+    //TODO: Make sure lambda_min isnt off by a factor of 2
+    void fastFourierSmooth( double lambda_min, bool doMinCoeffInstead = false );
 
     //filterOrder gives order of the Butterworth filter (6 db/Octive, per order)
     //  max order 4 is supported
@@ -289,6 +295,16 @@ class ConsentrationGraph : public GraphElementSet
                                      int *NSections, double *groupDelay );
     static void butterworthFilter( double *Xs,double Xd, int NSections,
                                               Filter_Coef C, Memory_Coef D );
+    static std::vector<double> getSavitzyGolayCoeffs(
+                                         int nl, //number of coef. to left of current point
+                                         int nr, //number of coef. to right of current point
+                                         int m,  //order of smoothing polynomial
+                                                 //  (also highest conserved moment)
+                                         int ld //has to do with what derivative you want
+                                                    );
+    ConsentrationGraph
+    getSavitzyGolaySmoothedGraph( int num_left, int num_right, int order );
+
 
 
     //Will leave serialization funtion in header
