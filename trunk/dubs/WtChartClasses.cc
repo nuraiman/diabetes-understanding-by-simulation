@@ -87,11 +87,19 @@ void WChartWithLegend::paint( WPainter& painter, const WRectF& rectangle ) const
     const double maximum = axis(Wt::Chart::YAxis).maximum();
     const double ypos = minimum + (maximum-minimum)*0.05;
 
+    boost::shared_ptr<NLSimpleDisplayModel> displayModel;
+    displayModel = m_parentGui->getSimpleSimDisplayModel();
+    const PosixTime &minTime = displayModel->beginDisplayTime();
+    const PosixTime &maxTime = displayModel->endDisplayTime();
+
     foreach( const GraphElement &el, modelPtr->m_customEvents )
     {
-      WPointF pos = mapToDevice( WDateTime::fromPosixTime(el.m_time), ypos );
-      WRectF loc( pos.x(), pos.y(), 0.1, 0.1 );
-      painter.drawText( loc, AlignLeft, WString(Form("%i", TMath::Nint(el.m_value))) );
+      if( (el.m_time>=minTime) && (el.m_time<=maxTime) )
+      {
+        WPointF pos = mapToDevice( WDateTime::fromPosixTime(el.m_time), ypos );
+        WRectF loc( pos.x(), pos.y(), 0.1, 0.1 );
+        painter.drawText( loc, AlignLeft, WString(Form("%i", TMath::Nint(el.m_value))) );
+      }//if( this point is inside the range to be displayed )
     }//foreach custom event
 
     string url = "local_resources/";
@@ -101,21 +109,28 @@ void WChartWithLegend::paint( WPainter& painter, const WRectF& rectangle ) const
     painter.setPen( palette()->strokePen( WtGui::kFreePlasmaInsulin ) );
     foreach( const GraphElement &el, modelPtr->m_boluses )
     {
-      WPointF pos = mapToDevice( WDateTime::fromPosixTime(el.m_time), 5*el.m_value );
-      painter.drawImage( pos, WPainter::Image( url+"syringe.png", "local_resources/syringe.png") );
+      if( (el.m_time>=minTime) && (el.m_time<=maxTime) )
+      {
+        WPointF pos = mapToDevice( WDateTime::fromPosixTime(el.m_time), 5*el.m_value );
+        painter.drawImage( pos, WPainter::Image( url+"syringe.png", "local_resources/syringe.png") );
+      }//if( this point is inside the range to be displayed )
     }//foreach( const GraphElement &el, modelPtr->m_customEvents )
 
     painter.setPen( palette()->strokePen( WtGui::kFreePlasmaInsulin ) );
     foreach( const GraphElement &el, modelPtr->m_mealData)
     {
-      WPointF pos = mapToDevice( WDateTime::fromPosixTime(el.m_time), el.m_value, Wt::Chart::Y2Axis );
-      WPainter::Image burger(url+"hamburger.png","local_resources/hamburger.png");
-//      Wt::WRectArea *value = new Wt::WRectArea( pos.x(), pos.y(), burger.width(), burger.height() );
-//      value->setToolTip( boost::lexical_cast<string>(el.m_value)
-//                         + " grams of carbs at "
-//                         + boost::lexical_cast<string>(el.m_time) );
-//      const_cast<WChartWithLegend *>(this)->addArea( value );
-      painter.drawImage( pos, burger );
+      if( (el.m_time>=minTime) && (el.m_time<=maxTime) )
+      {
+        WPointF pos = mapToDevice( WDateTime::fromPosixTime(el.m_time),
+                                   el.m_value, Wt::Chart::Y2Axis );
+        WPainter::Image burger(url+"hamburger.png","local_resources/hamburger.png");
+        //      Wt::WRectArea *value = new Wt::WRectArea( pos.x(), pos.y(), burger.width(), burger.height() );
+        //      value->setToolTip( boost::lexical_cast<string>(el.m_value)
+        //                         + " grams of carbs at "
+        //                         + boost::lexical_cast<string>(el.m_time) );
+        //      const_cast<WChartWithLegend *>(this)->addArea( value );
+        painter.drawImage( pos, burger );
+      }//if( this point is inside the range to be displayed )
     }//foreach( const GraphElement &el, modelPtr->m_mealData )
 
 
@@ -159,47 +174,55 @@ void WChartWithLegend::paintEvent( WPaintDevice *paintDevice )
 NLSimpleDisplayModel::NLSimpleDisplayModel( WtGui *wapp,
                                             WObject *parent )
   : WAbstractItemModel( parent ),
-    m_wApp( wapp )
+    m_wApp( wapp ),
+    m_beginDisplayTime( boost::date_time::neg_infin ),
+    m_endDisplayTime( boost::date_time::pos_infin )
 {
 }//NLSimpleDisplayModel( constructor )
 
 
 void NLSimpleDisplayModel::useAllColums()
 {
+  assert(0);
   for( NLSimple::DataGraphs col = NLSimple::DataGraphs(0);
        col < NLSimple::kNumDataGraphs;
-       col = NLSimple::DataGraphs(col+1) ) useColumn(col);
+       col = NLSimple::DataGraphs(col+1) )
+    if( col != NLSimple::kFreePlasmaInsulin ) useColumn(col);
 }
 
- NLSimpleDisplayModel::~NLSimpleDisplayModel()
- {
- }
+NLSimpleDisplayModel::~NLSimpleDisplayModel()
+{
+}
 
 
+int NLSimpleDisplayModel::rowCount( const PosixTime &startTime,
+                                    const PosixTime &endTime ) const
+{
+  NLSimplePtr diabeticModel( m_wApp );
+  if( !diabeticModel ) return 0;
 
+  size_t nRows = 0;
+  foreach( const NLSimple::DataGraphs &t, m_columns )
+  {
+    const ConsentrationGraph &data = diabeticModel->dataGraph(t);
+    const ConstGraphIter lb = data.lower_bound( startTime );
+    const ConstGraphIter ub = data.upper_bound( endTime );
+    if( lb == ub ) continue;
+
+    if( t != NLSimple::kFreePlasmaInsulin ) nRows += (ub - lb);
+    else
+    {
+      nRows += ((ub-1)->m_time - lb->m_time).total_seconds()
+               / sm_plasmaInsulinDt.total_seconds();
+    }//if( t != FreePlasmaInsulin )
+  }//foreach( const Columns &t, m_columns )
+
+  return static_cast<int>( nRows );
+}//rowCount( PosixTime, PosixTime )
 
  int NLSimpleDisplayModel::rowCount( const Wt::WModelIndex & ) const
  {
-   NLSimplePtr diabeticModel( m_wApp );
-   if( !diabeticModel ) return 0;
-   if( m_columns.empty() ) return 0;
-
-   size_t nRows = 0;
-   foreach( const NLSimple::DataGraphs &t, m_columns )
-   {
-     const ConsentrationGraph &g = diabeticModel->dataGraph(t);
-     if( g.empty() ) continue;
-
-     if( t != NLSimple::kFreePlasmaInsulin ) nRows += g.size();
-     else
-     {
-       nRows += (g.getEndTime() - g.getStartTime()).total_seconds()
-                / sm_plasmaInsulinDt.total_seconds();
-     }//if( t != FreePlasmaInsulin )
-
-   }//foreach( const Columns &t, m_columns )
-
-   return static_cast<int>( nRows );
+   return rowCount( m_beginDisplayTime, m_endDisplayTime );
  }//rowCount
 
 int NLSimpleDisplayModel::columnCount( const Wt::WModelIndex &) const
@@ -214,15 +237,18 @@ Wt::WModelIndex NLSimpleDisplayModel::parent( const Wt::WModelIndex & ) const
 
 boost::any NLSimpleDisplayModel::data( const WModelIndex& index, int role ) const
 {
-  NLSimplePtr diabeticModel( m_wApp );
-
-  if( !diabeticModel ) return boost::any();
   if( role != Wt::DisplayRole ) return boost::any();
 
-  const int columnWanted = index.column();
-  if( columnWanted >= columnCount() ) return boost::any();
+  NLSimplePtr diabeticModel( m_wApp );
+  if( !diabeticModel ) return boost::any();
 
-  const bool wantTime = (columnWanted==NLSimple::kNumDataGraphs);
+  const int columnWanted = index.column();
+
+//  cerr << "Want column=" << columnWanted << " row=" << index.row() << endl;
+
+  if( columnWanted > static_cast<int>(m_columns.size()) ) return boost::any();
+
+  const bool wantTime = (columnWanted==static_cast<int>(m_columns.size()));
   const size_t wantedRow = static_cast<size_t>( index.row() );
 
   size_t row_n = 0;
@@ -232,14 +258,21 @@ boost::any NLSimpleDisplayModel::data( const WModelIndex& index, int role ) cons
     const NLSimple::DataGraphs &column = m_columns[col];
     const ConsentrationGraph &data = diabeticModel->dataGraph( column );
 
-    size_t dataSize = data.size();
+    const ConstGraphIter lb = data.lower_bound( m_beginDisplayTime );
+    const ConstGraphIter ub = data.upper_bound( m_endDisplayTime );
+    if( ub == lb ) continue;  //garuntees us 'lb' is a valid iterator for below
+
+    size_t dataSize = ub - lb;
+
+
     if( !wantTime && (row_n>wantedRow) ) return boost::any();
     const bool isCorrColl = (col == static_cast<size_t>(columnWanted));
 
     if( column==NLSimple::kFreePlasmaInsulin )
     {
-      const PosixTime t = data.getStartTime() + sm_plasmaInsulinDt*(wantedRow-row_n);
-      const bool inThisData = (t <= data.getEndTime());
+      const PosixTime t = lb->m_time + sm_plasmaInsulinDt*(wantedRow-row_n);
+      ConstGraphIter wanted_time_lb = data.lower_bound(t);
+      const bool inThisData = ((wanted_time_lb>=lb) && (wanted_time_lb<ub));
       if( isCorrColl && inThisData )
       {
         const double value = data.value( t );
@@ -248,7 +281,7 @@ boost::any NLSimpleDisplayModel::data( const WModelIndex& index, int role ) cons
       }else if( inThisData && !wantTime ) return boost::any();
       else if( inThisData && wantTime )  return boost::any( WDateTime::fromPosixTime(t) );
 
-      dataSize = (data.getEndTime() - data.getStartTime()).total_seconds()
+      dataSize = ((ub-1)->m_time - lb->m_time).total_seconds()
                  / sm_plasmaInsulinDt.total_seconds();
       row_n += dataSize;
       continue;
@@ -257,13 +290,15 @@ boost::any NLSimpleDisplayModel::data( const WModelIndex& index, int role ) cons
 
     const bool inThisData = ((row_n+dataSize) > wantedRow);
 
-    if( isCorrColl && inThisData )     return boost::any( data[wantedRow-row_n].m_value );
+    ConstGraphIter dataIter = lb + (wantedRow-row_n);
+
+    if( isCorrColl && inThisData )     return boost::any( dataIter->m_value );
     else if( inThisData && !wantTime ) return boost::any();
     else if( inThisData && wantTime )
     {
       if( column==NLSimple::kCgmsData )
-        return boost::any( WDateTime::fromPosixTime(data[wantedRow-row_n].m_time - diabeticModel->m_settings.m_cgmsDelay) );
-      return boost::any( WDateTime::fromPosixTime(data[wantedRow-row_n].m_time) );
+        return boost::any( WDateTime::fromPosixTime( dataIter->m_time - diabeticModel->m_settings.m_cgmsDelay) );
+      return boost::any( WDateTime::fromPosixTime( dataIter->m_time) );
     }
     row_n += dataSize;
   }//for( loop over columns )
@@ -288,7 +323,7 @@ bool NLSimpleDisplayModel::setHeaderData( int section,
   if(orientation != Horizontal)
     return WAbstractItemModel::setHeaderData( section, orientation, value, role );
 
-  if( section == NLSimple::kNumDataGraphs ) return true;
+  if( section == static_cast<int>(m_columns.size()) ) return true;
 
   if( role == EditRole ) role = DisplayRole;
   m_columnHeaderData[section][role] = value;
@@ -329,15 +364,14 @@ void NLSimpleDisplayModel::doneSettingNewModel()
 
 int NLSimpleDisplayModel::begginingRow( NLSimple::DataGraphs wantedColumn )
 {
-  NLSimplePtr diabeticModel( m_wApp );
-
-  if( wantedColumn == NLSimple::kNumDataGraphs )
+  if( wantedColumn == m_columns.size() )
   {
-    cerr << "You shouldn't be calling NLSimpleDisplayModel::begginingRow( NLSimple::DataGraphs )"
-         << " for the TimeColumn!" << endl;
+    cerr << "You shouldn't be calling NLSimpleDisplayModel::begginingRow("
+         << " NLSimple::DataGraphs ) for the TimeColumn!" << endl;
     return 0;
   }//if( col == TimeColumn )
 
+  NLSimplePtr diabeticModel( m_wApp );
 
   size_t row_n = 0;
 
@@ -350,9 +384,18 @@ int NLSimpleDisplayModel::begginingRow( NLSimple::DataGraphs wantedColumn )
     const bool isScaledColum = (column==NLSimple::kFreePlasmaInsulin);
     ConsentrationGraph &data = diabeticModel->dataGraph( column );
 
-    const size_t dataSize = !isScaledColum ? data.size()
-                            : static_cast<size_t>((data.getEndTime() - data.getStartTime()).total_seconds()
-                                  / sm_plasmaInsulinDt.total_seconds());
+    const ConstGraphIter lb = data.lower_bound( m_beginDisplayTime );
+    const ConstGraphIter ub = data.upper_bound( m_endDisplayTime );
+    if( lb == ub ) continue;
+
+    size_t dataSize = (ub - lb);
+
+    if( isScaledColum )
+    {
+      dataSize = ((ub-1)->m_time - lb->m_time).total_seconds()
+                 / sm_plasmaInsulinDt.total_seconds();
+    }//if( isScaledColum )
+
     row_n += dataSize;
   }//for( loop over columns )
 
@@ -382,15 +425,17 @@ bool NLSimpleDisplayModel::addData( const CgmsDataImport::InfoType type,
     case ISig: assert(0); break;
   };//switch( det )
 
-  assert( col != NLSimple::kNumDataGraphs );
+  assert( col < NLSimple::kNumDataGraphs );
 
   const int beginRow = begginingRow( col );
   ConsentrationGraph &g = modelPtr->dataGraph( col );
   GraphIter pos = g.lower_bound( time );
   const int row = beginRow + pos - g.begin();
 
-  beginInsertRows( WModelIndex(), row, row );
-  cerr << "Beggining to insert row " << row << " into " << col << " data" << endl;
+  const bool isInDisplayedTimeRange = (time>=m_beginDisplayTime)
+                                      && (time<=m_endDisplayTime);
+
+  if( isInDisplayedTimeRange ) beginInsertRows( WModelIndex(), row, row );
 
   switch( type )
   {
@@ -403,16 +448,18 @@ bool NLSimpleDisplayModel::addData( const CgmsDataImport::InfoType type,
     case ISig: assert(0);                           break;
   };//switch( det )
 
-  cerr << "Done inserting row " << row << " into " << col << " data" << endl;
+  if( isInDisplayedTimeRange ) endInsertRows();
 
-  endInsertRows();
-
-  return true;
-}//add data()
+  return isInDisplayedTimeRange;
+}//addData()
 
 
 bool NLSimpleDisplayModel::removeRows( int row, int count, const WModelIndex & )
 {
+  cerr << "NLSimpleDisplayModel::removeRows(...) not allowed to be called" << endl;
+  assert(0);  //I actually think you can use this function, but I didnt test it, so being 'safe'
+
+
   NLSimplePtr diabeticModel( m_wApp );
   size_t row_n = 0;
 
@@ -422,24 +469,31 @@ bool NLSimpleDisplayModel::removeRows( int row, int count, const WModelIndex & )
     const bool isScaledColum = (column==NLSimple::kFreePlasmaInsulin);
     ConsentrationGraph &data = diabeticModel->dataGraph( column );
 
-    const size_t dataSize = !isScaledColum ? data.size()
-                            : static_cast<size_t>((data.getEndTime() - data.getStartTime()).total_seconds()
-                                  / sm_plasmaInsulinDt.total_seconds());
+    const GraphIter lb = data.lower_bound( m_beginDisplayTime );
+    const GraphIter ub = data.upper_bound( m_endDisplayTime );
+
+    size_t dataSize = (ub - lb);
+
+    if( isScaledColum && (ub != lb) )
+    {
+      dataSize = ((ub-1)->m_time - lb->m_time).total_seconds()
+                 / sm_plasmaInsulinDt.total_seconds();
+    }//if( isScaledColum )
 
     const bool inThisData = ((row_n+dataSize) > static_cast<size_t>(row));
 
     if( inThisData && isScaledColum )
     {
-      cerr << "Sourry cant remove data from Free plasma insulin :(" << endl;
+      cerr << "Sorry cant remove data from Free plasma insulin :(" << endl;
       return false;
     }
 
     if( inThisData )
     {
       int localRow = row - row_n;
-      GraphIter first = data.begin() + localRow;
-      GraphIter last = data.end();
-      if( (localRow+count) <= static_cast<int>(data.size()) )
+      GraphIter first = lb + localRow;
+      GraphIter last = ub;
+      if( (first+count) <= ub )
       {
         last = first + count;
         col = m_columns.size();
@@ -480,7 +534,7 @@ void NLSimpleDisplayModel::useColumn( NLSimple::DataGraphs col )
     case NLSimple::kCustomEvents:          title = "User Defined Events";        break;
     case NLSimple::kPredictedBloodGlucose: title = "Predicted Blood Glucose";    break;
     case NLSimple::kPredictedInsulinX:     title = "Insulin X (pred.)";          break;
-    case NLSimple::kNumDataGraphs:         title = "Time";                       break;
+    case NLSimple::kNumDataGraphs:         title = "Time"; assert(0);            break;
   };//switch( col )
 
   setHeaderData( m_columnHeaderData.size()-1, Horizontal, title );
@@ -497,7 +551,8 @@ boost::any NLSimpleDisplayModel::headerData( int section,
   if(orientation != Horizontal)
     return WAbstractItemModel::headerData( section, orientation, role );
 
-  if( section == NLSimple::kNumDataGraphs ) return boost::any( WString("Time") );
+  if( section == static_cast<int>(m_columns.size()) )
+    return boost::any( WString("Time") );
 
   assert( static_cast<size_t>(section) < m_columnHeaderData.size() );
   const HeaderData &info = m_columnHeaderData[section];
@@ -544,6 +599,19 @@ void NLSimpleDisplayModel::dataExternallyChanged()
   */
 }//voiddataExternallyChanged(...)
 
+
+void NLSimpleDisplayModel::setDisplayedTimeRange( const PosixTime &begin,
+                                                  const PosixTime &end )
+{
+  beginRemoveRows( WModelIndex(), 0, rowCount() );
+  m_beginDisplayTime = m_endDisplayTime = kGenericT0;
+  endRemoveRows();
+
+  beginInsertRows( WModelIndex(), 0, rowCount( begin, end ) );
+  m_endDisplayTime = end;
+  m_beginDisplayTime = begin;
+  endInsertRows();
+}//void setDisplayedTimeRange(...)
 
 
 WtGeneralArrayModel::WtGeneralArrayModel( const int nbin,
@@ -779,7 +847,9 @@ bool WtTimeRangeVecModel::addRow( const PosixTime &start, const PosixTime &end )
   TimeRangeVec &g = ptr->m_doNotUseTimeRanges;
   TimeRangeVec::iterator pos = std::lower_bound( g.begin(), g.end(), r, &lessThan );
   if( pos!=g.end() && pos->begin()==start && pos->end()==end ) return false;
+  beginInsertRows( WModelIndex(), pos-g.begin(), 1 );
   g.insert( pos, r );
+  endInsertRows();
   return true;
 }//addRow
 void WtTimeRangeVecModel::refresh()

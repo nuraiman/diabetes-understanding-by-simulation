@@ -34,6 +34,7 @@ class UsersModel;
 class TimeTextPair;
 class ModelSettings;
 class WtConsGraphModel;
+class WtTimeRangeVecModel;
 class ConsentrationGraph;
 
 class ClarkErrorGridGraph;
@@ -183,6 +184,7 @@ public:
     void newModel();
     void updateDataRange();
     void zoomToFullDateRange();
+    void zoomMostRecentDay();
     void syncDisplayToModel();
     void updateClarkAnalysis();
     void updateClarkAnalysis( const ConsentrationGraph &xGraph,
@@ -206,6 +208,8 @@ public:
     boost::recursive_mutex &modelMutex() { return m_modelMutex; }
     DateTimeSelect *getBeginTimePicker() { return m_bsBeginTimePicker; }
     DateTimeSelect *getEndTimePicker() { return m_bsEndTimePicker; }
+
+    boost::shared_ptr<NLSimpleDisplayModel> getSimpleSimDisplayModel() { return m_nlSimleDisplayModel; }
 
     void notesTabClickedCallback( int clickedINdex );
 
@@ -453,7 +457,22 @@ public:
   void userNavigatedToTab();
 };//class WtNotesTab : public Wt::WContainerWidget
 
+/*
+class WtExcludeTimeRangesTab : public Wt::WContainerWidget
+{
+protected:
+  WtGui                      *m_parentWtGui;
+  DateTimeSelect             *m_startExcludeSelect;
+  DateTimeSelect             *m_endExcludeSelect;
 
+  WtTimeRangeVecModel        *m_model;
+
+
+  Wt::WPushButton *m_deleteButton;
+public:
+
+};//class WtExcludeTimeRangesTab : public Wt::WContainerWidget
+*/
 
 
 #endif // WTGUI_H

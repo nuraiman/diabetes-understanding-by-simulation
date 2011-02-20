@@ -51,7 +51,7 @@ public:
 class NLSimpleDisplayModel : public Wt::WAbstractItemModel
 {
   //Right now this class is a model that meets some of the purposes I wanted:
-  //Right now the NLSimple::kNumDataGraphs'th axis is the time axis,
+  //Right now the last column is the time axis,
   //  and it is implicitly always defined (eg no entry in m_columnHeaderData
   //  or m_cachedData exists for it), and its header data cannot be set.
   //The upside to using this model is it's easy to only use the columns
@@ -73,12 +73,17 @@ protected:
 
   std::vector<NLSimple::DataGraphs> m_columns;
 
+  PosixTime m_beginDisplayTime;
+  PosixTime m_endDisplayTime;
+
+
   boost::mutex m_dataBeingChangedMutex;
 
 public:
   NLSimpleDisplayModel(  WtGui *wapp, Wt::WObject *parent = 0 );
   ~NLSimpleDisplayModel();
   virtual int columnCount( const Wt::WModelIndex& parent = Wt::WModelIndex() ) const;
+  virtual int rowCount( const PosixTime &start, const PosixTime &end ) const;
   virtual int rowCount( const Wt::WModelIndex& parent = Wt::WModelIndex() ) const;
   virtual Wt::WModelIndex parent( const Wt::WModelIndex& index) const;
   virtual boost::any data( const Wt::WModelIndex& index, int role = Wt::DisplayRole) const;
@@ -111,9 +116,13 @@ public:
 
   int begginingRow( NLSimple::DataGraphs col );  //the row of the zeroth element graph(col)
 
-  void updateData();
+//  void updateData();
   void dataExternallyChanged();
 
+  const PosixTime &beginDisplayTime() const { return m_beginDisplayTime; }
+  const PosixTime &endDisplayTime() const { return m_endDisplayTime; }
+
+  void setDisplayedTimeRange( const PosixTime &begin, const PosixTime &end );
 };//class NLSimpleDisplayModel
 
 
