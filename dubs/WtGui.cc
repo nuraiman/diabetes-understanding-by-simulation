@@ -175,8 +175,8 @@ WtGui::WtGui( const Wt::WEnvironment& env, DubUserServer &server )
   m_bsEndTimePicker( NULL ),
   m_errorGridModel( NULL ),
   m_errorGridGraph( NULL ),
-  m_rawDataView( NULL ),
-  m_delDataButton( NULL ),
+  m_nextTimePeriodButton( NULL ),
+  m_previousTimePeriodButton( NULL ),
   m_notesTab( NULL )
 {
   enableUpdates(true);
@@ -556,7 +556,16 @@ void WtGui::init( const string username )
   }
   */
 
+  string local_url = "local_resources/";
+  if( boost::algorithm::contains( url(), "dubs.app" ) )
+    local_url = "dubs/exec/local_resources/";
+
   Div *datePickingDiv  = new Div( "datePickingDiv" );
+  m_previousTimePeriodButton = new WPushButton( "Previous", datePickingDiv );
+//  m_previousTimePeriodButton->setIcon( local_url + "back_arrow.gif" );
+  m_previousTimePeriodButton->setFloatSide( Left );
+  m_previousTimePeriodButton->clicked().connect( this, &WtGui::showPreviousTimePeriod );
+
   WDateTime now( WDate(2010,1,3), WTime(2,30) );
   m_bsBeginTimePicker  = new DateTimeSelect( "Start Date/Time:&nbsp;",
                                              now, datePickingDiv );
@@ -568,6 +577,10 @@ void WtGui::init( const string username )
   mostRecentDay->clicked().connect( this, &WtGui::zoomMostRecentDay );
 
 
+  m_nextTimePeriodButton = new WPushButton( "Next", datePickingDiv );
+//  m_nextTimePeriodButton->setIcon( local_url + "forward_arrow.gif" );
+  m_nextTimePeriodButton->setFloatSide( Right );
+  m_nextTimePeriodButton->clicked().connect( this, &WtGui::showNextTimePeriod );
 
   m_bsBeginTimePicker->changed().connect( boost::bind( &WtGui::updateDisplayedDateRange, this ) );
   m_bsEndTimePicker->changed().connect( boost::bind( &WtGui::updateDisplayedDateRange, this ) );
@@ -770,6 +783,36 @@ void WtGui::enableRawDataDelButton( WTableView *view, Wt::WPushButton *button )
 }//void WtGui::enableRawDataDelButton()
 
 
+void WtGui::showNextTimePeriod()
+{
+  const PosixTime &begin = m_nlSimleDisplayModel->beginDisplayTime();
+  const PosixTime &end = m_nlSimleDisplayModel->endDisplayTime();
+  const TimeDuration duration = end - begin;
+
+  const PosixTime dataEnd = m_bsEndTimePicker->top().toPosixTime();
+  const PosixTime newEnd = ((end + duration) < dataEnd) ? (end + duration) : dataEnd;
+  const PosixTime newBegin = newEnd - duration;
+
+  m_bsEndTimePicker->set( WDateTime::fromPosixTime(newEnd) );
+  m_bsBeginTimePicker->set( WDateTime::fromPosixTime(newBegin) );
+  updateDisplayedDateRange();
+}//void showNextTimePeriod()
+
+void WtGui::showPreviousTimePeriod()
+{
+  const PosixTime &begin = m_nlSimleDisplayModel->beginDisplayTime();
+  const PosixTime &end = m_nlSimleDisplayModel->endDisplayTime();
+  const TimeDuration duration = end - begin;
+
+  const PosixTime dataBegin = m_bsBeginTimePicker->bottom().toPosixTime();
+  const PosixTime newBegin = ((begin-duration) > dataBegin) ? (begin-duration) : dataBegin;
+  const PosixTime newEnd = newBegin + duration;
+
+  m_bsEndTimePicker->set( WDateTime::fromPosixTime(newEnd) );
+  m_bsBeginTimePicker->set( WDateTime::fromPosixTime(newBegin) );
+  updateDisplayedDateRange();
+}//void showPreviousTimePeriod()
+
 
 
 void WtGui::refreshInsConcFromBoluses()
@@ -944,6 +987,16 @@ void WtGui::updateDisplayedDateRange()
   const PosixTime start = m_bsBeginTimePicker->dateTime().toPosixTime();
   m_nlSimleDisplayModel->setDisplayedTimeRange( start, end );
 //  m_bsGraph->axis(Chart::XAxis).setRange( Wt::asNumber(start), Wt::asNumber(end) );
+
+  if( end >= m_bsEndTimePicker->top().toPosixTime() )
+    m_nextTimePeriodButton->disable();
+  else
+    m_nextTimePeriodButton->enable();
+
+  if( start <= m_bsBeginTimePicker->bottom().toPosixTime() )
+    m_previousTimePeriodButton->disable();
+  else
+    m_previousTimePeriodButton->enable();
 }//void updateDisplayedDateRange()
 
 
