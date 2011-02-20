@@ -395,18 +395,18 @@ void NLSimple::defineDefautDexcomEvents()
   {
     switch( type )
     {
-      case k30MinLightExcersize:  defineCustomEvent( type, "30 min Light Excersize",   TimeDuration(0,60,0),  MultiplyInsulin, 4 );  break;
-      case k60MinLightExcersize:  defineCustomEvent( type, "60 min Light Excersize",   TimeDuration(0,120,0), MultiplyInsulin, 8 );  break;
-      case k90MinLightExcersize:  defineCustomEvent( type, "90 min Light Excersize",   TimeDuration(0,180,0), MultiplyInsulin, 12 ); break;
-      case k120MinLightExcersize: defineCustomEvent( type, "120 min Light Excersize",  TimeDuration(0,240,0), MultiplyInsulin, 16 ); break;
-      case k30MinMedExcersize:    defineCustomEvent( type, "30 min Medium Excersize",  TimeDuration(0,60,0),  MultiplyInsulin, 4 );  break;
-      case k60MinMedExcersize:    defineCustomEvent( type, "60 min Medium Excersize",  TimeDuration(0,120,0), MultiplyInsulin, 8 );  break;
-      case k90MinMedExcersize:    defineCustomEvent( type, "90 min Medium Excersize",  TimeDuration(0,180,0), MultiplyInsulin, 12 ); break;
-      case k120MinMedExcersize:   defineCustomEvent( type, "120 min Medium Excersize", TimeDuration(0,240,0), MultiplyInsulin, 16 ); break;
-      case k30MinHardExcersize:   defineCustomEvent( type, "30 min Hard Excersize",    TimeDuration(0,60,0),  MultiplyInsulin, 4 );  break;
-      case k60MinHardExcersize:   defineCustomEvent( type, "60 min Hard Excersize",    TimeDuration(0,120,0), MultiplyInsulin, 8 );  break;
-      case k90MinHardExcersize:   defineCustomEvent( type, "90 min Hard Excersize",    TimeDuration(0,180,0), MultiplyInsulin, 12 ); break;
-      case k120MinHardExcersize:  defineCustomEvent( type, "120 min Hard Excersize",   TimeDuration(0,240,0), MultiplyInsulin, 16 ); break;
+      case k30MinLightExcersize:  defineCustomEvent( type, "30m Light Excersize",   TimeDuration(0,60,0),  MultiplyInsulin, 4 );  break;
+      case k60MinLightExcersize:  defineCustomEvent( type, "60m Light Excersize",   TimeDuration(0,120,0), MultiplyInsulin, 8 );  break;
+      case k90MinLightExcersize:  defineCustomEvent( type, "90m Light Excersize",   TimeDuration(0,180,0), MultiplyInsulin, 12 ); break;
+      case k120MinLightExcersize: defineCustomEvent( type, "120m Light Excersize",  TimeDuration(0,240,0), MultiplyInsulin, 16 ); break;
+      case k30MinMedExcersize:    defineCustomEvent( type, "30m Med Excersize",  TimeDuration(0,60,0),  MultiplyInsulin, 4 );  break;
+      case k60MinMedExcersize:    defineCustomEvent( type, "60m Med Excersize",  TimeDuration(0,120,0), MultiplyInsulin, 8 );  break;
+      case k90MinMedExcersize:    defineCustomEvent( type, "90m Med Excersize",  TimeDuration(0,180,0), MultiplyInsulin, 12 ); break;
+      case k120MinMedExcersize:   defineCustomEvent( type, "120m Med Excersize", TimeDuration(0,240,0), MultiplyInsulin, 16 ); break;
+      case k30MinHardExcersize:   defineCustomEvent( type, "30m Hard Excersize",    TimeDuration(0,60,0),  MultiplyInsulin, 4 );  break;
+      case k60MinHardExcersize:   defineCustomEvent( type, "60m Hard Excersize",    TimeDuration(0,120,0), MultiplyInsulin, 8 );  break;
+      case k90MinHardExcersize:   defineCustomEvent( type, "90m Hard Excersize",    TimeDuration(0,180,0), MultiplyInsulin, 12 ); break;
+      case k120MinHardExcersize:  defineCustomEvent( type, "120m Hard Excersize",   TimeDuration(0,240,0), MultiplyInsulin, 16 ); break;
 
       case kHealthIllness:        defineCustomEvent( type, "Illness", TimeDuration(12,0,0),      MultiplyInsulin, 4); break;
       case kHealthStress:         defineCustomEvent( type, "Stress", TimeDuration(4,0,0),        IndependantEffect, 4);    break;
@@ -1847,6 +1847,8 @@ double NLSimple::geneticallyOptimizeModel( double endPredChi2Weight,
   resetPredictions();
   findSteadyStateBeginings(3);
 
+  timeRanges = getNonExcludedTimeRanges( timeRanges );
+
   cerr << "There are " << m_startSteadyStateTimes.size() << " Steady state starting times" << endl;
 
   Int_t fPopSize      = m_settings.m_genPopSize;
@@ -2001,9 +2003,87 @@ bool NLSimple::removeInfoAfter( const PosixTime &cgmsEndTime, bool removeCgms )
 }//removeInfoAfter
 
 
+TimeRangeVec NLSimple::subtractTimeRanges( const TimeRangeVec &wanted_ranges,
+                                           const TimeRange    &not_wanted )
+{
+  TimeRangeVec answer;
+
+  foreach( const TimeRange &wanted, wanted_ranges )
+  {
+    if( !wanted.intersects( not_wanted ) ) answer.push_back( wanted );
+    else
+    {
+      const TimeRange to_be_removed = wanted.intersection( not_wanted );
+
+      if( wanted.begin() == to_be_removed.begin()
+          && wanted.end() == to_be_removed.end() )
+      {
+        continue; //We dont want this time range at all
+      }else if( wanted.begin() == to_be_removed.begin() )
+      {
+        //to_be_removed begins on or before the wanted range starts and
+        //  stops somehwere in the inside of the wanted range
+        const TimeRange range( to_be_removed.last(), wanted.last() );
+        answer.push_back( range );
+      }else if( wanted.last() == to_be_removed.last() )
+      {
+        //to_be_removed begins somehwere in the wanted range and extends to
+        //  the end of the wanted range
+        const TimeRange range( wanted.begin(), to_be_removed.begin() );
+        answer.push_back( range );
+      }else
+      {
+        //to_be_removed takes a chunk out of the wanted range
+        const TimeRange first_part( wanted.begin(), to_be_removed.begin() );
+        const TimeRange second_part( wanted.last(), to_be_removed.last() );
+        answer.push_back( first_part );
+        answer.push_back( second_part );
+      }//if/else to figure out what time ranges(s) are wanted
+    }//if the wanted and unwanted time ranges intersect / else
+  }//foreach wanted range
+
+  return answer;
+}//TimeRangeVec subtractTimeRanges(...)
+
+
+TimeRangeVec NLSimple::getNonExcludedTimeRanges( TimeRangeVec wantedTimeRanges ) const
+{
+  cerr << "Warning: NLSimple::getNonExcludedTimeRanges(...) is completely untested!" << endl;
+  TimeRangeVec answer;
+
+  if( wantedTimeRanges.empty() )
+    wantedTimeRanges.push_back( TimeRange( m_cgmsData.getStartTime(),
+                                           m_cgmsData.getEndTime() ) );
+
+  foreach( const TimeRange &wanted, wantedTimeRanges )
+  {
+    TimeRangeVec this_range( 1, wanted );
+
+    foreach( const TimeRange &not_wanted, m_doNotUseTimeRanges )
+    {
+      this_range = subtractTimeRanges( this_range, not_wanted );
+    }//foreach NOT-wanted range
+
+    answer.insert( answer.end(), this_range.begin(), this_range.end() );
+  }//foreach wanted range
+
+
+  cerr << "TimeRangeVec NLSimple::getNonExcludedTimeRanges(...): from input"
+       << " ranges: ";
+  foreach( const TimeRange &range, wantedTimeRanges ) cerr << range << ", ";
+  cerr << endl << "And NOT_WANTED ranges: ";
+  foreach( const TimeRange &range, m_doNotUseTimeRanges ) cerr << range << ", ";
+  cerr << endl << "We are keeping: ";
+  foreach( const TimeRange &range, m_doNotUseTimeRanges ) cerr << range << ", ";
+  cerr << endl << endl;
+
+
+  answer;
+}//TimeRangeVec getNonExcludedTimeRanges() const
+
 
 double NLSimple::fitModelToDataViaMinuit2( double endPredChi2Weight,
-                                           vector<TimeRange> timeRanges )
+                                             vector<TimeRange> timeRanges )
 {
   using namespace ROOT::Minuit2;
 
@@ -2024,6 +2104,8 @@ double NLSimple::fitModelToDataViaMinuit2( double endPredChi2Weight,
     foreach( double d, m_paramaters ) cout << " " << d;
     cout << endl;
   }//if( use existing parameters )
+
+  timeRanges = getNonExcludedTimeRanges( timeRanges );
 
 
   m_paramaters.clear();
@@ -2152,7 +2234,7 @@ bool NLSimple::fitEvents( TimeRangeVec timeRanges,
 {
 
   FitNLSimpleEvent modelFcn( this );
-
+  timeRanges = getNonExcludedTimeRanges( timeRanges );
 
 
 }//bool NLSimple::fitEvents(...)
@@ -2176,11 +2258,11 @@ DVec NLSimple::chi2DofStudy( double endPredChi2Weight,
   selfCopy.m_paramaters = m_paramaters;
   cout << "done finding steady states" << endl;
 
+  timeRanges = getNonExcludedTimeRanges( timeRanges );
+
   DVec dof(NumNLSimplePars, 0.2);
   ModelTestFCN testFunc( &selfCopy, endPredChi2Weight, timeRanges );
 
-  if( timeRanges.empty() )
-    timeRanges.push_back( TimeRange(kGenericT0,kGenericT0) );
 
   int nCgmsPoints = 0;
   foreach( const TimeRange &tr, timeRanges )
@@ -2659,8 +2741,7 @@ ModelTestFCN::ModelTestFCN( NLSimple *modelPtr,
 {
   assert( m_modelPtr );
 
-  if( m_timeRanges.empty() )
-    m_timeRanges.push_back( TimeRange( kGenericT0, kGenericT0 ) );
+  assert( !m_timeRanges.empty() );
 }//ModelTestFCN constructor
 
 
