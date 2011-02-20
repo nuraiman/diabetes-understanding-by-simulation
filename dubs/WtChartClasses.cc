@@ -95,28 +95,26 @@ void WChartWithLegend::paint( WPainter& painter, const WRectF& rectangle ) const
     }//foreach custom event
 
     string url = "local_resources/";
-    //if( boost::algorithm::contains( wApp->url(), "dubs.app" ) )
-    //  url = "dubs/exec/" + url;
+    if( boost::algorithm::contains( wApp->url(), "dubs.app" ) )
+      url = "dubs/exec/local_resources/";
 
     painter.setPen( palette()->strokePen( WtGui::kFreePlasmaInsulin ) );
     foreach( const GraphElement &el, modelPtr->m_boluses )
     {
       WPointF pos = mapToDevice( WDateTime::fromPosixTime(el.m_time), 5*el.m_value );
-      painter.drawImage( pos, WPainter::Image( url+"syringe.png", url+"syringe.png") );
+      painter.drawImage( pos, WPainter::Image( url+"syringe.png", "local_resources/syringe.png") );
     }//foreach( const GraphElement &el, modelPtr->m_customEvents )
 
     painter.setPen( palette()->strokePen( WtGui::kFreePlasmaInsulin ) );
     foreach( const GraphElement &el, modelPtr->m_mealData)
     {
       WPointF pos = mapToDevice( WDateTime::fromPosixTime(el.m_time), el.m_value, Wt::Chart::Y2Axis );
-      //WPainter::Image burger("local_resources/hamburger.png","local_resources/hamburger.png");
-      WPainter::Image burger("dubs/exec/local_resources/hamburger.png","local_resources/hamburger.png");
-
-//      Wt::WRectArea *value = new Wt::WRectArea( 0, 0, burger.width(), burger.height() );
-      //value->setToolTip( boost::lexical_cast<string>(el.m_value)
-      //                   + " grams of carbs at "
-      //                   + boost::lexical_cast<string>(el.m_time) );
-      //addArea( value );
+      WPainter::Image burger(url+"hamburger.png","local_resources/hamburger.png");
+//      Wt::WRectArea *value = new Wt::WRectArea( pos.x(), pos.y(), burger.width(), burger.height() );
+//      value->setToolTip( boost::lexical_cast<string>(el.m_value)
+//                         + " grams of carbs at "
+//                         + boost::lexical_cast<string>(el.m_time) );
+//      const_cast<WChartWithLegend *>(this)->addArea( value );
       painter.drawImage( pos, burger );
     }//foreach( const GraphElement &el, modelPtr->m_mealData )
 

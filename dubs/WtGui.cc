@@ -1896,7 +1896,7 @@ WtGeneticallyOptimize::WtGeneticallyOptimize( WtGui *wtGuiParent, Wt::WContainer
   m_graphModel->setHeaderData( WtGui::kGlucoseAbsRate,        WString("Glucose Abs. Rate (pred.)") );
   m_graphModel->setHeaderData( WtGui::kMealData,              WString("Consumed Carbohydrates") );
   m_graphModel->setHeaderData( WtGui::kFingerStickData,       WString("Finger Stick Readings") );
-  m_graphModel->setHeaderData( WtGui::kCustomEventData,       WString("User Defined Events") );
+//  m_graphModel->setHeaderData( WtGui::kCustomEventData,       WString("User Defined Events") );
   m_graphModel->setHeaderData( WtGui::kPredictedBloodGlucose, WString("Predicted Blood Glucose") );
   m_graphModel->setHeaderData( WtGui::kPredictedInsulinX,     WString("Insulin X (pred.)") );
 

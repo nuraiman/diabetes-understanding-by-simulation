@@ -277,6 +277,8 @@ class NLSimple
     //  *Note* for this funciton predictions are made m_predictAhead time ahead
     //         of the latest cgms measurment, so really the predictions are
     //         m_predictAhead + m_cgmsDelay ahead of last known BG
+    //
+    //  *Note* this function does NOT take m_doNotUseTimeRanges into account!
     void makeGlucosePredFromLastCgms( ConsentrationGraph &predBg,
                                       PosixTime simulateCgmsEndTime = kGenericT0 );
 
@@ -291,6 +293,8 @@ class NLSimple
     //  If lastPointChi2Weight between 0.0 and 1.0 is specified, then a
     //  chi2 will be computed, were 0.0 gives every point of every prediction
     //  equal weight, and 1.0 only gives the last point any weight
+    //
+    //  *Note* this function does NOT take m_doNotUseTimeRanges into account!
     double getGraphOfMaxTimePredictions( ConsentrationGraph &predBg,
                                        PosixTime firstCgmsTime = kGenericT0,
                                        PosixTime lastCgmsTime = kGenericT0,
@@ -369,6 +373,13 @@ class NLSimple
     bool fitEvents( TimeRangeVec timeRanges,
                     std::vector< std::vector<double> *> &paramaterV,
                     std::vector<ConsentrationGraph *> resultGV );
+
+    //Get the inverse of m_doNotUseTimeRanges, that are contained in
+    //  wantedTimeRanges.  If no wanted time ranges are specified, all
+    //  available CGMS data is assumed.
+    TimeRangeVec getNonExcludedTimeRanges( TimeRangeVec wantedTimeRanges = TimeRangeVec() ) const;
+    static TimeRangeVec subtractTimeRanges( const TimeRangeVec &wanted_ranges,
+                                            const TimeRange    &not_wanted );
 
     void runGui();
     void draw( bool pause = true, PosixTime t_start = kGenericT0,
