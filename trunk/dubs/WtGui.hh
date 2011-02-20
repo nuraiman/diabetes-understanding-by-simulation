@@ -205,6 +205,10 @@ public:
     void refreshInsConcFromBoluses();
     void refreshClucoseConcFromMealData();
 
+    void showNextTimePeriod();
+    void showPreviousTimePeriod();
+
+
     boost::recursive_mutex &modelMutex() { return m_modelMutex; }
     DateTimeSelect *getBeginTimePicker() { return m_bsBeginTimePicker; }
     DateTimeSelect *getEndTimePicker() { return m_bsEndTimePicker; }
@@ -246,8 +250,8 @@ public:
     ClarkErrorGridGraph        *m_errorGridGraph;
     Div                        *m_errorGridLegend;
 
-    Wt::WTableView             *m_rawDataView;
-    Wt::WPushButton            *m_delDataButton;
+    Wt::WPushButton            *m_nextTimePeriodButton;
+    Wt::WPushButton            *m_previousTimePeriodButton;
 
     WtNotesTab                 *m_notesTab;
 
