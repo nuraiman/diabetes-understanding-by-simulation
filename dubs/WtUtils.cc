@@ -80,13 +80,6 @@ DateTimeSelect::DateTimeSelect( const std::string &labelText,
   m_minuteSelect->setMaxLength(2);
   m_minuteSelect->setTextSize(2);
 
-  m_datePicker->setGlobalPopup( true );
-  m_datePicker->changed().connect(   boost::bind( &DateTimeSelect::validate, this, true ) );
-  m_hourSelect->changed().connect(   boost::bind( &DateTimeSelect::validate, this, true ) );
-  m_minuteSelect->changed().connect( boost::bind( &DateTimeSelect::validate, this, true ) );
-  m_datePicker->changed().connect(  boost::bind( &WDatePicker::setPopupVisible, m_datePicker, true ) );
-
-
   if( labelText != "" )
   {
     WLabel *label = new WLabel( labelText, this );
@@ -98,6 +91,12 @@ DateTimeSelect::DateTimeSelect( const std::string &labelText,
   addWidget( m_hourSelect );
   addWidget( new WText(":") );
   addWidget( m_minuteSelect );
+
+  m_datePicker->setGlobalPopup( true );
+  m_datePicker->changed().connect(   boost::bind( &DateTimeSelect::validate, this, true ) );
+  m_hourSelect->changed().connect(   boost::bind( &DateTimeSelect::validate, this, true ) );
+  m_minuteSelect->changed().connect( boost::bind( &DateTimeSelect::validate, this, true ) );
+  m_datePicker->changed().connect(  boost::bind( &WDatePicker::setPopupVisible, m_datePicker, false ) );
 
   if( initialTime.isValid() ) set( initialTime );
   else                        setToCurrentTime();
@@ -132,7 +131,9 @@ Wt::WDateTime DateTimeSelect::dateTime() const
 
 void DateTimeSelect::setTop( const Wt::WDateTime &top )
 {
-  m_top = top;
+  int secs = top.time().second();
+  if( secs ) secs = 60 - secs;
+  m_top = top.addSecs( secs );
   m_datePicker->setTop( top.date() );
   validate();
   m_topBottomChanged.emit();
@@ -140,7 +141,7 @@ void DateTimeSelect::setTop( const Wt::WDateTime &top )
 
 void DateTimeSelect::setBottom( const Wt::WDateTime &bottom )
 {
-  m_bottom = bottom;
+  m_bottom = bottom.addSecs( -bottom.time().second() );
   m_datePicker->setBottom( bottom.date() );
   validate();
   m_topBottomChanged.emit();
@@ -149,7 +150,7 @@ void DateTimeSelect::setBottom( const Wt::WDateTime &bottom )
 void DateTimeSelect::validate( bool emitChanged )
 {
   const WDateTime currentDT = dateTime();
-  if( currentDT < m_bottom )   set( m_bottom );
+  if( currentDT < m_bottom ) set( m_bottom );
   else if( currentDT > m_top ) set( m_top );
 
   if( emitChanged ) m_changed.emit();

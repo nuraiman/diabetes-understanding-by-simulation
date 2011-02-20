@@ -482,9 +482,8 @@ void WtGui::init( const string username )
   
 
   m_bsGraph = new WChartWithLegend(this);
-  m_nlSimleDisplayModel->useAllColums();
+//  m_nlSimleDisplayModel->useAllColums();
   m_bsGraph->setModel( m_nlSimleDisplayModel.get() );
-  m_bsGraph->setXSeriesColumn( NLSimple::kNumDataGraphs );
   m_bsGraph->setLegendEnabled(false);
   m_bsGraph->setPlotAreaPadding( 25, Wt::Right );
   m_bsGraph->setPlotAreaPadding( 70, Wt::Bottom );
@@ -498,19 +497,33 @@ void WtGui::init( const string username )
   m_bsGraph->setMinimumSize( 200, 150 );
 
 
-  Chart::WDataSeries cgmsSeries(NLSimple::kCgmsData, Chart::LineSeries);
-  cgmsSeries.setShadow(WShadow(3, 3, WColor(0, 0, 0, 127), 3));
-  m_bsGraph->addSeries( cgmsSeries );
-  Chart::WDataSeries fingerSeries( NLSimple::kFingerMeterData, Chart::PointSeries );
-  m_bsGraph->addSeries( fingerSeries );
-  Chart::WDataSeries calibrationSeries( NLSimple::kCalibrationData, Chart::PointSeries );
-  m_bsGraph->addSeries( calibrationSeries );
-  Chart::WDataSeries mealSeries( NLSimple::kMealData, Chart::PointSeries, Chart::Y2Axis );
-  m_bsGraph->addSeries( mealSeries );
-  Chart::WDataSeries predictSeries( NLSimple::kPredictedBloodGlucose, Chart::LineSeries );
+  m_nlSimleDisplayModel->useColumn(NLSimple::kPredictedBloodGlucose);
+  Chart::WDataSeries predictSeries( m_nlSimleDisplayModel->columnCount()-2, Chart::LineSeries );
   m_bsGraph->addSeries( predictSeries );
-  Chart::WDataSeries insulinSeries( NLSimple::kFreePlasmaInsulin, Chart::LineSeries );
-  m_bsGraph->addSeries( insulinSeries );
+
+  m_nlSimleDisplayModel->useColumn(NLSimple::kCgmsData);
+  Chart::WDataSeries cgmsSeries(m_nlSimleDisplayModel->columnCount()-2, Chart::LineSeries);
+  //cgmsSeries.setShadow(WShadow(3, 3, WColor(0, 0, 0, 127), 3));
+  m_bsGraph->addSeries( cgmsSeries );
+
+  m_nlSimleDisplayModel->useColumn(NLSimple::kFingerMeterData);
+  Chart::WDataSeries fingerSeries( m_nlSimleDisplayModel->columnCount()-2, Chart::PointSeries );
+  m_bsGraph->addSeries( fingerSeries );
+
+  m_nlSimleDisplayModel->useColumn(NLSimple::kCalibrationData);
+  Chart::WDataSeries calibrationSeries( m_nlSimleDisplayModel->columnCount()-2, Chart::PointSeries );
+  m_bsGraph->addSeries( calibrationSeries );
+
+  m_nlSimleDisplayModel->useColumn(NLSimple::kMealData);
+  Chart::WDataSeries mealSeries( m_nlSimleDisplayModel->columnCount()-2, Chart::PointSeries, Chart::Y2Axis );
+  m_bsGraph->addSeries( mealSeries );
+
+
+//  m_nlSimleDisplayModel->useColumn(NLSimple::kFreePlasmaInsulin);
+//  Chart::WDataSeries insulinSeries( m_nlSimleDisplayModel->columnCount()-2, Chart::LineSeries );
+//  m_bsGraph->addSeries( insulinSeries );
+
+  m_bsGraph->setXSeriesColumn( m_nlSimleDisplayModel->columnCount()-1 );
 
 
   m_errorGridModel = new WStandardItemModel(  this );
@@ -551,8 +564,14 @@ void WtGui::init( const string username )
                                              now, datePickingDiv );
   WPushButton *zoomOut = new WPushButton( "Full Date Range", datePickingDiv );
   zoomOut->clicked().connect( this, &WtGui::zoomToFullDateRange );
+  WPushButton *mostRecentDay = new WPushButton( "Most Recent Day", datePickingDiv );
+  mostRecentDay->clicked().connect( this, &WtGui::zoomMostRecentDay );
+
+
+
   m_bsBeginTimePicker->changed().connect( boost::bind( &WtGui::updateDisplayedDateRange, this ) );
   m_bsEndTimePicker->changed().connect( boost::bind( &WtGui::updateDisplayedDateRange, this ) );
+
 
   updateDataRange();
   WDateTime start, end;
@@ -873,6 +892,12 @@ void WtGui::zoomToFullDateRange()
   updateDisplayedDateRange();
 }//void zoomToFullDateRange();
 
+void WtGui::zoomMostRecentDay()
+{
+  m_bsEndTimePicker->set( m_bsEndTimePicker->top() );
+  m_bsBeginTimePicker->set( m_bsEndTimePicker->top().addDays(-1) );
+  updateDisplayedDateRange();
+}//void WtGui::zoomMostRecentDay()
 
 void WtGui::updateDataRange()
 {
@@ -915,9 +940,10 @@ void WtGui::updateDataRange()
 
 void WtGui::updateDisplayedDateRange()
 {
-  const WDateTime end = m_bsEndTimePicker->dateTime();
-  const WDateTime start = m_bsBeginTimePicker->dateTime();
-  m_bsGraph->axis(Chart::XAxis).setRange( Wt::asNumber(start), Wt::asNumber(end) );
+  const PosixTime end = m_bsEndTimePicker->dateTime().toPosixTime();
+  const PosixTime start = m_bsBeginTimePicker->dateTime().toPosixTime();
+  m_nlSimleDisplayModel->setDisplayedTimeRange( start, end );
+//  m_bsGraph->axis(Chart::XAxis).setRange( Wt::asNumber(start), Wt::asNumber(end) );
 }//void updateDisplayedDateRange()
 
 
