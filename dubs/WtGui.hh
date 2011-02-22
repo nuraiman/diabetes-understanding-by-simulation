@@ -461,22 +461,39 @@ public:
   void userNavigatedToTab();
 };//class WtNotesTab : public Wt::WContainerWidget
 
-/*
+
 class WtExcludeTimeRangesTab : public Wt::WContainerWidget
 {
 protected:
   WtGui                      *m_parentWtGui;
+
+  WChartWithLegend           *m_chart;
+  NLSimpleDisplayModel       *m_displayModel;
+
+  Wt::WTableView             *m_view;
+  WtTimeRangeVecModel        *m_listModel;
+
+  Wt::WPushButton            *m_deleteButton;
+  Wt::WPushButton            *m_enableAddNewRangeButton;
+
   DateTimeSelect             *m_startExcludeSelect;
   DateTimeSelect             *m_endExcludeSelect;
+  Wt::WPushButton            *m_addRangeButton;
+  Wt::WCheckBox              *m_saveModel;
 
-  WtTimeRangeVecModel        *m_model;
+  Wt::WText                  *m_description;
 
-
-  Wt::WPushButton *m_deleteButton;
 public:
+  WtExcludeTimeRangesTab( WtGui *parentWtGui, Wt::WContainerWidget *parent = NULL );
+  virtual ~WtExcludeTimeRangesTab(){}
 
+  void displaySelected();
+  void allowUserToEnterNewRange();
+  void addEnteredRangeToModel();
+  void deleteSelectedRange();
+  void updateGraphWithUserRange();
 };//class WtExcludeTimeRangesTab : public Wt::WContainerWidget
-*/
+
 
 
 #endif // WTGUI_H

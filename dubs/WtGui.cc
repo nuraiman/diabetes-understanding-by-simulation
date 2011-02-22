@@ -491,7 +491,7 @@ void WtGui::init( const string username )
   m_bsGraph->axis(Chart::XAxis).setLabelAngle(45.0);
   m_bsGraph->axis(Chart::Y2Axis).setVisible(true);
   m_bsGraph->axis(Chart::Y2Axis).setTitle( "Consumed Carbs" );
-  const WPen &y2Pen = m_bsGraph->palette()->strokePen(kMealData-2);
+  const WPen &y2Pen = m_bsGraph->palette()->strokePen(4);
   m_bsGraph->axis(Chart::Y2Axis).setPen( y2Pen );
   m_bsGraph->axis(Chart::YAxis).setTitle( "mg/dL" );
   m_bsGraph->setMinimumSize( 200, 150 );
@@ -556,9 +556,9 @@ void WtGui::init( const string username )
   }
   */
 
-  string local_url = "local_resources/";
-  if( boost::algorithm::contains( url(), "dubs.app" ) )
-    local_url = "dubs/exec/local_resources/";
+//  string local_url = "local_resources/";
+//  if( boost::algorithm::contains( url(), "dubs.app" ) )
+//    local_url = "dubs/exec/local_resources/";
 
   Div *datePickingDiv  = new Div( "datePickingDiv" );
   m_previousTimePeriodButton = new WPushButton( "Previous", datePickingDiv );
@@ -727,6 +727,9 @@ void WtGui::init( const string username )
   m_notesTab = new WtNotesTab( this );
   /*WMenuItem *tabItem = */m_tabs->addTab( m_notesTab, "Notes", WTabWidget::PreLoading );
   m_tabs->currentChanged().connect( boost::bind( &WtGui::notesTabClickedCallback, this, _1 ) );
+
+  WtExcludeTimeRangesTab *badDataRanges = new WtExcludeTimeRangesTab( this );
+  m_tabs->addTab( badDataRanges, "Excluded Data", WTabWidget::PreLoading  );
 
   syncDisplayToModel();
   zoomToFullDateRange();
@@ -2497,7 +2500,7 @@ WtCustomEventTab::WtCustomEventTab( WtGui *wtGuiParent,
   delModelButton->clicked().connect( boost::bind( &WtCustomEventTab::confirmUndefineCustomEventDialog, this ) );
   defDexButton->clicked().connect( boost::bind( &WtCustomEventTab::defineDefaultDexcomEvents, this ) );
 
-  WText *headerText = new WText( "Custom Defined Events" );
+  WText *headerText = new WText( "Response Functions of Defined Events" );
 
   m_currentCEChart->setMinimumSize( 200, 150 );
   m_currentCEChart->setModel( m_currentCEModel );
@@ -3047,5 +3050,268 @@ void WtNotesTab::userNavigatedToTab()
   //What did I want this function to do?
   //const WModelIndexSet selected = m_tableView->selectedIndexes();
 }//void WtNotesTab::userNavigatedToTab()
+
+
+
+
+
+
+
+WtExcludeTimeRangesTab::WtExcludeTimeRangesTab( WtGui *parentWtGui,
+                                                Wt::WContainerWidget *parent )
+  : WContainerWidget( parent ), m_parentWtGui( parentWtGui ),
+    m_chart( new WChartWithLegend( parentWtGui ) ),
+    m_displayModel( new NLSimpleDisplayModel( parentWtGui ) ),
+    m_view( new WTableView() ),
+    m_listModel( new WtTimeRangeVecModel( parentWtGui ) ),
+    m_deleteButton( new WPushButton( "Delete Selected" ) ),
+    m_enableAddNewRangeButton( new WPushButton( "Add New Range" ) ),
+    m_startExcludeSelect( new DateTimeSelect( "Start Time") ),
+    m_endExcludeSelect( new DateTimeSelect( "&nbsp;&nbsp;&nbsp;End Time") ),
+    m_addRangeButton( new WPushButton( "Add to Model" ) ),
+    m_saveModel( new WCheckBox("save model") ),
+    m_description( new WText() )
+{
+  WGridLayout *layout = new WGridLayout();
+  WContainerWidget::setLayout( layout );
+
+  //hook the widgets up to the functions interacting with them should call
+  m_view->selectionChanged().connect( this, &WtExcludeTimeRangesTab::displaySelected );
+  m_addRangeButton->clicked().connect( this, &WtExcludeTimeRangesTab::addEnteredRangeToModel );
+  m_enableAddNewRangeButton->clicked().connect( this, &WtExcludeTimeRangesTab::allowUserToEnterNewRange );
+  m_deleteButton->clicked().connect( this, &WtExcludeTimeRangesTab::deleteSelectedRange );
+  m_endExcludeSelect->changed().connect( this, &WtExcludeTimeRangesTab::updateGraphWithUserRange );
+  m_startExcludeSelect->changed().connect( this, &WtExcludeTimeRangesTab::updateGraphWithUserRange );
+
+  //Set up the view for the list of excluded time ranges
+  m_view->setModel( m_listModel );
+  m_view->setStyleClass( m_view->styleClass() + " WtExcludeTimeRangesTabTableView" );
+  m_view->setSelectable( true );
+  m_view->setSelectionBehavior( SelectRows );
+  m_view->setSelectionMode( SingleSelection );
+  m_view->setAlternatingRowColors( true );
+  m_view->setColumnResizeEnabled( false );
+  m_view->setColumnWidth( 0, WLength( 18, WLength::FontEx ) );
+  m_view->setColumnWidth( 1, WLength( 18, WLength::FontEx ) );
+  m_view->setSortingEnabled( false );
+
+  //Set up the chart that displays the selcted time range
+  m_chart->setModel( m_displayModel );
+  m_chart->setLegendEnabled(false);
+  m_chart->setPlotAreaPadding( 25, Wt::Right );
+  m_chart->setPlotAreaPadding( 70, Wt::Bottom );
+  m_chart->axis(Chart::XAxis).setScale(Chart::DateTimeScale);
+  m_chart->axis(Chart::XAxis).setLabelAngle(45.0);
+  m_chart->axis(Chart::Y2Axis).setVisible(true);
+  m_chart->axis(Chart::Y2Axis).setTitle( "Consumed Carbs" );
+  const WPen &y2Pen = m_chart->palette()->strokePen(3);
+  m_chart->axis(Chart::Y2Axis).setPen( y2Pen );
+  m_chart->axis(Chart::YAxis).setTitle( "mg/dL" );
+  m_chart->setMinimumSize( 200, 150 );
+
+  //Tell the model and chart which data series we want to see
+  m_displayModel->useColumn( NLSimple::kCgmsData );
+  m_displayModel->useColumn( NLSimple::kFingerMeterData );
+  m_displayModel->useColumn( NLSimple::kCalibrationData );
+  m_displayModel->useColumn( NLSimple::kMealData );
+  m_chart->addSeries( Chart::WDataSeries( 0, Chart::LineSeries ) );
+  m_chart->addSeries( Chart::WDataSeries( 1, Chart::PointSeries ) );
+  m_chart->addSeries( Chart::WDataSeries( 2, Chart::PointSeries ) );
+  m_chart->addSeries( Chart::WDataSeries( 3, Chart::PointSeries ) );
+
+  //Now put all the widgets into the gui
+  layout->addWidget( m_view, 0, 0, 1, 2  );
+  layout->addWidget( m_chart, 0, 2, 1, 1  );
+  layout->addWidget( m_enableAddNewRangeButton, 1, 0, 1, 1 );
+  layout->addWidget( m_deleteButton, 1, 1, 1, 1 );
+  layout->addWidget( m_description, 1, 2, 1, 1  );
+  Div *newTimePeriodDiv = new Div();
+  newTimePeriodDiv->addWidget( m_startExcludeSelect );
+  newTimePeriodDiv->addWidget( m_endExcludeSelect );
+  newTimePeriodDiv->addWidget( m_addRangeButton );
+  newTimePeriodDiv->addWidget( m_saveModel );
+  m_saveModel->setChecked();
+  layout->addWidget( newTimePeriodDiv, 2, 0, 1, 3 );
+
+  layout->setColumnStretch( 0, 2 );
+  layout->setColumnStretch( 1, 2 );
+  layout->setColumnStretch( 2, 10 );
+  layout->setRowStretch( 0, 10 );
+  layout->setRowStretch( 1, 1 );
+  layout->setRowStretch( 2, 1 );
+
+  m_saveModel->setHiddenKeepsGeometry( true );
+  m_deleteButton->setHiddenKeepsGeometry( true );
+  m_addRangeButton->setHiddenKeepsGeometry( true );
+  m_endExcludeSelect->setHiddenKeepsGeometry( true );
+  m_startExcludeSelect->setHiddenKeepsGeometry( true );
+  m_enableAddNewRangeButton->setHiddenKeepsGeometry( true );
+
+  displaySelected();
+}//WtExcludeTimeRangesTab constructor
+
+
+void WtExcludeTimeRangesTab::displaySelected()
+{
+  const WModelIndexSet selected = m_view->selectedIndexes();
+//  if( selected.empty() && m_listModel->rowCount() ) return;
+
+  if( m_listModel->rowCount() && selected.size() )
+  {
+    assert( selected.size() == 1 );
+
+    WModelIndex beginDateIndex = *selected.begin();
+    WModelIndex endDateIndex = m_listModel->index( beginDateIndex.row(), 1 );
+
+    WDateTime start, end;
+    try
+    {
+      start = boost::any_cast<WDateTime>( beginDateIndex.data() );
+      end = boost::any_cast<WDateTime>( endDateIndex.data() );
+    }catch(...)
+    {
+      cerr << SRC_LOCATION << ":\n   Thats weird - failed any_cast!" << endl;
+      return;
+    }//try / catch
+
+    m_description->setText( start.toString() + " through " + end.toString() );
+    m_displayModel->setDisplayedTimeRange( start.toPosixTime(), end.toPosixTime() );
+  }else
+  {
+    const PosixTime now = boost::posix_time::second_clock::local_time();
+    m_description->setText( "Select a range to view activity" );
+    m_displayModel->setDisplayedTimeRange( now, now );
+  }//if we have something to display / else
+
+  m_saveModel->setHidden( true );
+  m_deleteButton->setHidden( false );
+  m_addRangeButton->setHidden( true );
+  m_endExcludeSelect->setHidden( true );
+  m_startExcludeSelect->setHidden( true );
+  m_enableAddNewRangeButton->setHidden( false );
+}//displaySelected()
+
+
+void WtExcludeTimeRangesTab::allowUserToEnterNewRange()
+{
+  m_saveModel->setHidden( false );
+  m_deleteButton->setHidden( true );
+  m_addRangeButton->setHidden( false );
+  m_endExcludeSelect->setHidden( false );
+  m_startExcludeSelect->setHidden( false );
+  m_enableAddNewRangeButton->setHidden( true );
+
+  m_endExcludeSelect->setToCurrentTime();
+  m_startExcludeSelect->setToCurrentTime();
+  m_displayModel->setDisplayedTimeRange( m_startExcludeSelect->dateTime().toPosixTime(),
+                                         m_endExcludeSelect->dateTime().toPosixTime() );
+}//allowUserToEnterNewRange()
+
+
+void WtExcludeTimeRangesTab::addEnteredRangeToModel()
+{
+  const WDateTime end = m_endExcludeSelect->dateTime();
+  const WDateTime start = m_startExcludeSelect->dateTime();
+
+  bool added = m_listModel->addRow( start.toPosixTime(), end.toPosixTime() );
+  if( added && m_saveModel->isChecked() ) m_parentWtGui->saveCurrentModel();
+
+  int newRow = -1;
+  const int nCol = m_listModel->columnCount();
+
+  for( int row = 0; row < nCol; ++row )
+  {
+    WModelIndex col1 = m_listModel->index( row, 0 );
+    WModelIndex col2 = m_listModel->index( row, 1 );
+
+    try
+    {
+      WDateTime first = boost::any_cast<WDateTime>( col1.data() );
+      WDateTime second = boost::any_cast<WDateTime>( col2.data() );
+      if( (first == start) && (second == end) )
+      {
+        newRow = row;
+        break;
+      }//if( we found the row we just inserted )
+    }catch(...){}
+  }//for( loop over rows )
+
+  if( newRow < 0 )
+  {
+    cerr << SRC_LOCATION << ":\n   thats odd, couldnt find the date we just"
+         << " entered :(" << endl;
+    m_view->setSelectedIndexes( WModelIndexSet() );
+    return;
+  }//if( newRow < 0 )
+
+  WModelIndexSet selected;
+  selected.insert( m_listModel->index( newRow, 0 ) );
+  m_view->setSelectedIndexes( selected );
+  displaySelected();
+}//void addEnteredRangeToModel()
+
+
+void WtExcludeTimeRangesTab::deleteSelectedRange()
+{
+  const WModelIndexSet selected = m_view->selectedIndexes();
+  if( selected.empty() ) return;
+  assert( selected.size() == 1 );
+
+  WModelIndex beginDateIndex = *selected.begin();
+  const int selectedRow = beginDateIndex.row();
+  WModelIndex endDateIndex = m_listModel->index( selectedRow, 1 );
+
+  WDateTime start, end;
+  try
+  {
+    end = boost::any_cast<WDateTime>( endDateIndex.data() );
+    start = boost::any_cast<WDateTime>( beginDateIndex.data() );
+  }catch(...)
+  {
+    cerr << SRC_LOCATION << ":\n   Thats weird - failed any_cast!" << endl;
+    return;
+  }//try / catch
+
+  WDialog dialog( "Confirmation" );
+  const WString text = "Are you sure you would like to delete the time range"
+                       "from " + start.toString() + " to " + end.toString()
+                       + "?";
+  new WText( text, dialog.contents() );
+  new WBreak( dialog.contents() );
+  WPushButton *yes = new WPushButton(  "Yes", dialog.contents() );
+  WPushButton *no = new WPushButton(  "No", dialog.contents() );
+  WCheckBox *save = new WCheckBox( "Save Model" );
+  save->setChecked();
+  yes->clicked().connect( &dialog, &WDialog::accept );
+  no->clicked().connect( &dialog, &WDialog::reject );
+  WDialog::DialogCode code = dialog.exec();
+
+  if( code == WDialog::Rejected ) return;
+
+  m_listModel->removeRows( selected.begin()->row(), 1 );
+  if( save->isChecked() ) m_parentWtGui->saveCurrentModel();
+
+
+  WModelIndexSet setSelected;
+  if( selectedRow < m_listModel->rowCount() )
+    setSelected.insert( m_listModel->index( selectedRow, 1 ) );
+  else if( selectedRow )
+    setSelected.insert( m_listModel->index( selectedRow-1, 1 ) );
+
+  m_view->setSelectedIndexes( setSelected );
+
+  displaySelected();
+}//void deleteSelectedRange()
+
+
+void WtExcludeTimeRangesTab::updateGraphWithUserRange()
+{
+  const WDateTime start = m_startExcludeSelect->dateTime();
+  const WDateTime end = m_endExcludeSelect->dateTime();
+  m_description->setText( start.toString() + " through " + end.toString() );
+  m_displayModel->setDisplayedTimeRange( start.toPosixTime(), end.toPosixTime() );
+}//void updateGraphWithUserRange()
+
+
 
 
