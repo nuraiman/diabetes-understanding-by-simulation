@@ -112,7 +112,10 @@ void WChartWithLegend::paint( WPainter& painter, const WRectF& rectangle ) const
       if( (el.m_time>=minTime) && (el.m_time<=maxTime) )
       {
         WPointF pos = mapToDevice( WDateTime::fromPosixTime(el.m_time), 5*el.m_value );
-        painter.drawImage( pos, WPainter::Image( url+"syringe.png", "local_resources/syringe.png") );
+        WPainter::Image syringe( url+"syringe.png", "local_resources/syringe.png");
+        pos.setX( pos.x() - 0.5*syringe.width() );
+        pos.setY( pos.y() - 0.5*syringe.height() );
+        painter.drawImage( pos, syringe );
       }//if( this point is inside the range to be displayed )
     }//foreach( const GraphElement &el, modelPtr->m_customEvents )
 
@@ -124,6 +127,9 @@ void WChartWithLegend::paint( WPainter& painter, const WRectF& rectangle ) const
         WPointF pos = mapToDevice( WDateTime::fromPosixTime(el.m_time),
                                    el.m_value, Wt::Chart::Y2Axis );
         WPainter::Image burger(url+"hamburger.png","local_resources/hamburger.png");
+        pos.setX( pos.x() - 0.5*burger.width() );
+        pos.setY( pos.y() - 0.5*burger.height() );
+
         //      Wt::WRectArea *value = new Wt::WRectArea( pos.x(), pos.y(), burger.width(), burger.height() );
         //      value->setToolTip( boost::lexical_cast<string>(el.m_value)
         //                         + " grams of carbs at "
@@ -876,7 +882,7 @@ boost::any WtNotesVectorModel::data( const Wt::WModelIndex& index, int role ) co
   if( row < 0 || column < 0 || size_t(row) >= g.size() || column >= 2 ) return boost::any();
   if( column == 0 ) return boost::any( WDateTime::fromPosixTime(g[row].time) );
   string text = g[row].text;
-  if( text.size() > sm_maxStrLen ) text = text.substr( 0, sm_maxStrLen );
+  if( text.size() > sm_maxStrLen ) text = text.substr(0,sm_maxStrLen) + "...";
   return boost::any( WString(text) );
 }//data
 Wt::WModelIndex WtNotesVectorModel::index( int row, int column, const Wt::WModelIndex&) const

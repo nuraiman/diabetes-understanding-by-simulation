@@ -33,6 +33,7 @@
 #include <Wt/WDoubleValidator>
 #include <Wt/WDialog>
 #include <Wt/WLengthValidator>
+#include <Wt/WTableView>
 
 #include "WtGui.hh"
 #include "WtUtils.hh"
@@ -355,4 +356,8 @@ boost::posix_time::ptime MemGuiTimeDate::currentValue() const
   //return *m_memVariable;
   return dateTime().toPosixTime();
 }
+
+
+
+
 
