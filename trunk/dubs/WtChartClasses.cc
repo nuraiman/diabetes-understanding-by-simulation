@@ -71,6 +71,15 @@ void WChartWithLegend::setLegendOffsetFromRight( const int &offset )
 
 void WChartWithLegend::paint( WPainter& painter, const WRectF& rectangle ) const
 {
+  string url = "local_resources/";
+  if( boost::algorithm::contains( wApp->url(), "dubs.app" ) )
+    url = "dubs/exec/local_resources/";
+  WPainter::Image syringe( url+"syringe.png", "local_resources/syringe.png");
+  WPainter::Image burger(url+"hamburger.png","local_resources/hamburger.png");
+
+  const NLSimpleDisplayModel *dispModel;
+  dispModel = dynamic_cast<const NLSimpleDisplayModel *>( model() );
+
   Wt::Chart::WCartesianChart::paint(painter, rectangle);
   for( size_t index=0; index<series().size(); ++index )
   {
@@ -78,7 +87,25 @@ void WChartWithLegend::paint( WPainter& painter, const WRectF& rectangle ) const
     Wt::WPointF point( std::max(m_width-m_legRightOffset, 0),
                        m_legTopOffset+25*index );
     renderLegendItem(painter, point, series()[index]);
+
+    if( dispModel )
+    {
+      NLSimple::DataGraphs type = dispModel->dataType( index );
+      if( type == NLSimple::kBoluses )
+      {
+        point.setX( point.x() - 0.25*syringe.width() );
+        point.setY( point.y() - 0.5*syringe.height() );
+        painter.drawImage( point, syringe );
+      }else if( type == NLSimple::kMealData )
+      {
+        point.setX( point.x() - 0.25*burger.width() );
+        point.setY( point.y() - 0.5*burger.height() );
+        painter.drawImage( point, burger );
+      }//if / else to figure out data what the data series cooresponds to
+
+    }//if the model is a NLSimpleDisplayModel
   }//for( loop over series )
+
 
   if( m_parentGui )
   {
@@ -102,17 +129,12 @@ void WChartWithLegend::paint( WPainter& painter, const WRectF& rectangle ) const
       }//if( this point is inside the range to be displayed )
     }//foreach custom event
 
-    string url = "local_resources/";
-    if( boost::algorithm::contains( wApp->url(), "dubs.app" ) )
-      url = "dubs/exec/local_resources/";
-
     painter.setPen( palette()->strokePen( WtGui::kFreePlasmaInsulin ) );
     foreach( const GraphElement &el, modelPtr->m_boluses )
     {
       if( (el.m_time>=minTime) && (el.m_time<=maxTime) )
       {
         WPointF pos = mapToDevice( WDateTime::fromPosixTime(el.m_time), 5*el.m_value );
-        WPainter::Image syringe( url+"syringe.png", "local_resources/syringe.png");
         pos.setX( pos.x() - 0.5*syringe.width() );
         pos.setY( pos.y() - 0.5*syringe.height() );
         painter.drawImage( pos, syringe );
@@ -126,7 +148,6 @@ void WChartWithLegend::paint( WPainter& painter, const WRectF& rectangle ) const
       {
         WPointF pos = mapToDevice( WDateTime::fromPosixTime(el.m_time),
                                    el.m_value, Wt::Chart::Y2Axis );
-        WPainter::Image burger(url+"hamburger.png","local_resources/hamburger.png");
         pos.setX( pos.x() - 0.5*burger.width() );
         pos.setY( pos.y() - 0.5*burger.height() );
 
@@ -346,6 +367,12 @@ void NLSimpleDisplayModel::clear()
   m_columns.clear();
   reset();
 }//void NLSimpleDisplayModel::clear()
+
+NLSimple::DataGraphs NLSimpleDisplayModel::dataType( const int row ) const
+{
+  if( row >= rowCount() ) return NLSimple::kNumDataGraphs;
+  return m_columns[row];
+}
 
 
 void NLSimpleDisplayModel::aboutToSetNewModel()

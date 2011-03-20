@@ -192,6 +192,7 @@ public:
                               bool isCgmsVMeter,
                               bool isUsingCalibrationData );
     void updateDisplayedDateRange();
+
     void saveModelAsDialog();
     void saveModelConfirmation();
 

@@ -272,7 +272,7 @@ double NLSimple::dGdT( const ptime &time, double G, double X ) const
 
   double dGdT = (-m_paramaters[BGMultiplier]*G)
                 - X*(G + m_basalGlucoseConcentration)
-                + m_paramaters[CarbAbsorbMultiplier] * dCarAbsorbDt;
+                + m_paramaters[CarbAbsorbMultiplier] * dCarAbsorbDt
                 // + G_parameter[1]*I_basal;
                 + customEventEffect( time, dCarAbsorbDt, X );
 
@@ -377,7 +377,7 @@ bool NLSimple::defineCustomEvent( int recordType, std::string name,
                                   EventDefType et,
                                   std::vector<double> initialPars )
 {
-  bool added = defineCustomEvent( recordType, name, eventDuration, et, initialPars.size() );
+  bool added = defineCustomEvent( recordType, name, eventDuration, et, static_cast<int>(initialPars.size()) );
 
   m_customEventDefs[recordType].setPar(initialPars);
 
@@ -833,7 +833,7 @@ void NLSimple::setModelParameters( const std::vector<double> &newPar )
 
     for( size_t pointN = 0; pointN < nPoints; ++pointN, ++parNum )
     {
-      et.second.setPar( pointN, newPar[parNum] );
+      et.second.setPar( static_cast<unsigned int>(pointN), newPar[parNum] );
     }//for
   }//foreach( custom event def )
 
@@ -2078,7 +2078,7 @@ TimeRangeVec NLSimple::getNonExcludedTimeRanges( TimeRangeVec wantedTimeRanges )
   cerr << endl << endl;
 
 
-  answer;
+  return answer;
 }//TimeRangeVec getNonExcludedTimeRanges() const
 
 
@@ -2158,7 +2158,7 @@ double NLSimple::fitModelToDataViaMinuit2( double endPredChi2Weight,
       if( !m_customEvents.hasValueNear( et.first ) ) continue;
       cout << "Adding paramater named " << name.str() << " to minuit optimization" << endl;
 
-      upar.Add( name.str(), et.second.getPar(pointN), 0.1 );
+      upar.Add( name.str(), et.second.getPar( static_cast<int>(pointN) ), 0.1 );
       upar.SetLimits( name.str(), -5.0, 5.0 );
     }//for
   }//foreach( custom event def )
@@ -2235,8 +2235,9 @@ bool NLSimple::fitEvents( TimeRangeVec timeRanges,
 
   FitNLSimpleEvent modelFcn( this );
   timeRanges = getNonExcludedTimeRanges( timeRanges );
-
-
+// TODO: finish function
+  assert(0);
+  return false;
 }//bool NLSimple::fitEvents(...)
 
 
@@ -2333,11 +2334,11 @@ DVec NLSimple::chi2DofStudy( double endPredChi2Weight,
     double min = *min_element(chi2s.begin(), chi2s.end());
     double max = *max_element(chi2s.begin(), chi2s.end());
 
-    chi2Hists[parNum] = new TH1F( "parTh1", Form("chi2Hist par %u", parNum), 25, min, max);
+    chi2Hists[parNum] = new TH1F( "parTh1", Form("chi2Hist par %lu", parNum), 25, min, max);
 
     foreach( double d, chi2s ) chi2Hists[parNum]->Fill( d );
 
-    new TCanvas(Form("Canvas_par_%i", parNum), Form("Canvas_par_%i", parNum));
+    new TCanvas(Form("Canvas_par_%lu", parNum), Form("Canvas_par_%lu", parNum));
     chi2Hists[parNum]->Draw();
   }//for( loop over paramaters )
 
@@ -2689,7 +2690,7 @@ bool NLSimple::saveToFile( std::string filename )
   }//if( filename == "" )
 
 
-  unsigned int beginExtension = filename.find_last_of( "." );
+  size_t beginExtension = filename.find_last_of( "." );
   if( beginExtension == string::npos ) filename += ".dubm";
   else
   {
@@ -2857,7 +2858,11 @@ unsigned int FitNLSimpleEvent::addEventToFitFor( ConsentrationGraph *fitResult,
       assert( pars->size() == 1 || pars->size() == 5 );
     break;
 
-    //CustomEvent
+    case CustomEvent:
+      cerr << SRC_LOCATION << endl;
+      cerr << "Need to handle CustomEvent" << endl;
+      assert( 0 );
+      break;
 
     case GlucoseConsentrationGraph:
     case BloodGlucoseConcenDeriv:
@@ -2871,7 +2876,7 @@ unsigned int FitNLSimpleEvent::addEventToFitFor( ConsentrationGraph *fitResult,
     break;
   };//switch( fitResult->getGraphType() )
 
-  return m_fitForEvents.size() - 1;
+  return static_cast<unsigned int>(m_fitForEvents.size() - 1);
 }//FitNLSimpleEvent::addEventToFitFor(...)
 
 

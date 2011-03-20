@@ -110,6 +110,7 @@ public:
                         const PosixTime &time,
                         const double &value );
 
+  NLSimple::DataGraphs dataType( const int row ) const;
 
   void aboutToSetNewModel();  //call before setting a new model (sends out notifcation all rows are being removed)
   void doneSettingNewModel(); //call after setting a new model (sends out notifcation rows have been added)
