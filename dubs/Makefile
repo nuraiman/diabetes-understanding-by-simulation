@@ -7,8 +7,8 @@ DictDir       = obj
 RootVersion = RootV$(subst .,,$(subst /,,$(shell $(ROOTCONFIG) --version)))
 
 BOOSTLIB=/usr/lib/ 
-#WTLIB=-L/usr/local/lib/  -lwt -lwtdbo -lwtfcgi -lwtdbosqlite3
-WTLIB=-L/usr/local/lib/  -lwt -lwtdbo -lwthttp -lwtdbosqlite3
+WTLIB=-L/usr/local/lib/  -lwt -lwtdbo -lwtfcgi -lwtdbosqlite3
+#WTLIB=-L/usr/local/lib/  -lwt -lwtdbo -lwthttp -lwtdbosqlite3
 WTINC=/usr/local/include/Wt/
 SQLITE3LIB=/usr/lib/libsqlite.so
 
@@ -207,6 +207,7 @@ ADDLIBS=$(BOOSTLIB)/libboost_system.a \
 	/opt/local/lib/libfftw3.a
 
 ADDINCS=-I$(WTINC) 
+
 
 
 CXXFLAGS     += $(ROOTCFLAGS) 

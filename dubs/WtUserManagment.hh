@@ -148,13 +148,18 @@ public:
   Wt::Dbo::ptr<DubUser> user;
   Wt::Dbo::collection< Wt::Dbo::ptr<OptimizationChi2> > chi2s;
 
+  Wt::WDateTime displayBegin;
+  Wt::WDateTime displayEnd;
+  
   template<class Action>
   void persist(Action& a)
   {
-    Wt::Dbo::belongsTo(a, user, "user");
-    Wt::Dbo::field(a, fileName, "fileName" );
-    Wt::Dbo::field(a, created,  "created" );
-    Wt::Dbo::field(a, created,  "modified" );
+    Wt::Dbo::belongsTo(a, user,     "user");
+    Wt::Dbo::field(a, fileName,     "fileName" );
+    Wt::Dbo::field(a, created,      "created" );
+    Wt::Dbo::field(a, modified,     "modified" );
+    Wt::Dbo::field(a, displayBegin, "displayBegin" );
+    Wt::Dbo::field(a, displayEnd,   "displayEnd" );
     Wt::Dbo::hasMany(a, chi2s, Wt::Dbo::ManyToOne, "usermodel");
   }//presist function
 };//class UsersModel

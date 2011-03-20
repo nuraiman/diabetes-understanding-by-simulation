@@ -568,9 +568,11 @@ void WtGui::init( const string username )
 
   WDateTime now( WDate(2010,1,3), WTime(2,30) );
   m_bsBeginTimePicker  = new DateTimeSelect( "Start Date/Time:&nbsp;",
-                                             now, datePickingDiv );
+                                             WDateTime::fromPosixTime( modelPtr->m_cgmsData.getStartTime() ), 
+                                             datePickingDiv );
   m_bsEndTimePicker    = new DateTimeSelect( "&nbsp;&nbsp;&nbsp;&nbsp;End Date/Time:&nbsp;",
-                                             now, datePickingDiv );
+                                             WDateTime::fromPosixTime( modelPtr->m_cgmsData.getEndTime() ), 
+                                             datePickingDiv );
   WPushButton *zoomOut = new WPushButton( "Full Date Range", datePickingDiv );
   zoomOut->clicked().connect( this, &WtGui::zoomToFullDateRange );
   WPushButton *mostRecentDay = new WPushButton( "Most Recent Day", datePickingDiv );
@@ -582,18 +584,26 @@ void WtGui::init( const string username )
   m_nextTimePeriodButton->setFloatSide( Right );
   m_nextTimePeriodButton->clicked().connect( this, &WtGui::showNextTimePeriod );
 
+  
+  //set the displayed data range to the last range used
+  if( m_userDbPtr )
+  {
+    Dbo::Transaction transaction(m_dbSession);
+    const DubUser::UsersModels &models = m_userDbPtr->models;
+    Dbo::ptr<UsersModel> model = models.find().where( "fileName = ?" ).bind( m_userDbPtr->currentFileName );
+    if( model )
+    { 
+      cerr << endl << endl << "Setting to " << model->displayBegin.toString() << " and " << model->displayEnd.toString() << endl << endl;
+      m_bsBeginTimePicker->set( model->displayBegin );
+      m_bsEndTimePicker->set( model->displayEnd );
+    }//if( model )
+    transaction.commit();
+  }//if( m_userDbPtr )
+  
+  updateDataRange();
+  
   m_bsBeginTimePicker->changed().connect( boost::bind( &WtGui::updateDisplayedDateRange, this ) );
   m_bsEndTimePicker->changed().connect( boost::bind( &WtGui::updateDisplayedDateRange, this ) );
-
-
-  updateDataRange();
-  WDateTime start, end;
-  end.setPosixTime( modelPtr->m_cgmsData.getEndTime() );
-  start.setPosixTime( modelPtr->m_cgmsData.getStartTime() );
-  m_bsEndTimePicker->set( end );
-  m_bsBeginTimePicker->set( start );
-
-
 
   Div *bsTabDiv = new Div( "bsTabDiv" );
   WBorderLayout *bsTabLayout = new WBorderLayout();
@@ -609,7 +619,6 @@ void WtGui::init( const string username )
 
   WtGeneticallyOptimize *optimizationTab = new WtGeneticallyOptimize( this );
   m_tabs->addTab( optimizationTab, "Optimize", WTabWidget::PreLoading );
-
 
   Div *errorGridTabDiv = new Div( "errorGridTabDiv" );
   WBorderLayout *errorGridTabLayout = new WBorderLayout();
@@ -628,7 +637,6 @@ void WtGui::init( const string username )
   Div *cgmsDataTableDiv = new Div( "cgmsDataTableDiv" );
   WGridLayout *cgmsDataTableLayout = new WGridLayout();
   cgmsDataTableDiv->setLayout( cgmsDataTableLayout );
-
 
   m_inputModels.push_back( new WtConsGraphModel( this, NLSimple::kMealData,        this ) );
   m_inputModels.push_back( new WtConsGraphModel( this, NLSimple::kFingerMeterData, this ) );
@@ -660,8 +668,8 @@ void WtGui::init( const string username )
 
     title = "<b>" + title + ":</b>";
 
-    const int local_row = 3 * (i/3);
-    const int local_col = i%3;
+    const int local_row = 3 * (static_cast<int>(i)/3);
+    const int local_col = static_cast<int>(i)%3;
 
     WText *text = new WText( title, XHTMLUnsafeText );
     cgmsDataTableLayout->addWidget( text, local_row, local_col, 1, 1, AlignLeft | AlignTop );
@@ -706,10 +714,10 @@ void WtGui::init( const string username )
     cgmsDataTableLayout->setRowStretch( 2+local_row, 0 );
   }//for( loop over ... )
 
-  cgmsDataTableLayout->setRowStretch( 3 * (m_inputModels.size()/3), 0 );
+  cgmsDataTableLayout->setRowStretch( static_cast<int>( 3 * (m_inputModels.size()/3)), 0 );
 
   Div *bottomRawDataDiv = new Div();
-  cgmsDataTableLayout->addWidget( bottomRawDataDiv, 3*m_inputModels.size()/3, 0, 1, 3, AlignLeft | AlignTop );
+  cgmsDataTableLayout->addWidget( bottomRawDataDiv, static_cast<int>( 3*m_inputModels.size()/3), 0, 1, 3, AlignLeft | AlignTop );
   WPushButton *addDataButton = new WPushButton( "Add Data", bottomRawDataDiv );
   addDataButton->clicked().connect( this, &WtGui::addDataDialog );
 
@@ -732,7 +740,7 @@ void WtGui::init( const string username )
   m_tabs->addTab( badDataRanges, "Excluded Data", WTabWidget::PreLoading  );
 
   syncDisplayToModel();
-  zoomToFullDateRange();
+//  zoomToFullDateRange();
 
   NLSimplePtr::resetCount( this );
 }//WtGui::init()
@@ -984,6 +992,8 @@ void WtGui::updateDataRange()
 }//void WtGui::updateDataRange()
 
 
+
+
 void WtGui::updateDisplayedDateRange()
 {
   const PosixTime end = m_bsEndTimePicker->dateTime().toPosixTime();
@@ -1000,6 +1010,24 @@ void WtGui::updateDisplayedDateRange()
     m_previousTimePeriodButton->disable();
   else
     m_previousTimePeriodButton->enable();
+
+  //Now save to database
+  Dbo::Transaction transaction(m_dbSession);
+  const DubUser::UsersModels &models = m_userDbPtr->models;
+
+  Dbo::ptr<UsersModel> model = models.find().where( "fileName = ?" ).bind( m_userDbPtr->currentFileName );
+
+  if( model )
+  { 
+    model.modify()->displayBegin = WDateTime::fromPosixTime( start );
+    model.modify()->displayEnd = WDateTime::fromPosixTime( end );
+  }else
+  {
+    cerr << "Failed to find a model with the filename '" << m_userDbPtr->currentFileName
+         << "'" << endl;
+  }//if( model ) / else
+
+  transaction.commit();
 }//void updateDisplayedDateRange()
 
 
@@ -1188,7 +1216,7 @@ void WtGui::updateClarkAnalysis( const ConsentrationGraph &xGraph,
 
 
   m_errorGridModel->removeRows( 0, m_errorGridModel->rowCount() );
-  m_errorGridModel->insertRows( 0, xGraph.size() );
+  m_errorGridModel->insertRows( 0, (int)xGraph.size() );
 
   TimeDuration cmgsDelay(0,0,0,0);
 
@@ -1387,8 +1415,14 @@ void WtGui::saveModel( const std::string &fileName )
     Dbo::Transaction transaction(m_dbSession);
     const DubUser::UsersModels &models = m_userDbPtr->models;
     Dbo::ptr<UsersModel> model = models.find().where( "fileName = ?" ).bind( fileName );
+    
+    if( model )
+    { 
+      model.modify()->modified = WDateTime::fromPosixTime( boost::posix_time::second_clock::local_time() );
+      transaction.commit();
+      return;
+    }
     transaction.commit();
-    if( model ) return;
   }
 
   Dbo::Transaction transaction(m_dbSession);
@@ -2313,7 +2347,7 @@ void WtGeneticallyOptimize::optimizationUpdateFcn( double chi2 )
     Dbo::ptr<UsersModel> usermodel = user->models.find().where("fileName = ?").bind(fileName);
     Dbo::ptr<OptimizationChi2> newChi2;
     newChi2 = session.add( new OptimizationChi2() );
-    newChi2.modify()->generation  = usermodel->chi2s.size();
+    newChi2.modify()->generation  = static_cast<int>(usermodel->chi2s.size());
     newChi2.modify()->chi2        = chi2;
     newChi2.modify()->usermodel   = usermodel;
     if( !transaction.commit() ) cerr << "\nDid not commit adding to the chi2 of the optimization\n" << endl;
@@ -2365,17 +2399,17 @@ void WtGeneticallyOptimize::syncGraphDataToNLSimple()
   const WDateTime start = m_startTrainingTimeSelect->dateTime();
   const WDateTime end = m_endTrainingTimeSelect->dateTime();
 
-  const int nNeededRow = modelPtr->m_cgmsData.size()
-                         //+ modelPtr->m_fingerMeterData.size()
-                         + modelPtr->m_mealData.size()
-                         + modelPtr->m_predictedBloodGlucose.size()
-                         //+ modelPtr->m_glucoseAbsorbtionRate.size()
-                         + modelPtr->m_freePlasmaInsulin.size()
-                         + modelPtr->m_customEvents.size()
-                         + modelPtr->m_predictedInsulinX.size();
+  const size_t nNeededRow = modelPtr->m_cgmsData.size()
+                            //+ modelPtr->m_fingerMeterData.size()
+                            + modelPtr->m_mealData.size()
+                            + modelPtr->m_predictedBloodGlucose.size()
+                            //+ modelPtr->m_glucoseAbsorbtionRate.size()
+                            + modelPtr->m_freePlasmaInsulin.size()
+                            + modelPtr->m_customEvents.size()
+                            + modelPtr->m_predictedInsulinX.size();
 
   m_graphModel->removeRows( 0, m_graphModel->rowCount() );
-  m_graphModel->insertRows( 0, nNeededRow );
+  m_graphModel->insertRows( 0, static_cast<int>(nNeededRow) );
 
 
   int row = 0;
@@ -3104,7 +3138,7 @@ WtExcludeTimeRangesTab::WtExcludeTimeRangesTab( WtGui *parentWtGui,
   m_chart->axis(Chart::XAxis).setLabelAngle(45.0);
   m_chart->axis(Chart::Y2Axis).setVisible(true);
   m_chart->axis(Chart::Y2Axis).setTitle( "Consumed Carbs" );
-  const WPen &y2Pen = m_chart->palette()->strokePen(3);
+  const WPen &y2Pen = m_chart->palette()->strokePen(4);
   m_chart->axis(Chart::Y2Axis).setPen( y2Pen );
   m_chart->axis(Chart::YAxis).setTitle( "mg/dL" );
   m_chart->setMinimumSize( 200, 150 );
@@ -3212,6 +3246,8 @@ void WtExcludeTimeRangesTab::addEnteredRangeToModel()
 {
   const WDateTime end = m_endExcludeSelect->dateTime();
   const WDateTime start = m_startExcludeSelect->dateTime();
+
+  if( start > end ) return;
 
   bool added = m_listModel->addRow( start.toPosixTime(), end.toPosixTime() );
   if( added && m_saveModel->isChecked() ) m_parentWtGui->saveCurrentModel();

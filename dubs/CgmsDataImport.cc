@@ -782,18 +782,18 @@ CgmsDataImport::sanitizeTimeInput( std::string time,
     //get rid of the 'am' now  
 	  time = time.substr( 0, time.find("am") );
  
-    int hourBegin = time.find(" ") + 1;
-    int hourLength = time.find(":") - time.find(" ") - 1;
+    size_t hourBegin = time.find(" ") + 1;
+    size_t hourLength = time.find(":") - time.find(" ") - 1;
     assert( hourLength>0 && hourLength<3 );
 
-    int properHours = atoi( time.substr( hourBegin, hourLength ).c_str() );
+    size_t properHours = atoi( time.substr( hourBegin, hourLength ).c_str() );
 	
     //12:XXam needs to be in the format 00:XX
     if( properHours >= 12 )
     {
       assert( properHours == 12 );
       assert( hourLength == 2 );
-      for( int i=hourBegin; i<hourLength; i++ )  time[i] = '0';
+      for( size_t i = hourBegin; i<hourLength; ++i )  time[i] = '0';
     }//if( properHours>=12 )
   }//if( contains 'am'
 

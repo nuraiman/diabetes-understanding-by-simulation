@@ -10,7 +10,7 @@
 #include <stdlib.h>
 #include <fstream>
 
-//ROOT includes (using root 5.14)
+//ROOT includes
 #include "TSystem.h"
 #include "TStyle.h"
 #include "TF1.h"
@@ -50,13 +50,13 @@ void cgmFilterStudy();
 
 DubUserServer gDubUserServer;  //the single instance of the DubUserServer
 
-
+  
 
 WApplication *createApplication(const WEnvironment& env)
-{
+{	
   WtGui *app = new WtGui(env, gDubUserServer);
   return app;
-}
+}			
 
 int main(int argc, char *argv[])
 {
@@ -70,7 +70,7 @@ int main(int argc, char *argv[])
   return WRun(argc, argv, &createApplication);
 }//int main(int argc, char *argv[])
 
-
+				
 void setStyle()
 {
   TStyle *myStyle = gROOT->GetStyle("Plain"); //base style on Plain
