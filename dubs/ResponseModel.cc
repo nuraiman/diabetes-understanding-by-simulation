@@ -152,7 +152,7 @@ NLSimple::NLSimple( std::string fileName ) :
   }//if( fileName == "" )
 */
 
-  unsigned int beginExtension = fileName.find_last_of( "." );
+  unsigned long beginExtension = fileName.find_last_of( "." );
   string extention = fileName.substr( beginExtension );
   if( extention != ".dubm" ) fileName += ".dubm";
 
@@ -229,16 +229,31 @@ ptime NLSimple::getAbsoluteTime( double nOffsetMinutes ) const
 }//ptime getAbsoluteTime( double nOffsetMinutes ) const;
 
 
+
+
+
 double NLSimple::customEventEffect( const PosixTime &time,
-                                    const double &carbAbsRate, const double &X ) const
+                                    const double &carbAbsRate, 
+                                    const double &X ) const
 {
-//This function is the major time consumer of optimizing!
+  //This function is the major time consumer of optimizing!
+  //It takes up about 50% of the CPU time!
+  //We can pre-cache all IndependantEffect and MultiplyCarbConsumed
+  //  effects and maybe MultiplyInsulin.
+  //The only time this function is called is through dGdT(), which in turn
+  //  is only called through dGdT_and_dXdT(), which in turn is only called 
+  //  through getRKDerivFunc(), so it may be possible to add an additional
+  //  argument to dGdT and dGdT_and_dXdT function that caches --- maybe not as 
+  //  
+  //Make cache of the value of foreach type og EventDefPair over all time that
+  //  will be evaluated,
+  
   double dGdT = 0.0;
 
   foreach( const EventDefPair &et, m_customEventDefs )
   {
     double mult = 1.0;
-    switch(et.second.m_eventDefType)
+    switch( et.second.m_eventDefType )
     {
       case IndependantEffect:    mult = 1.0;         break;
       case MultiplyInsulin:      mult = X;           break;
@@ -246,8 +261,9 @@ double NLSimple::customEventEffect( const PosixTime &time,
       case NumEventDefTypes: assert(0);
     };//switch(eventType)
 
-    ConstGraphIter lb = m_customEvents.lower_bound(time - et.second.m_duration);
-    ConstGraphIter ub = m_customEvents.upper_bound(time);
+    ConstGraphIter lb, ub;
+    lb = m_customEvents.lower_bound( time - et.second.m_duration );
+    ub = m_customEvents.upper_bound( time );
 
     for( ConstGraphIter iter = lb; iter != ub; ++iter )
     {
@@ -259,7 +275,7 @@ double NLSimple::customEventEffect( const PosixTime &time,
   }//foreach( defined custom event type )
 
   return dGdT;
-}//double NLSimple::customEventEffect( const PosixTime &time,
+}//double customEventEffect( const PosixTime &time,
 
 
 
@@ -268,13 +284,13 @@ double NLSimple::dGdT( const ptime &time, double G, double X ) const
 {
   assert( m_paramaters.size() == NumNLSimplePars );
 
-  const double dCarAbsorbDt = m_glucoseAbsorbtionRate.value( time );
+  const double dCarbAbsorbDt = m_glucoseAbsorbtionRate.value( time );
 
   double dGdT = (-m_paramaters[BGMultiplier]*G)
                 - X*(G + m_basalGlucoseConcentration)
-                + m_paramaters[CarbAbsorbMultiplier] * dCarAbsorbDt
+                + m_paramaters[CarbAbsorbMultiplier] * dCarbAbsorbDt
                 // + G_parameter[1]*I_basal;
-                + customEventEffect( time, dCarAbsorbDt, X );
+                + customEventEffect( time, dCarbAbsorbDt, X );
 
   return dGdT;
 }//dGdT
@@ -282,9 +298,8 @@ double NLSimple::dGdT( const ptime &time, double G, double X ) const
 
 
 
-double NLSimple::dXdT( const ptime &time, double G, double X ) const
+double NLSimple::dXdT( const ptime &time, double /*G*/, double X ) const
 {
-  G = G;//keep compiler from complaining
   assert( m_paramaters.size() == NumNLSimplePars );
 
   //The 10 is for convertin U/L, to U/dL
@@ -320,8 +335,8 @@ vector<double> NLSimple::dGdT_and_dXdT( const boost::posix_time::ptime &time,
 {
   assert( G_and_X.size() == 2 );
 
-  const double G = G_and_X[0];
-  const double X = G_and_X[1];
+  const double &G = G_and_X[0];
+  const double &X = G_and_X[1];
 
   vector<double> rVal(2);
   rVal[0] = dGdT(time, G, X );
@@ -331,10 +346,49 @@ vector<double> NLSimple::dGdT_and_dXdT( const boost::posix_time::ptime &time,
 }//dGdT_and_dXdT
 
 
+
+vector<double> NLSimple::dGdT_and_dXdT_cache( const boost::posix_time::ptime &time,
+                                       const std::vector<double> &G_and_X,
+                                       const CustomEventAmplitudeCache &cache ) const
+{
+  assert( G_and_X.size() == 2 );
+  
+  const double &G = G_and_X[0];
+  const double &X = G_and_X[1];
+  
+  
+  
+  const double dCarbAbsorbDt = m_glucoseAbsorbtionRate.value( time );
+  
+  double dGdT = (-m_paramaters[BGMultiplier]*G)
+                - X*(G + m_basalGlucoseConcentration)
+                + m_paramaters[CarbAbsorbMultiplier] * dCarbAbsorbDt
+                + cache.independantEffect( time )
+                + X*cache.multiplyInsulin( time )
+                + dCarbAbsorbDt*cache.multiplyCarbConsumed( time );
+  
+  vector<double> rVal(2);
+  rVal[0] = dGdT;
+  rVal[1] = dXdT(time, G, X );
+  
+  return rVal;
+}//dGdT_and_dXdT_cache(...)
+
+
 RK_PTimeDFunc NLSimple::getRKDerivFunc() const
 {
   return bind( &NLSimple::dGdT_and_dXdT, boost::cref(*this), _1, _2 );
 }//getRKDerivFunc()
+
+
+
+RK_PTimeDFunc NLSimple::getRKDerivFunc( CustomEventAmplitudeCache &cache ) const
+{
+  return bind( &NLSimple::dGdT_and_dXdT_cache, boost::cref(*this), _1, _2, boost::cref(cache) );
+}//getRKDerivFunc()
+
+
+
 
 bool NLSimple::undefineCustomEvent( int recordType )
 {
@@ -1056,7 +1110,10 @@ void NLSimple::makeGlucosePredFromLastCgms( ConsentrationGraph &predBg,
   assert( m_cgmsData.value(cgmsEndTime) > 10.0 );
   gAndX[0] = m_cgmsData.value(cgmsEndTime) - m_basalGlucoseConcentration;
   gAndX[1] = m_predictedInsulinX.value(predStartTime) / 10.0;
-  RK_PTimeDFunc func = getRKDerivFunc();//bind( &NLSimple::dGdT_and_dXdT, boost::cref(*this), _1, _2 );
+  
+  CustomEventAmplitudeCache cache( m_customEvents, m_customEventDefs, 
+                                   predStartTime, predEndTime, m_settings.m_dt );  
+  RK_PTimeDFunc func = getRKDerivFunc( cache );//bind( &NLSimple::dGdT_and_dXdT, boost::cref(*this), _1, _2 );
 
   //for some really bad paramater choices we migh get screwy values
   if( isnan(gAndX[1]) || isinf(gAndX[1]) || isinf(-gAndX[1]) )
@@ -1083,6 +1140,7 @@ void NLSimple::makeGlucosePredFromLastCgms( ConsentrationGraph &predBg,
     predBg.insert( time+m_settings.m_dt, actualGlucoseValue );
     // cout << "makeGlucosePredFromLastCgms(...): filled prediction attime t="
          // << time+m_dt << " with value " << actualGlucoseValue << endl;
+    cache.advanceToNextTime();
   }//for( make predictions )
 
   if( time != (cgmsEndTime + m_settings.m_predictAhead) )
@@ -2211,7 +2269,7 @@ double NLSimple::fitModelToDataViaMinuit2( double endPredChi2Weight,
       // ptime chi2Start = ( predTime.is_negative() ) ?  tStart :  tStart + predTime + cgmsDelay;
       chi2 += getChi2ComparedToCgmsData( predGluc, endPredChi2Weight, false,
                                                      predGluc.getStartTime(),
-                                                     predGluc.getEndTime() );
+                                                      predGluc.getEndTime() );
     }//if( usePredictedChi2 ) else
 
     if( m_predictedBloodGlucose.getEndTime() > predGluc.getStartTime() )
@@ -3587,6 +3645,67 @@ void EventDef::draw() const
   hist->GetYaxis()->SetTitle( yTitle.c_str() );
   graph->Draw( "a l c *" );
 }//void draw() const
+
+
+
+
+
+CustomEventAmplitudeCache::CustomEventAmplitudeCache( 
+                          const ConsentrationGraph &customEvents,
+                          const EventDefMap &eventDefs,
+                          const PosixTime startTime, 
+                          const PosixTime endTime, 
+                          const TimeDuration dt ) : 
+  m_position(0)
+{ 
+  const TimeDuration halfDt = dt/2.0;
+  for( PosixTime t = startTime; t <= (endTime+dt); t += halfDt ) 
+    m_times.push_back( t );
+  
+  m_independantEffect.resize( m_times.size(), 0.0 );
+  m_multiplyInsulin.resize( m_times.size(), 0.0 );
+  m_multiplyCarbConsumed.resize( m_times.size(), 0.0 );
+  
+  
+  
+  ConstGraphIter iter;
+  for( iter = customEvents.begin(); iter != customEvents.end(); ++iter )
+  {
+    const int eventTypeNumber = static_cast<int>( iter->m_value );
+    EventDefMap::const_iterator definitionIter = eventDefs.find( eventTypeNumber );
+    
+    
+    if( definitionIter == eventDefs.end() ) continue;
+    
+    vector<double> *data = NULL;
+    const EventDef &definition = definitionIter->second;
+    const EventDefType eventDefType = definition.getEventDefType();
+    const PosixTime &eventStartTime = iter->m_time;
+    const PosixTime &eventEndTime = eventStartTime + definition.getDuration();
+    
+    switch( eventDefType )
+    {
+      case IndependantEffect:    data = &m_independantEffect;    break;
+      case MultiplyInsulin:      data = &m_multiplyInsulin;      break;
+      case MultiplyCarbConsumed: data = &m_multiplyCarbConsumed; break;
+      case NumEventDefTypes: assert(0);
+    };//switch(eventType)
+    
+    const std::vector<PosixTime>::const_iterator tbegin = m_times.begin();
+    const std::vector<PosixTime>::const_iterator tend = m_times.end();
+    
+    const size_t firstStep = lower_bound( tbegin, tend, eventStartTime ) - tbegin; 
+    const size_t lastStep  = upper_bound( tbegin, tend, eventEndTime ) - tbegin;
+    
+    for( size_t step = firstStep; step <= lastStep; ++step )
+    {
+      (*data)[step] += definition.eval( m_times[step] - eventStartTime );
+    }
+  }//foreach( custome event user has entered )
+  
+}//CustomEventAmplitudeCache( constructor )
+
+
 
 
 

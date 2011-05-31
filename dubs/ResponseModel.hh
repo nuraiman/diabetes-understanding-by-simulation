@@ -71,6 +71,8 @@ class NLSimple;
 class TSpline3;
 class EventDef;
 
+class CustomEventAmplitudeCache;
+
 enum EventDefType
 {
   IndependantEffect,
@@ -212,11 +214,27 @@ class NLSimple
     double dGdT( const PosixTime &time, double G, double X ) const;
     double dXdT( const PosixTime &time, double G, double X ) const;
     double dXdT_usingCgmsData( const PosixTime &time, double X ) const;
+    
+    //customEventEffect(...) uses about 50% of cpu time during model 
+    // optimization, and thusely, should be optimized
     double customEventEffect( const PosixTime &time,
-                              const double &carbAbsRate, const double &X ) const;
+                              const double &carbAbsRate, 
+                              const double &X ) const;
 
     DVec dGdT_and_dXdT( const PosixTime &time, const DVec &G_and_X ) const;
+
+    DVec dGdT_and_dXdT_cache( const PosixTime &time, const DVec &G_and_X,
+                              const CustomEventAmplitudeCache &cache ) const;
+  
+    //If getRKDerivFunc() is used to obtain the RK_PTimeDFunc, then 
+    //  evaluating the effects due to custom events may be quite slow
+    //If getRKDerivFunc( CustomEventAmplitudeCache &cache ) is used then 
+    //  custom event event effect evaluation will be improved by a factor
+    //  of ~6 - however any added/subtracted custom events will (silently)
+    //  invalidate the cache, then yeilding erroneous results; I dont 
+    //  anticipate this being a problem
     RK_PTimeDFunc getRKDerivFunc() const;
+    RK_PTimeDFunc getRKDerivFunc( CustomEventAmplitudeCache &cache ) const;
 
     static double getBasalInsulinConcentration( double unitesPerKiloPerhour );
     void addCgmsData( const ConsentrationGraph &newData,
@@ -582,6 +600,85 @@ class EventDef
     BOOST_SERIALIZATION_SPLIT_MEMBER()
 };//EventDef
 
+
+
+
+class CustomEventAmplitudeCache
+{  
+  //This class acts like a cache for the NLSimple::m_customEvents graph, in that
+  //  it pre-computes the value of the custom event response functions foreach
+  //  time that is expected to be called when integrating over a time period.
+  //  This avoids having to, foreach time evaluated, determine which custom
+  //  events are in effect for that time, and then evaluate - this was taking
+  //  about 50% of the cpu time for model optimiations before; using this class
+  //  that time is reduced to ~8% of cpu time.
+  //  
+  //This class caches time between startTime and endTime at increments of dt/2.0
+  //  If a non-cached time is asked for, program will die.
+  //  When looping (integrating) over times you should call
+  //  CustomEventAmplitudeCache::advanceToNextTime() when you make the step
+  //  to the new time; this advancesd the internal m_position index so that 
+  //  when independantEffect(time), multiplyInsulin(time), or 
+  //  multiplyCarbConsumed(time) is called, the search for the proper values
+  //  for 'time' can be found fast; if something gets out of sync doing this,
+  //  then copeous amounts of error messages will be printed, as searching
+  //  for the correct index for 'time' will be very slow.
+  //
+  //I am sure further optimizations to this class could be performed...
+  //
+  //I also not this class is tightly coupled to how NLSimple is assumed to work
+  //  and the fact rung-kuta integration only calls for values that are 
+  //  multiples of 0.5*dt from the start time.
+  
+public:
+  typedef std::map<int, EventDef> EventDefMap;
+  
+  CustomEventAmplitudeCache( const ConsentrationGraph &customEvents,
+                            const EventDefMap &eventDefs,
+                            const PosixTime startTime, 
+                            const PosixTime endTime, 
+                            const TimeDuration dt );
+  
+  mutable size_t m_position;
+  
+  inline const PosixTime &time() const 
+  { return m_times[m_position]; }
+  
+  inline double independantEffect( const PosixTime &t ) const 
+  { return m_independantEffect[index(t)]; }
+  
+  inline double multiplyInsulin( const PosixTime &t ) const 
+  { return m_multiplyInsulin[index(t)]; }
+  
+  inline double multiplyCarbConsumed( const PosixTime &t ) const 
+  { return m_multiplyCarbConsumed[index(t)]; }
+  
+  //functions to help
+  inline void resetPosition() const 
+  { m_position = 0; }
+  inline size_t advanceToNextTime() const 
+{ m_position += 2; return m_position; }
+  
+private:
+  inline size_t index( const PosixTime &t ) const 
+  { 
+    if( t == m_times.at(m_position) )   return m_position; 
+    if( t == m_times.at(m_position+1) ) return m_position + 1;
+    if( t == m_times.at(m_position+2) ) return m_position + 2;
+    
+    std::cerr << "CustomEventAmplitudeCache::index( const PosixTime & ): "
+              << "Warning not valid cache" << std::endl;
+    const size_t i = std::find( m_times.begin(), m_times.end(), t ) - m_times.begin();
+    assert( i < m_times.size() );
+    return i;
+  }//index
+  
+  std::vector<PosixTime> m_times;
+  std::vector<double>    m_independantEffect;
+  std::vector<double>    m_multiplyInsulin;
+  std::vector<double>    m_multiplyCarbConsumed;
+  
+};//struct CustomEventAmplitudes
 
 
 void drawClarkeErrorGrid( TVirtualPad *pad,
