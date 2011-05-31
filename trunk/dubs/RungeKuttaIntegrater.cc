@@ -68,50 +68,50 @@ std::vector<double> rungeKutta4( double xi, std::vector<double> yi,
 		                             double dx, RK_DerivFuntion derivatives ) 
 {	
 	//	total number of elements in the vector
-	int n=yi.size();
+	const size_t n = yi.size();
 	
 	//	first step
 	std::vector<double> k1;
 	k1=derivatives(xi, yi);
-	for (int i=0; i<n; ++i) {
+	for (size_t i=0; i<n; ++i) {
 		k1.at(i)*=dx;
 	}
 	
 	//	second step
 	std::vector<double> k2(yi);
-	for (int i=0; i<n; ++i) {
+	for (size_t i=0; i<n; ++i) {
 		k2.at(i)+=k1.at(i)/2.0;
 	}
 	k2=derivatives(xi+dx/2.0,k2);
-	for (int i=0; i<n; ++i) {
+	for (size_t i=0; i<n; ++i) {
 		k2.at(i)*=dx;
 	}
 	
 	//	third step
 	std::vector<double> k3(yi);
-	for (int i=0; i<n; ++i) {
+	for (size_t i=0; i<n; ++i) {
 		k3.at(i)+=k2.at(i)/2.0;
 	}
 	k3=derivatives(xi+dx/2.0,k3);
-	for (int i=0; i<n; ++i) {
+	for (size_t i=0; i<n; ++i) {
 		k3.at(i)*=dx;
 	}
 	
 	
 	//	fourth step
 	std::vector<double> k4(yi);
-	for (int i=0; i<n; ++i) {
+	for (size_t i=0; i<n; ++i) {
 		k4.at(i)+=k3.at(i);
 	}
 	k4=derivatives(xi+dx,k4);
-	for (int i=0; i<n; ++i) {
+	for (size_t i=0; i<n; ++i) {
 		k4.at(i)*=dx;
 	}
 	
 	
 	//	sum the weighted steps into yf and return the final y values
 	std::vector<double> yf(yi);
-	for (int i=0; i<n; ++i) {
+	for (size_t i=0; i<n; ++i) {
 		yf.at(i)+=(k1.at(i)/6.0)+(k2.at(i)/3.0)+(k3.at(i)/3.0)+(k4.at(i)/6.0);
 	}
 	
@@ -126,51 +126,51 @@ std::vector<double> rungeKutta4( const boost::posix_time::ptime &time,
                                  RK_PTimeDFunc derivatives )
 {  
 	//	total number of elements in the vector
-	int n = yi.size();
+	const size_t n = yi.size();
 	const double dx = toNMinutes(dt);
   
 	//	first step
 	std::vector<double> k1;
 	k1=derivatives(time, yi);
-	for (int i=0; i<n; ++i) {
+	for (size_t i=0; i<n; ++i) {
 		k1.at(i)*=dx;
 	}
 	
 	//	second step
 	std::vector<double> k2(yi);
-	for (int i=0; i<n; ++i) {
+	for (size_t i=0; i<n; ++i) {
 		k2.at(i)+=k1.at(i)/2.0;
 	}
 	k2=derivatives(time + (dt/2.0),k2);
-	for (int i=0; i<n; ++i) {
+	for (size_t i=0; i<n; ++i) {
 		k2.at(i)*=dx;
 	}
 	
 	//	third step
 	std::vector<double> k3(yi);
-	for (int i=0; i<n; ++i) {
+	for (size_t i=0; i<n; ++i) {
 		k3.at(i)+=k2.at(i)/2.0;
 	}
 	k3=derivatives(time+(dt/2.0),k3);
-	for (int i=0; i<n; ++i) {
+	for (size_t i=0; i<n; ++i) {
 		k3.at(i)*=dx;
 	}
 	
 	
 	//	fourth step
 	std::vector<double> k4(yi);
-	for (int i=0; i<n; ++i) {
+	for (size_t i=0; i<n; ++i) {
 		k4.at(i)+=k3.at(i);
 	}
 	k4=derivatives(time+dt,k4);
-	for (int i=0; i<n; ++i) {
+	for (size_t i=0; i<n; ++i) {
 		k4.at(i)*=dx;
 	}
 	
 	
 	//	sum the weighted steps into yf and return the final y values
 	std::vector<double> yf(yi);
-	for (int i=0; i<n; ++i) {
+	for (size_t i=0; i<n; ++i) {
 		yf.at(i)+=(k1.at(i)/6.0)+(k2.at(i)/3.0)+(k3.at(i)/3.0)+(k4.at(i)/6.0);
 	}
 	
