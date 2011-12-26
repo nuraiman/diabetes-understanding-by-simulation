@@ -97,7 +97,7 @@ private:
     void enableCreateButton();
     void checkDisplayTimeLimitsConsistency();
 
-    void failedUpload( int type ); //type should be of type DataType
+    void failedUpload( ::int64_t type ); //type should be of type DataType
 
 };//class WtCreateNLSimple
 

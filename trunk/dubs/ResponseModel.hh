@@ -54,8 +54,8 @@
 *     'real-time' analasys.
 *  XX Add a belowBgBasalSigma, and aboveBgBasalSigma to NLSimple Class
 *    --to be used in the 'Solver' that solves what correction needs to be taken
-*  The 'Solver' should decide what correction should be taken (maybe make a correction class)
-*      to describe what correction should be taken
+*  The 'Solver' should decide what correction should be taken (maybe make a 
+*      correction class) to describe what correction should be taken
 *
 *  XX Convert ConsentrationGraph class to use PosixTime instead of double for times
 *    --I think this will save CPU time, as well as bugs
@@ -201,7 +201,6 @@ class NLSimple
               double basalUnitsPerKiloPerhour,
               double basalGlucoseConcen = ProgramOptions::kBasalGlucConc,
               PosixTime t0 = kGenericT0 );
-    const NLSimple &operator=( const NLSimple &rhs );
 
     ~NLSimple() {};
 

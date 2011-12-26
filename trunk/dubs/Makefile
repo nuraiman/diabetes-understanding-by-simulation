@@ -10,7 +10,8 @@ BOOSTLIB=/usr/lib/
 WTLIB=-L/usr/local/lib/  -lwt -lwtdbo -lwtfcgi -lwtdbosqlite3
 #WTLIB=-L/usr/local/lib/  -lwt -lwtdbo -lwthttp -lwtdbosqlite3
 WTINC=/usr/local/include/Wt/
-SQLITE3LIB=/usr/lib/libsqlite.so
+SQLITE3LIB=/opt/local/lib/libsqlite3.a
+GSL_LIB_DIR=/opt/local/lib
 
 ARCH         := $(shell $(ROOTCONFIG) --arch)
 PLATFORM     := $(shell $(ROOTCONFIG) --platform)
@@ -92,7 +93,7 @@ CXXFLAGS      = $(OPT2) -pipe -Wall -W -Woverloaded-virtual
 LD            = $(MACOSXTARGET) g++
 LDFLAGS       = $(OPT2)
 BOOSTLIB      = /usr/local/lib
-SQLITE3LIB    = /usr/lib/libsqlite3.dylib
+#SQLITE3LIB    = /usr/lib/libsqlite3.dylib
 # The SOFLAGS will be used to create the .dylib,
 # the .so will be created separately
 ifeq ($(subst $(MACOSX_MINOR),,1234),1234)
@@ -121,7 +122,7 @@ CXXFLAGS      = $(OPT2) -pipe -Wall -W -Woverloaded-virtual
 LD            = $(MACOSXTARGET) g++
 LDFLAGS       = $(OPT2)
 BOOSTLIB      = /usr/local/lib
-SQLITE3LIB    = /usr/lib/libsqlite3.dylib
+#SQLITE3LIB    = /usr/lib/libsqlite3.dylib
 # The SOFLAGS will be used to create the .dylib,
 # the .so will be created separately
 ifeq ($(subst $(MACOSX_MINOR),,1234),1234)
@@ -201,8 +202,8 @@ ADDLIBS=$(BOOSTLIB)/libboost_system.a \
         $(BOOSTLIB)/libboost_date_time.a \
         $(BOOSTLIB)/libboost_serialization.a \
         $(BOOSTLIB)/libboost_program_options.a \
-        /usr/local/lib/libgsl.a \
-        /usr/local/lib/libgslcblas.a \
+        $(GSL_LIB_DIR)/libgsl.a \
+        $(GSL_LIB_DIR)/libgslcblas.a \
         $(SQLITE3LIB) \
 	/opt/local/lib/libfftw3.a
 

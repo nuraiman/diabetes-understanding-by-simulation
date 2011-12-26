@@ -185,7 +185,7 @@ MemVariableSpinBox::MemVariableSpinBox( const string &label,
                                         const double &upper,
                                         Wt::WContainerWidget *parent )
   : WContainerWidget( parent ),
-    m_spinBox( new WSpinBox() )
+    m_spinBox( new WDoubleSpinBox() )
 {
   setStyleClass( "MemVariableSpinBox" );
   if( label != "" ) (new WLabel( label, this ))->setBuddy( m_spinBox );
