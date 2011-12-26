@@ -416,7 +416,7 @@ public:
   void addCustomEventDialog();
   void defineDefaultDexcomEvents();
   void validateCustomEventNameAndID( Wt::WLineEdit *name,
-                                     Wt::WSpinBox *id,
+                                     Wt::WAbstractSpinBox *id,
                                      Wt::WPushButton *button );
   void defineCustomEvent( const int recordType,
                           const std::string name,

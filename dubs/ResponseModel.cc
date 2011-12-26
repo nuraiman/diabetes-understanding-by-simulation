@@ -173,49 +173,6 @@ NLSimple::NLSimple( std::string fileName ) :
 
 
 
-//if you are updatin this, make sure you updarte the serialize function!!!
-const NLSimple &NLSimple::operator=( const NLSimple &rhs )
-{
-  if( &rhs == this ) return *this;
-
-  m_description                = rhs.m_description;
-
-  m_t0                         = rhs.m_t0;
-
-  m_basalInsulinConc           = rhs.m_basalInsulinConc;
-  m_basalGlucoseConcentration  = rhs.m_basalGlucoseConcentration;
-
-  m_effectiveDof               = rhs.m_effectiveDof;
-
-  m_paramaters                 = rhs.m_paramaters;
-  m_paramaterErrorPlus         = rhs.m_paramaterErrorPlus;
-  m_paramaterErrorMinus        = rhs.m_paramaterErrorMinus;
-  m_customEventDefs            = rhs.m_customEventDefs;
-
-  m_cgmsData                   = rhs.m_cgmsData;
-  m_boluses                    = rhs.m_boluses;
-  m_freePlasmaInsulin          = rhs.m_freePlasmaInsulin;
-  m_glucoseAbsorbtionRate      = rhs.m_glucoseAbsorbtionRate;
-  m_fingerMeterData            = rhs.m_fingerMeterData;
-  m_calibrationData            = rhs.m_calibrationData;
-  m_customEvents               = rhs.m_customEvents;
-  m_mealData                   = rhs.m_mealData;
-
-  m_predictedInsulinX          = rhs.m_predictedInsulinX;
-  m_predictedBloodGlucose      = rhs.m_predictedBloodGlucose;
-
-  m_doNotUseTimeRanges         = rhs.m_doNotUseTimeRanges;
-  m_userNotes                  = rhs.m_userNotes;
-
-  m_startSteadyStateTimes      = rhs.m_startSteadyStateTimes;
-  //m_gui                        = NULL;
-  //m_rootGui                    = NULL;
-  m_settings                   = m_settings;
-
-  return *this;
-}//operator=
-
-
 
 double NLSimple::getOffset( const boost::posix_time::ptime &absoluteTime ) const
 {
@@ -234,7 +191,8 @@ ptime NLSimple::getAbsoluteTime( double nOffsetMinutes ) const
 
 double NLSimple::customEventEffect( const PosixTime &time,
                                     const double &carbAbsRate, 
-                                    const double &X ) const
+                                    const double &X
+                                    ) const
 {
   //This function is the major time consumer of optimizing!
   //It takes up about 50% of the CPU time!
@@ -247,6 +205,25 @@ double NLSimple::customEventEffect( const PosixTime &time,
   //  
   //Make cache of the value of foreach type og EventDefPair over all time that
   //  will be evaluated,
+  
+/*
+ //Some pre-work 20110629 to check about speeding up dealing with custom events...
+  map<int, ConsentrationGraph> cache;
+
+  for( ConstGraphIter iter = m_customEvents.begin(); 
+       iter != m_customEvents.end(); ++iter )
+  {
+    const int eventType = static_cast<int>( iter->m_value );
+  
+    EventDefMap::const_iterator eventTypeDef = m_customEventDefs.find( eventType );
+    assert( eventTypeDef != m_customEventDefs.end() );
+    
+    if( cache.find( eventType ) == cache.end() )
+      cache[eventType] = ConsentrationGraph( m_t0, 5.0, CustomEvent );
+    
+    cache[eventType].insert( iter->m_time, iter->m_value );
+  }//for( loop over possible custom events )
+*/
   
   double dGdT = 0.0;
 
@@ -723,7 +700,7 @@ double CgmsFingerCorrFCN::testParamaters(const std::vector<double>& x ) const
 
 
 double CgmsFingerCorrFCN::Up() const {return 1.0;}
-void CgmsFingerCorrFCN::SetErrorDef(double dof){ dof = dof; }
+void CgmsFingerCorrFCN::SetErrorDef(double /*dof*/){ assert(0); }
 
 
 
@@ -2429,9 +2406,12 @@ void NLSimple::draw( bool pause,
   }//if( we don;thave a predictions )
 
   //When We use SetPoint(...) it erases the  histogram with nice labels
-  TH1 *axisHisto = usePredForAxis ? (TH1 *)predBG->GetHistogram()->Clone()
-                                  : (TH1 *)cgmsBG->GetHistogram()->Clone();
+  //XXX - With Root 5.32 we have to use a TH1F instead of TH1 here...
+  TH1F *axisHisto = usePredForAxis ? dynamic_cast<TH1F *>(predBG->GetHistogram()->Clone())
+                                  : dynamic_cast<TH1F *>(cgmsBG->GetHistogram()->Clone());
 
+  assert( axisHisto );
+  
   const double glucMax = glucAbs->GetMaximum();
   const double glucMin = glucAbs->GetMinimum();
 

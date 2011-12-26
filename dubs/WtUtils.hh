@@ -9,6 +9,7 @@
 #include <Wt/WDateTime>
 
 #include <Wt/WSpinBox>
+#include <Wt/WDoubleSpinBox>
 #include "ArtificialPancrease.hh"
 
 
@@ -80,7 +81,7 @@ protected:
   typedef boost::recursive_mutex::scoped_lock Lock;
   typedef boost::shared_ptr<Lock> LockShrdPtr;
 
-  Wt::WSpinBox *m_spinBox;
+  Wt::WDoubleSpinBox *m_spinBox;
 
   LockShrdPtr getLock();
 
@@ -93,7 +94,7 @@ public:
   virtual ~MemVariableSpinBox(){}
   virtual void updateGuiFromMemmory() = 0;
   virtual void updateMemmoryFromGui() = 0;
-  Wt::WSpinBox *spinBox() { return m_spinBox; }
+  Wt::WDoubleSpinBox *spinBox() { return m_spinBox; }
   Wt::Signal<double> &valueChanged();
   virtual double value();
 };//class MemVariableSpinBox

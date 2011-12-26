@@ -503,7 +503,7 @@ void WtCreateNLSimple::checkDisplayTimeLimitsConsistency()
 }//void checkDisplayTimeLimitsConsistency()
 
 
-void WtCreateNLSimple::failedUpload( int type )
+void WtCreateNLSimple::failedUpload( ::int64_t type )
 {
   wApp->doJavaScript( "alert( \"CreateNLSimple::failedUpload(...) failed to "
                       "upload file of type "

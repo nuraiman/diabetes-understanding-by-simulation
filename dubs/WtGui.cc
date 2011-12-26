@@ -63,6 +63,7 @@
 #include <Wt/WTextArea>
 #include <Wt/WMenuItem>
 #include <Wt/Dbo/QueryModel>
+#include <Wt/WAnimation>
 
 #include "TH1.h"
 #include "TH1F.h"
@@ -453,7 +454,7 @@ void WtGui::init( const string username )
   item->triggered().connect( boost::bind( &WtGui::openModelDialog, this ) );
   item = m_fileMenuPopup->addItem( "New Model" );
   item->triggered().connect( boost::bind( &WtGui::newModel, this ) );
-  item->triggered().connect( boost::bind( &WPopupMenu::setHidden, m_fileMenuPopup, true ) );
+  item->triggered().connect( boost::bind( &WPopupMenu::setHidden, m_fileMenuPopup, true, WAnimation() ) );
 
 
   WPopupMenu *dataMenuPopup = new WPopupMenu();
@@ -465,7 +466,7 @@ void WtGui::init( const string username )
 
   item = dataMenuPopup->addItem( "Add Data" );
   item->triggered().connect( boost::bind( &WtGui::addDataDialog, this ) );
-  item->triggered().connect( boost::bind( &WPopupMenu::setHidden, dataMenuPopup, true ) );
+  item->triggered().connect( boost::bind( &WPopupMenu::setHidden, dataMenuPopup, true, WAnimation() ) );
 
 
 
@@ -2692,10 +2693,10 @@ void WtCustomEventTab::addCustomEventDialog()
 
   id->valueChanged().connect(
                  boost::bind( &WtCustomEventTab::validateCustomEventNameAndID,
-                              this, name, id->spinBox(), ok ) );
+                              this, name, (WAbstractSpinBox *)id->spinBox(), ok ) );
   name->changed().connect(
                  boost::bind( &WtCustomEventTab::validateCustomEventNameAndID,
-                              this, name, id->spinBox(), ok ) );
+                              this, name, (WAbstractSpinBox *)id->spinBox(), ok ) );
 
   const WDialog::DialogCode code = dialog.exec();
 
@@ -2714,14 +2715,29 @@ void WtCustomEventTab::addCustomEventDialog()
 
 
 void WtCustomEventTab::validateCustomEventNameAndID( WLineEdit *name,
-                                                     WSpinBox *id,
+                                                     	WAbstractSpinBox *id,
                                                      WPushButton *button )
 {
   button->enable();
 
   const string nameStr = name->text().narrow();
-  const int idValue =  std::floor( id->value() + 0.5 );
-  if( id->value() != id->value() ) button->disable();
+  
+  double value = 0.0;
+  
+  try
+  {
+    value = boost::lexical_cast<double>( id->text().narrow() );
+  }catch(...)
+  {
+    id->setText( "" );
+    button->disable();
+    return;
+  }
+  
+  const int idValue =  std::floor( value + 0.5 );
+  
+  if( value != value ) 
+    button->disable();
 
   NLSimplePtr nlsimpleptr( m_parentWtGui );
   const std::map<int, EventDef> &eventDefs = nlsimpleptr->m_customEventDefs;
