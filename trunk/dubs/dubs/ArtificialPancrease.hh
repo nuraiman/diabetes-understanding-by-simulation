@@ -5,8 +5,9 @@
 #include <string>
 #include <vector>
 #include <exception>
-#include "boost/date_time/posix_time/posix_time.hpp"
-#include "boost/foreach.hpp"
+#include <boost/date_time/posix_time/posix_time.hpp>
+#include <boost/foreach.hpp>
+#include <boost/function.hpp>
 #include "TString.h"  //for the Form in SRC_Location macro
 
 const double kFailValue = -9999.9;
