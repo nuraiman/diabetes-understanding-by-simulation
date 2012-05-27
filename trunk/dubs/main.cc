@@ -38,6 +38,7 @@
 
 #include "WtGui.hh"
 #include "WtUtils.hh"
+#include "dubs/DubUser.hh"
 
 
 
@@ -50,15 +51,15 @@ void cgmFilterStudy();
 
 DubUserServer gDubUserServer;  //the single instance of the DubUserServer
 
-  
+
 
 WApplication *createApplication(const WEnvironment& env)
-{	
+{
   WtGui *app = new WtGui(env, gDubUserServer);
   return app;
-}			
+}
 
-int main(int argc, char *argv[])
+int main( int argc, char *argv[] )
 {
   setStyle();
 //  cgmFilterStudy();
@@ -67,10 +68,10 @@ int main(int argc, char *argv[])
   ProgramOptions::decodeOptions( 0, NULL );
   ProgramOptions::ns_defaultModelFileName = "../data/qt_test.dubm";
 
-  return WRun(argc, argv, &createApplication);
+  return WRun( argc, argv, &createApplication );
 }//int main(int argc, char *argv[])
 
-				
+
 void setStyle()
 {
   TStyle *myStyle = gROOT->GetStyle("Plain"); //base style on Plain

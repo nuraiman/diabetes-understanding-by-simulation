@@ -28,7 +28,7 @@ namespace Wt
   class WDatePicker;
   class WBorderLayout;
   class WStandardItemModel;
-};//namespace Wt
+}//namespace Wt
 
 
 class Div : public Wt::WContainerWidget

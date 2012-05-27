@@ -10,7 +10,8 @@
 #include <Wt/Dbo/WtSqlTraits>
 #include <boost/thread.hpp>
 
-class DubUser;
+#include "dubs/DubUser.hh"
+
 class UsersModel;
 
 namespace Wt
@@ -29,7 +30,7 @@ namespace Wt
   class WDatePicker;
   class WBorderLayout;
   class WStandardItemModel;
-};//namespace Wt
+}//namespace Wt
 
 class DubUserServer : public Wt::WObject
 {
@@ -62,81 +63,7 @@ private:
 
 
 
-class DubsLogin : public Wt::WContainerWidget
-{
-public:
-  static const std::string cookie_name;
-  typedef Wt::Signal<std::string> LoginSignal;
-
-  DubsLogin( Wt::Dbo::Session &dbSession, Wt::WContainerWidget *parent = NULL );
-  LoginSignal &loginSuccessful();
-
-  //The cookie valuesstored in the sqlite3 database
-  //  web_app_login_info.sql3, were created using the command
-  //CREATE TABLE cookie_hashes ( user char(50) primary key, hash char(50) );
-  //  where the has is the MD5 hash of a random float generated at
-  //  cookie creatioin time.  The cookie value is formated like
-  //  <user>_<hash>, so that the cookie retrieved from the client must match
-  //  the information in the database
-
-  static void insertCookie( const std::string &uname,
-                            const int lifetime,
-                            Wt::Dbo::Session &dbSession ); //lifetime in seconds
-  static std::string isLoggedIn( Wt::Dbo::Session &dbSession ); //returns username, or a blank string on not being logged in
-
-
-private:
-  Wt::Dbo::Session &m_dbSession;
-  Wt::WText     *m_introText;
-  Wt::WLineEdit *m_username;
-  Wt::WLineEdit *m_password;
-  LoginSignal    m_loginSuccessfulSignal;
-
-  void addUser();
-  void enableButton( Wt::WPushButton *button,
-                     Wt::WLineEdit *edit1,
-                     Wt::WLineEdit *edit2 = NULL,
-                     Wt::WLineEdit *edit3 = NULL );
-  void checkCredentials();
-  bool validLogin( const std::string &user, std::string pass );
-};//class DubsLogin : public Wt::WContainerWidget
-
-
-
-
-class DubUser
-{
-public:
-  enum Role
-  {
-    Visitor = 0,
-    FullUser = 1,
-  };//enum Role
-
-  std::string name;
-  std::string password;
-  std::string email;
-  Role        role;
-  std::string currentFileName;
-  std::string cookieHash;
-  typedef Wt::Dbo::collection<Wt::Dbo::ptr<UsersModel> > UsersModels;
-  UsersModels models;
-
-  template<class Action>
-  void persist(Action& a)
-  {
-    Wt::Dbo::field(a, name,            "name" );
-    Wt::Dbo::field(a, password,        "password" );
-    Wt::Dbo::field(a, password,        "email" );
-    Wt::Dbo::field(a, role,            "role" );
-    Wt::Dbo::field(a, currentFileName, "currentFileName" );
-    Wt::Dbo::field(a, cookieHash,      "cookieHash" );
-    Wt::Dbo::hasMany(a, models, Wt::Dbo::ManyToOne, "user");
-  }//presist function
-};//class DubUser
-
 class OptimizationChi2;
-
 
 class UsersModel
 {
@@ -150,18 +77,21 @@ public:
 
   Wt::WDateTime displayBegin;
   Wt::WDateTime displayEnd;
-  
+
+  std::string serializedData;
+
   template<class Action>
   void persist(Action& a)
   {
-    Wt::Dbo::belongsTo(a, user,     "user");
-    Wt::Dbo::field(a, fileName,     "fileName" );
-    Wt::Dbo::field(a, created,      "created" );
-    Wt::Dbo::field(a, modified,     "modified" );
-    Wt::Dbo::field(a, displayBegin, "displayBegin" );
-    Wt::Dbo::field(a, displayEnd,   "displayEnd" );
+    Wt::Dbo::belongsTo(a, user,       "user");
+    Wt::Dbo::field(a, fileName,       "fileName" );
+    Wt::Dbo::field(a, created,        "created" );
+    Wt::Dbo::field(a, modified,       "modified" );
+    Wt::Dbo::field(a, displayBegin,   "displayBegin" );
+    Wt::Dbo::field(a, displayEnd,     "displayEnd" );
+    Wt::Dbo::field(a, serializedData, "serializedData" );
     Wt::Dbo::hasMany(a, chi2s, Wt::Dbo::ManyToOne, "usermodel");
-  }//presist function
+  }//persist function
 };//class UsersModel
 
 
@@ -182,5 +112,7 @@ public:
   }//presist function
 };//class UsersModel
 
+DBO_EXTERN_TEMPLATES(UsersModel);
+DBO_EXTERN_TEMPLATES(OptimizationChi2);
 
 #endif // WTUSERMANAGMENT_HH

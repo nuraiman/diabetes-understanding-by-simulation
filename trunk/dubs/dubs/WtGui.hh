@@ -21,6 +21,7 @@
 
 #include "ArtificialPancrease.hh"
 #include "WtUserManagment.hh"
+#include "dubs/DubsSession.hh"
 
 //Some forward declarations
 class NLSimple;
@@ -109,6 +110,9 @@ public:
 
 class WtGui : public Wt::WApplication
 {
+  //TODO 20120527
+  //Remove all calls to WMesageBox::exec(...) - it causes deadlock if you force logout user
+
 public:
   enum ErrorRegions
   {
@@ -170,10 +174,8 @@ public:
     std::string formFileSystemName( const std::string &internalName );
     void enableOpenModelDialogOkayButton( Wt::WPushButton *button, Wt::WTableView *view );
 
-    //requireLogin() will NOT require you to type a password if detects you
-    //  are already logged in through the use of cookies
-    void requireLogin();
-    void init( const std::string username );
+    void loginScreen();
+    void init();
     void logout();
     void checkLogout( Wt::WString username );
 
@@ -219,9 +221,12 @@ public:
     void notesTabClickedCallback( int clickedINdex );
 
     Wt::Dbo::ptr<DubUser> dubUserPtr(){ return m_userDbPtr; }
-    Wt::Dbo::Session &dbSession() { return m_dbSession; }
+    Wt::Dbo::Session &dbSession() { return m_dubsSession; }
 
   private:
+
+    DubsSession m_dubsSession;
+
     //m_model should never be accessed in any situation where multithreaded
     //  access is any possibility, instead, a NLSimplePtr object should be
     //  instatiated and used for thread safety
@@ -233,8 +238,6 @@ public:
     DubUserServer &m_server;
     boost::signals::connection m_logoutConnection;
 
-    Wt::Dbo::backend::Sqlite3 m_dbBackend;
-    Wt::Dbo::Session m_dbSession;
 
     Div  *m_upperEqnDiv;
     Wt::WPopupMenu *m_fileMenuPopup;

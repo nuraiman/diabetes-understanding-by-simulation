@@ -82,6 +82,8 @@ set( sources
     src/WtChartClasses.cc
     src/WtGui.cc
     src/WtUtils.cc
+    src/DubUser.cc
+    src/DubsSession.cc
 )
 
 
@@ -98,6 +100,8 @@ set( headers
     dubs/WtGui.hh
     dubs/WtUserManagment.hh
     dubs/WtUtils.hh
+    dubs/DubUser.hh
+    dubs/DubsSession.hh
 )
 
 
@@ -140,6 +144,7 @@ endif(BUILD_AS_DESKTOP_APP)
 
 INCLUDE_DIRECTORIES(
     ${Wt_INCLUDE_DIR}
+    ${Wt_INCLUDE_DIR}/..  #necassary when including Wt/Auth/Dbo/AuthInfo (I think is a Wt bug)
     ${Boost_INCLUDE_DIR}
     ${CMAKE_BINARY_DIR}
     ${GSL_INCLUDE_DIRS}
