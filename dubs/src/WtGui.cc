@@ -64,6 +64,9 @@
 #include <Wt/WMenuItem>
 #include <Wt/Dbo/QueryModel>
 #include <Wt/WAnimation>
+#include <Wt/Auth/AuthWidget>
+#include <Wt/Auth/PasswordService>
+
 
 #include "TH1.h"
 #include "TH1F.h"
@@ -82,6 +85,8 @@
 #include "CgmsDataImport.hh"
 #include "WtChartClasses.hh"
 #include "ConsentrationGraph.hh"
+#include "dubs/DubUser.hh"
+#include "dubs/DubsSession.hh"
 
 using namespace Wt;
 using namespace std;
@@ -162,10 +167,9 @@ WtGui::~WtGui()
 
 WtGui::WtGui( const Wt::WEnvironment& env, DubUserServer &server )
   : WApplication( env ),
+  m_dubsSession( appRoot() + "user_information.db" ),
   m_model(),
   m_server( server ),
-  m_dbBackend( "user_information.db" ),
-  m_dbSession(),
   m_upperEqnDiv( NULL ),
   m_fileMenuPopup( NULL ),
   m_tabs( NULL ),
@@ -184,50 +188,37 @@ WtGui::WtGui( const Wt::WEnvironment& env, DubUserServer &server )
   setTitle( "dubs" );
 
   string urlStr = "local_resources/dubs_style.css";
-  if( boost::algorithm::contains( url(), "dubs.app" ) )
+  if( boost::algorithm::contains( url(), "dubs.app" )
+      || boost::algorithm::contains( url(), "dubs.wt" ) )
     urlStr = "dubs/exec/" + urlStr;
 
   useStyleSheet( urlStr );
 
-  m_dbSession.setConnection( m_dbBackend );
-  m_dbBackend.setProperty("show-queries", "true");
-  m_dbSession.mapClass<DubUser>("DubUser");
-  m_dbSession.mapClass<UsersModel>("UsersModel");
-  m_dbSession.mapClass<OptimizationChi2>("OptimizationChi2");
-
-
-  try{ m_dbSession.createTables(); }
-  catch(std::exception &e)
-  { cerr << "Failed to create DB: " << e.what() << endl; }
-
-  requireLogin();
+  loginScreen();
 }//WtGui constructor
 
 
 
-void WtGui::requireLogin()
+void WtGui::loginScreen()
 {
-  const string logged_in_username = DubsLogin::isLoggedIn( m_dbSession );
-
-  if( logged_in_username != "" )
-  {
-    //m_server.login( logged_in_username );
-    init( logged_in_username );
-    return;
-  }//if( isLoggedIn() )
+  DubsSession::configureAuth();
 
   root()->clear();
-  WGridLayout *layout = new WGridLayout();
-  root()->setLayout( layout );
-  DubsLogin *login = new DubsLogin( m_dbSession );
-  layout->addWidget( login, 0, 0, 1, 1, AlignCenter );
-  layout->setColumnStretch(0, 5);
-  layout->addWidget( new Div(), 1, 0, 1, 1, AlignCenter );
-  layout->setRowStretch( 1, 5 );
 
-  login->loginSuccessful().connect( boost::bind( &WtGui::init, this, _1 ) );
-  login->loginSuccessful().connect( boost::bind( &DubsLogin::insertCookie, _1, 3024000, boost::ref(m_dbSession) ) );
-}//void WtGui::requireLogin()
+  m_dubsSession.login().changed().connect( this, &WtGui::init );
+
+  Wt::Auth::AuthWidget *authWidget
+        = new Wt::Auth::AuthWidget( DubsSession::auth(), m_dubsSession.users(),
+                                    m_dubsSession.login() );
+
+  authWidget->model()->addPasswordAuth(&DubsSession::passwordAuth());
+  authWidget->model()->addOAuth(DubsSession::oAuth());
+  authWidget->setRegistrationEnabled(true);
+
+  authWidget->processEnvironment();
+
+  root()->addWidget( authWidget );
+}//void WtGui::loginScreen()
 
 
 void WtGui::logout()
@@ -236,25 +227,25 @@ void WtGui::logout()
   m_nlSimleDisplayModel->aboutToSetNewModel();
   m_model = NLSimpleShrdPtr();
   m_nlSimleDisplayModel->doneSettingNewModel();
-  DubsLogin::insertCookie( m_userDbPtr->name, 0, m_dbSession ); //deltes the cookie
-  m_server.logout( m_userDbPtr->name );
+  if( m_userDbPtr )
+    m_server.logout( m_userDbPtr->name );
   m_userDbPtr = Wt::Dbo::ptr<DubUser>();
-  requireLogin();
+  m_logoutConnection.disconnect();
+  m_dubsSession.login().logout();
+//  loginScreen();
 }//void logout()
 
 void WtGui::checkLogout( Wt::WString username )
 {
-  if( username.narrow() == m_userDbPtr->name )
+  if( m_userDbPtr && (username.narrow() == m_userDbPtr->name) )
   {
     {
       WApplication::UpdateLock lock( this );
-      m_server.logout( username );
-      redirect( "static_pages/forced_logout.html" );
+//      redirect( "static_pages/forced_logout.html" );
+      logout();
       triggerUpdate();
-      m_logoutConnection.disconnect();
     }
-
-    quit();
+//    quit();
   }//if( username.narrow() == m_userDbPtr->name )
 }//void checkLogout( Wt::WString username )
 
@@ -277,14 +268,17 @@ void WtGui::resetGui()
   m_model = NLSimpleShrdPtr();
   m_nlSimleDisplayModel->doneSettingNewModel();
 
-  init( m_userDbPtr->name );
+  init();
 }//void resetGui()
 
 
 void WtGui::deleteModel( const string &modelname )
 {
+  if( !m_userDbPtr )
+    return;
+
   {
-    Dbo::Transaction transaction(m_dbSession);
+    Dbo::Transaction transaction(m_dubsSession);
     Dbo::ptr<UsersModel> model = m_userDbPtr.modify()->models.find().where("fileName = ?").bind( modelname );
     if( model ) model.remove();
     transaction.commit();
@@ -312,7 +306,7 @@ void WtGui::openModelDialog()
   size_t nModels = 0;
   if( m_userDbPtr )
   {
-    Dbo::Transaction transaction(m_dbSession);
+    Dbo::Transaction transaction(m_dubsSession);
     nModels = m_userDbPtr->models.size();
     transaction.commit();
   }//if( m_userDbPtr )
@@ -390,29 +384,45 @@ void WtGui::openModelDialog()
 }//void openModelDialog()
 
 
-void WtGui::init( const string username )
+void WtGui::init()
 {
   boost::recursive_mutex::scoped_lock lock( m_modelMutex );
 
+  root()->clear();
+
+  const Wt::Auth::LoginState loginStatus = m_dubsSession.login().state();
+
+  switch( loginStatus )
   {
-    Dbo::Transaction transaction(m_dbSession);
-    m_userDbPtr = m_dbSession.find<DubUser>().where("name = ?").bind( username );
-    transaction.commit();
-  }
+    case Wt::Auth::LoggedOut:
+    case Wt::Auth::DisabledLogin:
+      loginScreen();
+      return;
+    break;
+
+    case Wt::Auth::WeakLogin:
+    case Wt::Auth::StrongLogin:
+    break;
+  }//switch( loginStatus )
+
+  m_userDbPtr = m_dubsSession.user();
+
+  if( !m_userDbPtr )
+  {
+    loginScreen();
+    return;
+  }//if( !user )
+
+  const string username = m_userDbPtr->name;
 
   if( m_server.sessionId(username) != sessionId() )
     m_server.login( username, sessionId() );
 
-
+  //Everytime a new user logs in m_server.userLogIn() signal is emitted, so
+  //  that if the same user is already logged in, then all other instances
+  //  of there session will be logged out
   m_logoutConnection.disconnect();
   m_logoutConnection = m_server.userLogIn().connect( this, &WtGui::checkLogout );
-
-  if( !m_userDbPtr )
-  {
-    cerr << username << " doesn't have a currentFile." << endl;
-    requireLogin();
-    return;
-  }//if( !m_userDbPtr )
 
   root()->clear();
   root()->setStyleClass( "root" );
@@ -421,22 +431,23 @@ void WtGui::init( const string username )
   layout->setContentsMargins( 0, 0, 0, 0 );
   root()->setLayout( layout );
 
-  if( m_userDbPtr->currentFileName.empty() && !m_model.get() )
+  if( m_userDbPtr->currentFileName.empty() && !m_model )
   {
     openModelDialog();
     return;
   }else if( !m_userDbPtr->currentFileName.empty() )
   {
-    assert( !m_model.get() );
+    assert( !m_model );
     setModel( m_userDbPtr->currentFileName );
   }
 
-  if( m_model.get() == NULL )
+  if( !m_model )
   {
     setModelFileName( "" );
-    init( m_userDbPtr->name );
+    init();
     return;
-  }
+  }//if( !m_model )
+
 
   m_upperEqnDiv = new Div( "m_upperEqnDiv" );
   m_fileMenuPopup = new WPopupMenu();
@@ -480,7 +491,7 @@ void WtGui::init( const string username )
   m_tabs = new WTabWidget();
   m_tabs->setStyleClass( "m_tabs" );
   layout->addWidget( m_tabs, WBorderLayout::Center );
-  
+
 
   m_bsGraph = new WChartWithLegend(this);
 //  m_nlSimleDisplayModel->useAllColums();
@@ -569,10 +580,10 @@ void WtGui::init( const string username )
 
   WDateTime now( WDate(2010,1,3), WTime(2,30) );
   m_bsBeginTimePicker  = new DateTimeSelect( "Start Date/Time:&nbsp;",
-                                             WDateTime::fromPosixTime( modelPtr->m_cgmsData.getStartTime() ), 
+                                             WDateTime::fromPosixTime( modelPtr->m_cgmsData.getStartTime() ),
                                              datePickingDiv );
   m_bsEndTimePicker    = new DateTimeSelect( "&nbsp;&nbsp;&nbsp;&nbsp;End Date/Time:&nbsp;",
-                                             WDateTime::fromPosixTime( modelPtr->m_cgmsData.getEndTime() ), 
+                                             WDateTime::fromPosixTime( modelPtr->m_cgmsData.getEndTime() ),
                                              datePickingDiv );
   WPushButton *zoomOut = new WPushButton( "Full Date Range", datePickingDiv );
   zoomOut->clicked().connect( this, &WtGui::zoomToFullDateRange );
@@ -585,24 +596,24 @@ void WtGui::init( const string username )
   m_nextTimePeriodButton->setFloatSide( Right );
   m_nextTimePeriodButton->clicked().connect( this, &WtGui::showNextTimePeriod );
 
-  
+
   //set the displayed data range to the last range used
   if( m_userDbPtr )
   {
-    Dbo::Transaction transaction(m_dbSession);
+    Dbo::Transaction transaction(m_dubsSession);
     const DubUser::UsersModels &models = m_userDbPtr->models;
     Dbo::ptr<UsersModel> model = models.find().where( "fileName = ?" ).bind( m_userDbPtr->currentFileName );
     if( model )
-    { 
+    {
       cerr << endl << endl << "Setting to " << model->displayBegin.toString() << " and " << model->displayEnd.toString() << endl << endl;
       m_bsBeginTimePicker->set( model->displayBegin );
       m_bsEndTimePicker->set( model->displayEnd );
     }//if( model )
     transaction.commit();
   }//if( m_userDbPtr )
-  
+
   updateDataRange();
-  
+
   m_bsBeginTimePicker->changed().connect( boost::bind( &WtGui::updateDisplayedDateRange, this ) );
   m_bsEndTimePicker->changed().connect( boost::bind( &WtGui::updateDisplayedDateRange, this ) );
 
@@ -1013,13 +1024,13 @@ void WtGui::updateDisplayedDateRange()
     m_previousTimePeriodButton->enable();
 
   //Now save to database
-  Dbo::Transaction transaction(m_dbSession);
+  Dbo::Transaction transaction(m_dubsSession);
   const DubUser::UsersModels &models = m_userDbPtr->models;
 
   Dbo::ptr<UsersModel> model = models.find().where( "fileName = ?" ).bind( m_userDbPtr->currentFileName );
 
   if( model )
-  { 
+  {
     model.modify()->displayBegin = WDateTime::fromPosixTime( start );
     model.modify()->displayEnd = WDateTime::fromPosixTime( end );
   }else
@@ -1353,7 +1364,8 @@ void WtGui::saveModelConfirmation()
   cancel->clicked().connect( &dialog, &WDialog::reject );
 
   const WDialog::DialogCode code = dialog.exec();
-  if( code == WDialog::Accepted ) saveModel( m_userDbPtr->currentFileName );
+  if( code == WDialog::Accepted )
+    saveModel( m_userDbPtr->currentFileName );
 }//void saveModelConfirmation()
 
 
@@ -1380,7 +1392,7 @@ void WtGui::newModel()
     m_nlSimleDisplayModel->doneSettingNewModel();
 
     setModelFileName( "" );
-    init( m_userDbPtr->name );
+    init();
   }//if( accepted )
 }//void newModel()
 
@@ -1403,36 +1415,45 @@ void WtGui::saveModel( const std::string &fileName )
     return;
   }//if( fileName.empty() )
 
+  std::stringstream serializedModelStream;
+
   {
     NLSimplePtr modelPtr( this, false, SRC_LOCATION );
-    if( !modelPtr ) return;
+    if( !modelPtr )
+      return;
+
+    boost::archive::text_oarchive oa( serializedModelStream );
+    oa << *modelPtr;
 
     modelPtr->saveToFile( formFileSystemName(fileName) );
     NLSimplePtr::resetCount( this );
   }
 
+  cerr << serializedModelStream.str() << endl;
 
   {
-    Dbo::Transaction transaction(m_dbSession);
+    Dbo::Transaction transaction(m_dubsSession);
     const DubUser::UsersModels &models = m_userDbPtr->models;
     Dbo::ptr<UsersModel> model = models.find().where( "fileName = ?" ).bind( fileName );
-    
+
     if( model )
-    { 
+    {
       model.modify()->modified = WDateTime::fromPosixTime( boost::posix_time::second_clock::local_time() );
+      model.modify()->serializedData = serializedModelStream.str();
       transaction.commit();
       return;
     }
     transaction.commit();
   }
 
-  Dbo::Transaction transaction(m_dbSession);
+  Dbo::Transaction transaction(m_dubsSession);
   UsersModel *newModel = new UsersModel();
   newModel->user     = m_userDbPtr;
   newModel->fileName = fileName;
   newModel->created  = WDateTime::fromPosixTime( boost::posix_time::second_clock::local_time() );
   newModel->modified = newModel->created;
-  Dbo::ptr<UsersModel> newModelPtr = m_dbSession.add( newModel );
+  newModel->serializedData = serializedModelStream.str();
+  Dbo::ptr<UsersModel> newModelPtr = m_dubsSession.add( newModel );
   if( newModelPtr )
     cerr << "Added new model:\n  "
          << "newModel->user->name='" << newModel->user->name
@@ -1452,10 +1473,11 @@ void WtGui::deleteModelFile( const std::string &fileName )
   Dbo::ptr<UsersModel> usrmodel;
 
   {
-    Dbo::Transaction transaction(m_dbSession);
+    Dbo::Transaction transaction(m_dubsSession);
     const DubUser::UsersModels &models = m_userDbPtr->models;
     usrmodel = models.find().where( "fileName = ?" ).bind( fileName );
-    if( usrmodel ) usrmodel.remove();
+    if( usrmodel )
+      usrmodel.remove();
     transaction.commit();
   }
 
@@ -1483,7 +1505,36 @@ void WtGui::setModel( const std::string &fileName )
 
   m_nlSimleDisplayModel->aboutToSetNewModel();
 
-  try{
+  Dbo::ptr<UsersModel> usrmodel;
+  {
+    Dbo::Transaction transaction(m_dubsSession);
+    const DubUser::UsersModels &models = m_userDbPtr->models;
+    usrmodel = models.find().where( "fileName = ?" ).bind( fileName );
+    transaction.commit();
+  }
+
+  if( usrmodel && !usrmodel->serializedData.empty() )
+  {
+    try
+    {
+      m_model = NLSimpleShrdPtr( new NLSimple( "description", 0.0, ProgramOptions::kBasalGlucConc, kGenericT0 ) );
+      stringstream inputstream( usrmodel->serializedData );
+      boost::archive::text_iarchive ia( inputstream );
+      ia >> (*m_model);
+      setModelFileName( fileName );
+      cerr << "\n\nSuccessgully got the NLSimple named " << fileName << " From the database" << endl;
+      m_nlSimleDisplayModel->doneSettingNewModel();
+      return;
+    }catch(...)
+    {
+      wApp->doJavaScript( "alert( \"Failed to open NLSimple named " + fileName + " from the database\")", true );
+//      deleteModelFile( fileName );
+    }
+  }//if( usrmodel && !usrmodel->serializedData.empty() )
+
+
+  try
+  {
     m_model = NLSimpleShrdPtr( new NLSimple( formFileSystemName(fileName) ) );
     setModelFileName( fileName );
   }catch(...){
@@ -1498,11 +1549,13 @@ void WtGui::setModel( const std::string &fileName )
 
 void WtGui::setModelFileName( const std::string &fileName )
 {
-  if( m_userDbPtr->currentFileName == fileName ) return;
+  if( m_userDbPtr->currentFileName == fileName )
+    return;
 
-  Dbo::Transaction transaction(m_dbSession);
+  Dbo::Transaction transaction(m_dubsSession);
   m_userDbPtr.modify()->currentFileName = fileName;
-  if( !transaction.commit() ) cerr << "setModelFileName( const string & ) failed commit" << endl;
+  if( !transaction.commit() )
+    cerr << "setModelFileName( const string & ) failed commit" << endl;
 }//void setModelFileName( const std::string &fileName )
 
 
@@ -2715,15 +2768,15 @@ void WtCustomEventTab::addCustomEventDialog()
 
 
 void WtCustomEventTab::validateCustomEventNameAndID( WLineEdit *name,
-                                                     	WAbstractSpinBox *id,
+                                                      WAbstractSpinBox *id,
                                                      WPushButton *button )
 {
   button->enable();
 
   const string nameStr = name->text().narrow();
-  
+
   double value = 0.0;
-  
+
   try
   {
     value = boost::lexical_cast<double>( id->text().narrow() );
@@ -2733,10 +2786,10 @@ void WtCustomEventTab::validateCustomEventNameAndID( WLineEdit *name,
     button->disable();
     return;
   }
-  
+
   const int idValue =  std::floor( value + 0.5 );
-  
-  if( value != value ) 
+
+  if( value != value )
     button->disable();
 
   NLSimplePtr nlsimpleptr( m_parentWtGui );
