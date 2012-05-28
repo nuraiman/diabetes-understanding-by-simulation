@@ -34,6 +34,8 @@
 #include <Wt/WEnvironment>
 #include <Wt/WRegExpValidator>
 #include <Wt/SyncLock>
+#include <Wt/Auth/AuthWidget>
+#include <Wt/Auth/PasswordService>
 
 
 #include "TH1.h"
@@ -58,10 +60,13 @@ DBO_INSTANTIATE_TEMPLATES(UsersModel);
 DBO_INSTANTIATE_TEMPLATES(OptimizationChi2);
 
 
-DubUserServer::DubUserServer() : m_userLoggedIn(this), m_userLoggedOut(this)
-{}
+DubUserServer::DubUserServer()
+  : m_userLoggedIn(this),
+    m_userLoggedOut(this)
+{
+}
 
-bool DubUserServer::login(const WString& user, const std::string &sessionId )
+bool DubUserServer::login(const std::string& user, const std::string &sessionId )
 {
   SyncLock<boost::recursive_mutex::scoped_lock> lock(m_mutex);
 
@@ -74,7 +79,7 @@ bool DubUserServer::login(const WString& user, const std::string &sessionId )
 }//...login( user )
 
 
-const std::string DubUserServer::sessionId( const Wt::WString user ) const
+const std::string DubUserServer::sessionId( const std::string user ) const
 {
   UserToSessionMap::const_iterator iter = m_users.find(user);
   if( iter == m_users.end() )
@@ -83,7 +88,7 @@ const std::string DubUserServer::sessionId( const Wt::WString user ) const
 }//const string sessionId( const Wt::WString &user ) const
 
 
-void DubUserServer::logout(const WString& user)
+void DubUserServer::logout(const std::string& user)
 {
   SyncLock<boost::recursive_mutex::scoped_lock> lock(m_mutex);
 

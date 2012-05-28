@@ -84,6 +84,7 @@ set( sources
     src/WtUtils.cc
     src/DubUser.cc
     src/DubsSession.cc
+    src/DubsApplication.cc
 )
 
 
@@ -102,6 +103,7 @@ set( headers
     dubs/WtUtils.hh
     dubs/DubUser.hh
     dubs/DubsSession.hh
+    dubs/DubsApplication.hh
 )
 
 

@@ -109,10 +109,13 @@ public:
 
 
 
+
+
 class WtGui : public Wt::WApplication
 {
   //TODO 20120527
   //Remove all calls to WMesageBox::exec(...) - it causes deadlock if you force logout user
+  //Seperate the WApplication logic from the user logic
 
 public:
   enum ErrorRegions
@@ -178,7 +181,7 @@ public:
     void loginScreen();
     void init();
     void logout();
-    void checkLogout( Wt::WString username );
+    void checkLogout( const std::string &username );
 
     void resetGui();
     void openModelDialog();
