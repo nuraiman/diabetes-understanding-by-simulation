@@ -42,20 +42,20 @@ class DubUserServer : public Wt::WObject
 
 public:
   DubUserServer();
-  bool login(const Wt::WString& user, const std::string &sessionId);
-  void logout(const Wt::WString& user);
-  Wt::Signal<Wt::WString> &userLogIn() { return m_userLoggedIn; }
-  Wt::Signal<Wt::WString> &userLogOut() { return m_userLoggedOut; }
+  bool login(const std::string& user, const std::string &sessionId);
+  void logout(const std::string& user);
+  Wt::Signal<std::string> &userLogIn() { return m_userLoggedIn; }
+  Wt::Signal<std::string> &userLogOut() { return m_userLoggedOut; }
 
-  const std::string sessionId( const Wt::WString user ) const;
+  const std::string sessionId( const std::string user ) const;
 
   //typedef std::set<Wt::WString> UserSet;
-  typedef std::map<Wt::WString,std::string> UserToSessionMap;
+  typedef std::map<std::string,std::string> UserToSessionMap;
   UserToSessionMap users();
 
 private:
-  Wt::Signal<Wt::WString>       m_userLoggedIn;
-  Wt::Signal<Wt::WString>       m_userLoggedOut;
+  Wt::Signal<std::string>       m_userLoggedIn;
+  Wt::Signal<std::string>       m_userLoggedOut;
   boost::recursive_mutex        m_mutex;
 
   UserToSessionMap              m_users;

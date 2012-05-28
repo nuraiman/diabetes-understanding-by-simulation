@@ -242,9 +242,9 @@ void WtGui::logout()
 }//void logout()
 
 
-void WtGui::checkLogout( Wt::WString username )
+void WtGui::checkLogout( const std::string &username )
 {
-  if( m_userDbPtr && (username.narrow() == m_userDbPtr->name) )
+  if( m_userDbPtr && (username == m_userDbPtr->name) )
   {
     {
       WApplication::UpdateLock lock( this );
