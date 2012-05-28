@@ -16,7 +16,6 @@ namespace Wt
   class WLineF;
   class WRectF;
   class WDialog;
-  class WSpinBox;
   class WComboBox;
   class WLineEdit;
   class WDateTime;
@@ -26,6 +25,7 @@ namespace Wt
   class WFileUpload;
   class WDatePicker;
   class WBorderLayout;
+  class WDoubleSpinBox;
   class WStandardItemModel;
   namespace Chart
   {
@@ -40,13 +40,12 @@ namespace Wt
 class WtCreateNLSimple : public Wt::WContainerWidget
 {
 public:
-  WtCreateNLSimple( NLSimple *&model,
-                    Wt::WContainerWidget *parent = 0 );
+  WtCreateNLSimple( Wt::WContainerWidget *parent = 0 );
   virtual ~WtCreateNLSimple();
 
   Wt::Signal<> &created();
   Wt::Signal<> &canceled();
-  NLSimple *model();
+  boost::shared_ptr<NLSimple> model();
 
 
 protected:
@@ -66,7 +65,7 @@ protected:
 
 
 private:
-    NLSimple *&m_model;
+    boost::shared_ptr<NLSimple>        m_model;
 
     bool m_userSetTime;
     std::vector<ConsentrationGraph *>  m_datas;
@@ -74,11 +73,10 @@ private:
     Wt::WPushButton                   *m_cancelButton;
     DateTimeSelect                    *m_endTime;
     DateTimeSelect                    *m_startTime;
-    Wt::WSpinBox                      *m_weightInput;
-    Wt::WSpinBox                      *m_basalInsulin;
+    Wt::WDoubleSpinBox                *m_weightInput;
+    Wt::WDoubleSpinBox                *m_basalInsulin;
     Wt::WStandardItemModel            *m_graphModel;
     Wt::Chart::WCartesianChart        *m_graph;
-    Wt::WGridLayout                   *m_fileInputLayout;
     std::vector<Wt::WFileUpload *>     m_fileUploads;
     std::vector<Wt::WText *>           m_sourceDescripts;
 

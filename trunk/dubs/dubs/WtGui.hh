@@ -49,6 +49,7 @@ class NLSimpleDisplayModel;
 class WChartWithLegend;
 class WtGeneralArrayModel;
 class WtNotesVectorModel;
+class WtCreateNLSimple;
 
 namespace Wt
 {
@@ -181,9 +182,12 @@ public:
 
     void resetGui();
     void openModelDialog();
+    void finishOpenModelDialog( Wt::WDialog *dialog, Wt::WTableView *view );
     void deleteModel( const std::string &model );
 
     void newModel();
+    void createNLSimpleDialogFinished( WtCreateNLSimple *creator,  Wt::WDialog *dialog );
+
     void updateDataRange();
     void zoomToFullDateRange();
     void zoomMostRecentDay();

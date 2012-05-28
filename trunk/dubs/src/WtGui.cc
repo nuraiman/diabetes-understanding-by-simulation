@@ -139,16 +139,22 @@ bool NLSimplePtr::has_lock() const
   return ( m_lock.get() && m_lock->owns_lock() );
 }//bool NLSimplePtr::has_lock() const
 
-bool NLSimplePtr::operator!() const{ return !has_lock(); }
+
+bool NLSimplePtr::operator!() const
+{
+  return !has_lock();
+}
 
 
 int NLSimplePtr::count( WtGui *gui )
 {
   RecursiveScopedLock lock( sm_nLockMapMutex );
 
-  if( sm_nLocksMap.find( gui ) == sm_nLocksMap.end() ) return 0;
+  if( sm_nLocksMap.find( gui ) == sm_nLocksMap.end() )
+    return 0;
   return sm_nLocksMap[gui];
 }//count
+
 
 void NLSimplePtr::resetCount( WtGui *gui )
 {
@@ -235,6 +241,7 @@ void WtGui::logout()
 //  loginScreen();
 }//void logout()
 
+
 void WtGui::checkLogout( Wt::WString username )
 {
   if( m_userDbPtr && (username.narrow() == m_userDbPtr->name) )
@@ -299,6 +306,46 @@ void WtGui::enableOpenModelDialogOkayButton( WPushButton *button, WTableView *vi
 }//void enableOpenModelDialogOkayButton( WPushButton *button, WTableView *view )
 
 
+
+void WtGui::finishOpenModelDialog( WDialog *dialog, WTableView *view )
+{
+
+  WDialog::DialogCode code = dialog->result();
+
+  if( code == WDialog::Accepted )
+  {
+    std::set<WModelIndex> selected = view->selectedIndexes();
+
+    if( selected.empty() )
+    {
+      //user hit 'Create New Model' button
+      newModel();
+      return;
+    }//if( selected.empty() )
+
+    try
+    {
+      const int selectedRow = selected.begin()->row();
+      typedef Dbo::QueryModel<Dbo::ptr<UsersModel> > ViewModel_t;
+      ViewModel_t *viewmodel = dynamic_cast< ViewModel_t * >( view->model() );
+      assert( viewmodel );
+      setModelFileName( boost::any_cast<string>( viewmodel->data( selectedRow, 0 ) ) );
+      resetGui();
+    }catch(...)
+    {
+      cerr << endl << "Any Cast Failed in openModelDialog()" << endl;
+    }
+
+    delete dialog;
+    return;
+  }else if( currentFileName() == "" )
+    newModel();
+
+  delete dialog;
+}//void WtGui::finishOpenModelDialog( WDialog *dialog )
+
+
+
 void WtGui::openModelDialog()
 {
   saveModelConfirmation();
@@ -317,10 +364,10 @@ void WtGui::openModelDialog()
     return;
   }//if( no models owned by user )
 
-  WDialog dialog( "Open Model" );
-  new WText("Select model to open: ", dialog.contents() );
-  new WBreak( dialog.contents() );
-  Dbo::QueryModel<Dbo::ptr<UsersModel> > *viewmodel = new Dbo::QueryModel<Dbo::ptr<UsersModel> >( dialog.contents() );
+  WDialog *dialog = new WDialog( "Open Model" );
+  new WText("Select model to open: ", dialog->contents() );
+  new WBreak( dialog->contents() );
+  Dbo::QueryModel<Dbo::ptr<UsersModel> > *viewmodel = new Dbo::QueryModel<Dbo::ptr<UsersModel> >( dialog->contents() );
   viewmodel->setQuery( m_userDbPtr->models.find() );
   viewmodel->addColumn( "fileName", "File Name" );
   viewmodel->addColumn( "created", "Created" );
@@ -329,7 +376,7 @@ void WtGui::openModelDialog()
   // cerr << "Found " << m_userDbPtr->models.find().resultList().size()
   //      << " potential models to open" << endl;
 
-  Div *viewDiv = new Div( "viewDiv", dialog.contents() );
+  Div *viewDiv = new Div( "viewDiv", dialog->contents() );
   WTableView *view = new WTableView( viewDiv );
   view->setModel( viewmodel );
   view->setSortingEnabled(true);
@@ -343,44 +390,21 @@ void WtGui::openModelDialog()
   view->setColumnWidth( 2, 150 );
   view->resize( 50+3*150, min( 500, 20 + 22*viewmodel->rowCount() ) );
 
-  new WBreak( dialog.contents() );
-  WPushButton *ok = new WPushButton( "Open", dialog.contents() );
+  new WBreak( dialog->contents() );
+  WPushButton *ok = new WPushButton( "Open", dialog->contents() );
   ok->setEnabled( false );
-  WPushButton *cancel   = new WPushButton( "Cancel", dialog.contents() );
-  WPushButton *newModelB = new WPushButton( "Create New Model", dialog.contents() );
+  WPushButton *cancel   = new WPushButton( "Cancel", dialog->contents() );
+  WPushButton *newModelB = new WPushButton( "Create New Model", dialog->contents() );
 
-  ok->clicked().connect(       &dialog, &WDialog::accept );
-  newModelB->clicked().connect( &dialog, &WDialog::accept );
+  ok->clicked().connect(        dialog, &WDialog::accept );
+  newModelB->clicked().connect( dialog, &WDialog::accept );
   newModelB->clicked().connect( boost::bind( &WTableView::setSelectedIndexes, view, WModelIndexSet() ) );
-  cancel->clicked().connect(   &dialog, &WDialog::reject );
+  cancel->clicked().connect(    dialog, &WDialog::reject );
   view->selectionChanged().connect(  boost::bind( &WtGui::enableOpenModelDialogOkayButton, this, ok, view ) );
   enableOpenModelDialogOkayButton( ok, view );
 
-  WDialog::DialogCode code = dialog.exec();
-
-  if( code == WDialog::Accepted )
-  {
-    std::set<WModelIndex> selected = view->selectedIndexes();
-
-    if( selected.empty() )
-    {
-      //user hit 'Create New Model' button
-      newModel();
-      return;
-    }//if( selected.empty() )
-
-    try
-    {
-      const int selectedRow = selected.begin()->row();
-      setModelFileName( boost::any_cast<string>( viewmodel->data( selectedRow, 0 ) ) );
-      resetGui();
-    }catch(...)
-    { cerr << endl << "Any Cast Failed in openModelDialog()" << endl; }
-
-    return;
-  }//if( code == WDialog::Accepted )
-
-  if( currentFileName() == "" ) newModel();
+  dialog->finished().connect( boost::bind( &WtGui::finishOpenModelDialog, this, dialog, view ) );
+  dialog->show();
 }//void openModelDialog()
 
 
@@ -424,7 +448,7 @@ void WtGui::init()
   m_logoutConnection.disconnect();
   m_logoutConnection = m_server.userLogIn().connect( this, &WtGui::checkLogout );
 
-  root()->clear();
+//  root()->clear();
   root()->setStyleClass( "root" );
   WBorderLayout *layout = new WBorderLayout();
   //layout->setSpacing(0);
@@ -1190,7 +1214,8 @@ void WtGui::syncDisplayToModel()
 
   updateDataRange();
   m_bsGraph->update();
-  foreach( WtConsGraphModel *model, m_inputModels ) model->refresh();
+  foreach( WtConsGraphModel *model, m_inputModels )
+    model->refresh();
   //m_notesTab->updateViewTable();
 }//void syncDisplayToModel()
 
@@ -1374,27 +1399,40 @@ void WtGui::newModel()
   saveModelConfirmation();
 
   NLSimplePtr modelPtr( this, false, SRC_LOCATION );  //just for the mutex
-  if( !modelPtr ) return;
+  if( !modelPtr )
+    return;
 
-  NLSimple *new_model = NULL;
-  WDialog dialog( "Upload Data To Create A New Model From:" );
-  dialog.resize( WLength(95.0, WLength::Percentage), WLength(95.0, WLength::Percentage) );
-  //dialog.setAttributeValue(  "style", "border: solid 3px black;");
-  WtCreateNLSimple *creater = new WtCreateNLSimple( new_model, dialog.contents() );
-  creater->created().connect(       &dialog, &WDialog::accept );
-  creater->canceled().connect(   &dialog, &WDialog::reject );
-  WDialog::DialogCode code = dialog.exec();
+  WDialog *dialog = new WDialog( "Upload Data To Create A New Model From:" );
+  WtCreateNLSimple *creater = new WtCreateNLSimple( dialog->contents() );
+  dialog->resize( WLength(80.0, WLength::Percentage), WLength(80.0, WLength::Percentage) );
+  //dialog->setAttributeValue(  "style", "border: solid 3px black;");
+  creater->created().connect(  dialog, &WDialog::accept );
+  creater->canceled().connect( dialog, &WDialog::reject );
+  dialog->setResizable( true );
+  dialog->finished().connect(  boost::bind( &WtGui::createNLSimpleDialogFinished, this, creater, dialog ) );
+  dialog->setModal( true );
+  dialog->show();
+}//void newModel()
 
-  if( (code==WDialog::Accepted) && new_model)
+
+void WtGui::createNLSimpleDialogFinished( WtCreateNLSimple *creator,  WDialog *dialog )
+{
+  const WDialog::DialogCode code = dialog->result();
+
+  if( code == WDialog::Accepted )
   {
     m_nlSimleDisplayModel->aboutToSetNewModel();
-    m_model = NLSimpleShrdPtr( new_model );
+    m_model = creator->model();
     m_nlSimleDisplayModel->doneSettingNewModel();
 
     setModelFileName( "" );
     init();
-  }//if( accepted )
-}//void newModel()
+  }//if( code == WDialog::Accepted )
+
+  delete dialog;
+}//void CreateNLSimpleDialogFinished( WDialog::DialogCode code )
+
+
 
 void WtGui::saveCurrentModel()
 {
@@ -1429,7 +1467,6 @@ void WtGui::saveModel( const std::string &fileName )
     NLSimplePtr::resetCount( this );
   }
 
-  cerr << serializedModelStream.str() << endl;
 
   {
     Dbo::Transaction transaction(m_dubsSession);

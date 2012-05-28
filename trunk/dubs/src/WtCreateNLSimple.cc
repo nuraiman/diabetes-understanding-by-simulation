@@ -60,10 +60,9 @@ using namespace Wt;
 using namespace std;
 
 
-WtCreateNLSimple::WtCreateNLSimple( NLSimple *&model,
-                                    Wt::WContainerWidget *parent )
+WtCreateNLSimple::WtCreateNLSimple( Wt::WContainerWidget *parent )
   : WContainerWidget( parent ),
-    m_model( model )
+    m_model()
 {
   setInline(false);
   setStyleClass( "WtCreateNLSimple" );
@@ -76,30 +75,40 @@ void WtCreateNLSimple::doEmit( Wt::Signal<> &signal )
   signal.emit();
 }//void doEmit( Wt::Signal<> &signal )
 
-Wt::Signal<> &WtCreateNLSimple::created()  { return m_created;  }
-Wt::Signal<> &WtCreateNLSimple::canceled() { return m_canceled; }
-NLSimple *WtCreateNLSimple::model()        { return m_model;    }
+Wt::Signal<> &WtCreateNLSimple::created()
+{
+  return m_created;
+}
+
+
+Wt::Signal<> &WtCreateNLSimple::canceled()
+{
+  return m_canceled;
+}
+
+
+boost::shared_ptr<NLSimple> WtCreateNLSimple::model()
+{
+  return m_model;
+}
+
 
 void WtCreateNLSimple::init()
 {
   clear();
-  foreach( ConsentrationGraph *g, m_datas ) if(g) delete g;
+  foreach( ConsentrationGraph *g, m_datas )
+    if( g )
+      delete g;
+
   m_datas.resize( kNUM_DataType, NULL ),
   m_fileUploads.resize( kNUM_DataType, NULL );
   m_sourceDescripts.resize( kNUM_DataType, NULL );
   m_userSetTime = false;
-  if( m_model ) cerr << "WtCreateNLSimple::init(): non NULL m_model!" << endl;
-  m_model = NULL;
 
-  WBorderLayout *layout = new WBorderLayout();
-  layout->setSpacing(0);
+  WGridLayout *layout = new WGridLayout();
   layout->setContentsMargins( 0, 0, 0, 0 );
   setLayout( layout );
 
-  Div *graphDiv = new Div();
-  WBorderLayout *graphLayout = new WBorderLayout();
-  graphDiv->setLayout( graphLayout );
-  layout->addWidget( graphDiv, WBorderLayout::Center );
   m_graph = new Chart::WCartesianChart( Chart::ScatterPlot );
   m_graph->setMinimumSize( 200, 200 );
   m_graphModel = new WStandardItemModel( 0, kNUM_DataType+1, this );
@@ -137,7 +146,20 @@ void WtCreateNLSimple::init()
     };//switch( det )
   }//for( loop over DataType's
 
-  graphLayout->addWidget( m_graph, WBorderLayout::Center );
+
+  WText *introText = new WText( "You must upload at least CGMS data, Bolus data, "
+                                "and Meal data in order to create a new model, do"
+                                " this below:" );
+  introText->setAttributeValue( "style", "border-bottom: solid 1px black;" );
+  int row = 0;
+  layout->addWidget( introText, row++, 0, 1, kNUM_DataType+1 );
+
+
+  layout->addWidget( m_graph, row++, 0, 1, kNUM_DataType+1 );
+  layout->setRowStretch( row-1, 5 );
+  layout->setColumnStretch( kNUM_DataType, 5 );
+
+
   Div *timeRangeDiv = new Div( "WtCreateNLSimple_timeRangeDiv" );
   m_startTime = new DateTimeSelect( "Begin Time",
                                     WDateTime::fromPosixTime(kGenericT0),
@@ -145,39 +167,19 @@ void WtCreateNLSimple::init()
   m_endTime   = new DateTimeSelect( "End Time",
                                     WDateTime::fromPosixTime(kGenericT0),
                                     timeRangeDiv );
-  m_endTime->setPadding( 10, Wt::Left );
-  m_startTime->setPadding( 10, Wt::Right );
-  graphLayout->addWidget( timeRangeDiv, WBorderLayout::South );
 
-  WText *introText = new WText( "You must upload at least CGMS data, Bolus data, "
-                                "and Meal data in order to create a new model, do"
-                                " this below:" );
-  introText->setAttributeValue( "style", "border-bottom: solid 1px black;" );
-  graphLayout->addWidget( introText, WBorderLayout::North );
+  m_endTime->setMargin( 25, Wt::Left );
+  m_startTime->setPadding( 20, Wt::Right );
+  layout->addWidget( timeRangeDiv, row++, 0, 1, kNUM_DataType, AlignLeft );
 
   m_endTime->changed().connect( this, &WtCreateNLSimple::handleTimeLimitButton );
   m_startTime->changed().connect( this, &WtCreateNLSimple::handleTimeLimitButton );
 
 
-  Div *inputDiv = new Div( "WtCreateNLSimple_inputDiv" );
-  layout->addWidget( inputDiv, WBorderLayout::South );
-  WBorderLayout *inputLayout = new WBorderLayout();
-  inputDiv->setLayout( inputLayout );
-  Div *buttonDiv = new Div( "WtCreateNLSimple_buttonDiv" );
-  inputLayout->addWidget( buttonDiv, WBorderLayout::South );
-
-  m_createButton = new WPushButton( "Create", buttonDiv );
-  m_cancelButton = new WPushButton( "Cancel", buttonDiv );
-  m_createButton->setDisabled(true);
-  m_createButton->clicked().connect( boost::bind( &WtCreateNLSimple::doEmit, this, boost::ref(m_created) ) );
-  m_createButton->clicked().connect( this, &WtCreateNLSimple::constructModel );
-  m_cancelButton->clicked().connect( boost::bind( &WtCreateNLSimple::doEmit, this, boost::ref(m_canceled) ) );
-
-
   Div *fileInputDiv = new Div( "WtCreateNLSimple_fileInputLayout" );
-  inputLayout->addWidget( fileInputDiv, WBorderLayout::Center );
-  m_fileInputLayout = new WGridLayout();
-  fileInputDiv->setLayout( m_fileInputLayout );
+
+  WGridLayout *fileInputLayout = new WGridLayout();
+  fileInputDiv->setLayout( fileInputLayout );
 
   for( DataType dt = DataType(0); dt < kNUM_DataType; dt = DataType(dt+1) )
   {
@@ -192,23 +194,27 @@ void WtCreateNLSimple::init()
       case kNUM_DataType: assert(0);
     };//switch( det )
 
-    m_fileInputLayout->addWidget( new WText( title, XHTMLUnsafeText ), 0, dt, 1, 1, AlignLeft );
+    fileInputLayout->addWidget( new WText( title, XHTMLUnsafeText ), 0, dt, 1, 1, AlignLeft );
 
     Div *fileInputDiv = new Div( "WtCreateNLSimple_fileInputDiv" );
     WFileUpload *upload = m_fileUploads[dt] = new WFileUpload( fileInputDiv );
     upload->changed().connect( upload, &WFileUpload::upload);
     upload->uploaded().connect( boost::bind( &WtCreateNLSimple::addData, this, dt ) );
     upload->fileTooLarge().connect( this, &WtCreateNLSimple::failedUpload );
-    m_fileInputLayout->addWidget( fileInputDiv, 1, dt, 1, 1, Wt::AlignCenter );
-    m_fileInputLayout->setColumnStretch( dt, 1 );
+
+    fileInputLayout->addWidget( fileInputDiv, 1, dt, 1, 1, Wt::AlignCenter );
+    fileInputLayout->setColumnStretch( dt, 1 );
     m_sourceDescripts[dt] = new WText();
-    m_fileInputLayout->addWidget( m_sourceDescripts[dt], 2, dt, 1, 1, AlignLeft );
-    m_fileInputLayout->setRowStretch( 2, 3 );
+    fileInputLayout->addWidget( m_sourceDescripts[dt], 2, dt, 1, 1, AlignLeft );
+    fileInputLayout->setRowStretch( 2, 3 );
   }//for( loop over DataType's
+
+
+  layout->addWidget( fileInputDiv, row++, 0, 1, kNUM_DataType, AlignCenter );
 
   Div *basalDiv = new Div();
   WLabel *label = new WLabel( "Basal Insulin: ", basalDiv );
-  m_basalInsulin = new WSpinBox( basalDiv );
+  m_basalInsulin = new WDoubleSpinBox( basalDiv );
   label->setBuddy( m_basalInsulin );
   m_basalInsulin->setValue( 1.0 );
   m_basalInsulin->setMinimum( 0.0 );
@@ -218,11 +224,10 @@ void WtCreateNLSimple::init()
   m_basalInsulin->setMaxLength(4);
   m_basalInsulin->setStyleClass( "WtCreateNLSimple_m_basalInsulin" );
   new WLabel( " u", basalDiv );
-  m_fileInputLayout->addWidget( basalDiv, 3, 0, 1, kNUM_DataType, AlignLeft );
 
-  Div *weightDiv = new Div();
-  label = new WLabel( " Your weight: ", weightDiv );
-  m_weightInput = new WSpinBox( weightDiv );
+  label = new WLabel( " Your weight: ", basalDiv );
+  label->setMargin( 25, Wt::Left );
+  m_weightInput = new WDoubleSpinBox( basalDiv );
   m_weightInput->setSingleStep( 1.0 );
   m_weightInput->setValue( ProgramOptions::kPersonsWeight );
   m_weightInput->setMinimum( 0.0 );
@@ -230,15 +235,28 @@ void WtCreateNLSimple::init()
   m_weightInput->setMaxLength(3);
   label->setBuddy( m_weightInput );
   m_weightInput->setStyleClass( "WtCreateNLSimple_m_weightInput" );
-  new WLabel( " kg", weightDiv );
-  m_fileInputLayout->addWidget( weightDiv, 4, 0, 1, kNUM_DataType, AlignLeft );
+  new WLabel( " kg", basalDiv );
+  layout->addWidget( basalDiv, row++, 0, 1, kNUM_DataType, AlignLeft );
+
+
+  Div *buttonDiv = new Div( "WtCreateNLSimple_buttonDiv" );
+  m_createButton = new WPushButton( "Create" , buttonDiv );
+  m_cancelButton = new WPushButton( "Cancel" , buttonDiv );
+  layout->addWidget( buttonDiv, row, 0, 1, 1, AlignLeft );
+
+  m_createButton->setDisabled(true);
+  m_createButton->clicked().connect( boost::bind( &WtCreateNLSimple::doEmit, this, boost::ref(m_created) ) );
+  m_createButton->clicked().connect( this, &WtCreateNLSimple::constructModel );
+  m_cancelButton->clicked().connect( boost::bind( &WtCreateNLSimple::doEmit, this, boost::ref(m_canceled) ) );
 }//void init()
 
 
 WtCreateNLSimple::~WtCreateNLSimple()
 {
   //m_model  is not owned by this objcet
-  foreach( ConsentrationGraph *g, m_datas ) if(g) delete g;
+  foreach( ConsentrationGraph *g, m_datas )
+    if( g )
+      delete g;
 }//~WtCreateNLSimple()
 
 
@@ -427,10 +445,10 @@ void WtCreateNLSimple::constructModel()
     if( graph ) graph->trim( startTime, endTime, (i==kCGMS_ENTRY) );
   }//foreach potential graph
 
-  m_model = new NLSimple( "SimpleModel",
+  m_model.reset( new NLSimple( "SimpleModel",
                           insPerHour,
                           ProgramOptions::kBasalGlucConc,
-                          m_datas[kBOLUS_ENTRY]->getStartTime() );
+                          m_datas[kBOLUS_ENTRY]->getStartTime() ) );
 
   m_model->m_settings.m_personsWeight = weight;
 
