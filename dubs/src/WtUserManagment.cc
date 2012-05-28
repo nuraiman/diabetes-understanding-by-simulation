@@ -77,7 +77,8 @@ bool DubUserServer::login(const WString& user, const std::string &sessionId )
 const std::string DubUserServer::sessionId( const Wt::WString user ) const
 {
   UserToSessionMap::const_iterator iter = m_users.find(user);
-  if( iter == m_users.end() ) return "";
+  if( iter == m_users.end() )
+    return "";
   return iter->second;
 }//const string sessionId( const Wt::WString &user ) const
 
