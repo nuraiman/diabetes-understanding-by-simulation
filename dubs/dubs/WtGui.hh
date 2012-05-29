@@ -8,10 +8,13 @@
 #include <boost/thread/mutex.hpp>
 #include <boost/shared_ptr.hpp>
 #include <boost/thread.hpp>
+
+
 #include <Wt/WApplication>
 #include <Wt/WContainerWidget>
 #include <Wt/WDateTime>
 #include <Wt/Dbo/ptr>
+#include <Wt/WContainerWidget>
 #include <Wt/Dbo/Session>
 #include <Wt/Dbo/backend/Sqlite3>
 #include <Wt/Chart/WCartesianChart>
@@ -111,7 +114,7 @@ public:
 
 
 
-class WtGui : public Wt::WApplication
+class WtGui : public Wt::WContainerWidget
 {
   //TODO 20120527
   //Remove all calls to WMesageBox::exec(...) - it causes deadlock if you force logout user
@@ -166,7 +169,7 @@ public:
 
 
   public:
-    WtGui( const Wt::WEnvironment& env, DubUserServer &server );
+    WtGui( Wt::Dbo::ptr<DubUser> user, Wt::WApplication *app, Wt::WContainerWidget *parent = 0 );
     virtual ~WtGui();
 
     void saveModel( const std::string &fileName );
@@ -178,11 +181,8 @@ public:
     std::string formFileSystemName( const std::string &internalName );
     void enableOpenModelDialogOkayButton( Wt::WPushButton *button, Wt::WTableView *view );
 
-    void loginScreen();
-    void init();
-    void logout();
-    void checkLogout( const std::string &username );
 
+    void init();
     void resetGui();
     void openModelDialog();
     void finishOpenModelDialog( Wt::WDialog *dialog, Wt::WTableView *view );
@@ -218,7 +218,7 @@ public:
     void showNextTimePeriod();
     void showPreviousTimePeriod();
 
-
+    Wt::WApplication *app() { return m_app; }
     boost::recursive_mutex &modelMutex() { return m_modelMutex; }
     DateTimeSelect *getBeginTimePicker() { return m_bsBeginTimePicker; }
     DateTimeSelect *getEndTimePicker() { return m_bsEndTimePicker; }
@@ -228,11 +228,11 @@ public:
     void notesTabClickedCallback( int clickedINdex );
 
     Wt::Dbo::ptr<DubUser> dubUserPtr(){ return m_userDbPtr; }
-    Wt::Dbo::Session &dbSession() { return m_dubsSession; }
+//    Wt::Dbo::Session &dbSession() { return m_dubsSession; }
 
   private:
 
-    DubsSession m_dubsSession;
+    Wt::WApplication *m_app;
 
     //m_model should never be accessed in any situation where multithreaded
     //  access is any possibility, instead, a NLSimplePtr object should be
@@ -242,8 +242,6 @@ public:
 
     Wt::Dbo::ptr<DubUser> m_userDbPtr;
 
-    DubUserServer &m_server;
-    boost::signals::connection m_logoutConnection;
 
 
     Div  *m_upperEqnDiv;

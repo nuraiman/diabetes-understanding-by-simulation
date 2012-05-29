@@ -39,6 +39,7 @@
 #include "WtGui.hh"
 #include "WtUtils.hh"
 #include "dubs/DubUser.hh"
+#include "dubs/DubsApplication.hh"
 
 
 
@@ -55,7 +56,7 @@ DubUserServer gDubUserServer;  //the single instance of the DubUserServer
 
 WApplication *createApplication(const WEnvironment& env)
 {
-  WtGui *app = new WtGui(env, gDubUserServer);
+  DubsApplication *app = new DubsApplication( env, gDubUserServer, "user_information.db" );
   return app;
 }
 

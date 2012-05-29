@@ -166,95 +166,33 @@ void NLSimplePtr::resetCount( WtGui *gui )
 
 WtGui::~WtGui()
 {
-  m_server.logout( m_userDbPtr->name );
   NLSimplePtr::resetCount( this );
 }//WtGui::~WtGui()
 
 
-WtGui::WtGui( const Wt::WEnvironment& env, DubUserServer &server )
-  : WApplication( env ),
-  m_dubsSession( appRoot() + "user_information.db" ),
-  m_model(),
-  m_server( server ),
-  m_upperEqnDiv( NULL ),
-  m_fileMenuPopup( NULL ),
-  m_tabs( NULL ),
-  m_nlSimleDisplayModel( new NLSimpleDisplayModel( this, NULL ) ),
-  m_bsModel( NULL ),
-  m_bsGraph( NULL ),
-  m_bsBeginTimePicker( NULL ),
-  m_bsEndTimePicker( NULL ),
-  m_errorGridModel( NULL ),
-  m_errorGridGraph( NULL ),
-  m_nextTimePeriodButton( NULL ),
-  m_previousTimePeriodButton( NULL ),
-  m_notesTab( NULL )
+WtGui::WtGui( Wt::Dbo::ptr<DubUser> user, Wt::WApplication *app, Wt::WContainerWidget *parent )
+  : WContainerWidget( parent ),
+    m_app( app ),
+    m_model(),
+    m_modelMutex(),
+    m_userDbPtr( user ),
+    m_upperEqnDiv( NULL ),
+    m_fileMenuPopup( NULL ),
+    m_tabs( NULL ),
+    m_nlSimleDisplayModel( new NLSimpleDisplayModel( this, NULL ) ),
+    m_bsModel( NULL ),
+    m_bsGraph( NULL ),
+    m_bsBeginTimePicker( NULL ),
+    m_bsEndTimePicker( NULL ),
+    m_errorGridModel( NULL ),
+    m_errorGridGraph( NULL ),
+    m_nextTimePeriodButton( NULL ),
+    m_previousTimePeriodButton( NULL ),
+    m_notesTab( NULL )
 {
-  enableUpdates(true);
-  setTitle( "dubs" );
-
-  string urlStr = "local_resources/dubs_style.css";
-  if( boost::algorithm::contains( url(), "dubs.app" )
-      || boost::algorithm::contains( url(), "dubs.wt" ) )
-    urlStr = "dubs/exec/" + urlStr;
-
-  useStyleSheet( urlStr );
-
-  loginScreen();
+  init();
 }//WtGui constructor
 
-
-
-void WtGui::loginScreen()
-{
-  DubsSession::configureAuth();
-
-  root()->clear();
-
-  m_dubsSession.login().changed().connect( this, &WtGui::init );
-
-  Wt::Auth::AuthWidget *authWidget
-        = new Wt::Auth::AuthWidget( DubsSession::auth(), m_dubsSession.users(),
-                                    m_dubsSession.login() );
-
-  authWidget->model()->addPasswordAuth(&DubsSession::passwordAuth());
-  authWidget->model()->addOAuth(DubsSession::oAuth());
-  authWidget->setRegistrationEnabled(true);
-
-  authWidget->processEnvironment();
-
-  root()->addWidget( authWidget );
-}//void WtGui::loginScreen()
-
-
-void WtGui::logout()
-{
-  boost::recursive_mutex::scoped_lock lock( m_modelMutex );
-  m_nlSimleDisplayModel->aboutToSetNewModel();
-  m_model = NLSimpleShrdPtr();
-  m_nlSimleDisplayModel->doneSettingNewModel();
-  if( m_userDbPtr )
-    m_server.logout( m_userDbPtr->name );
-  m_userDbPtr = Wt::Dbo::ptr<DubUser>();
-  m_logoutConnection.disconnect();
-  m_dubsSession.login().logout();
-//  loginScreen();
-}//void logout()
-
-
-void WtGui::checkLogout( const std::string &username )
-{
-  if( m_userDbPtr && (username == m_userDbPtr->name) )
-  {
-    {
-      WApplication::UpdateLock lock( this );
-//      redirect( "static_pages/forced_logout.html" );
-      logout();
-      triggerUpdate();
-    }
-//    quit();
-  }//if( username.narrow() == m_userDbPtr->name )
-}//void checkLogout( Wt::WString username )
 
 
 void WtGui::resetGui()
@@ -281,13 +219,14 @@ void WtGui::resetGui()
 
 void WtGui::deleteModel( const string &modelname )
 {
-  if( !m_userDbPtr )
+  if( !m_userDbPtr || !m_userDbPtr.session() )
     return;
 
   {
-    Dbo::Transaction transaction(m_dubsSession);
+    Dbo::Transaction transaction( *(m_userDbPtr.session()) );
     Dbo::ptr<UsersModel> model = m_userDbPtr.modify()->models.find().where("fileName = ?").bind( modelname );
-    if( model ) model.remove();
+    if( model )
+      model.remove();
     transaction.commit();
   }
 
@@ -351,9 +290,9 @@ void WtGui::openModelDialog()
   saveModelConfirmation();
 
   size_t nModels = 0;
-  if( m_userDbPtr )
+  if( m_userDbPtr && m_userDbPtr.session() )
   {
-    Dbo::Transaction transaction(m_dubsSession);
+    Dbo::Transaction transaction( *(m_userDbPtr.session()) );
     nModels = m_userDbPtr->models.size();
     transaction.commit();
   }//if( m_userDbPtr )
@@ -412,48 +351,13 @@ void WtGui::init()
 {
   boost::recursive_mutex::scoped_lock lock( m_modelMutex );
 
-  root()->clear();
+  clear();
 
-  const Wt::Auth::LoginState loginStatus = m_dubsSession.login().state();
-
-  switch( loginStatus )
-  {
-    case Wt::Auth::LoggedOut:
-    case Wt::Auth::DisabledLogin:
-      loginScreen();
-      return;
-    break;
-
-    case Wt::Auth::WeakLogin:
-    case Wt::Auth::StrongLogin:
-    break;
-  }//switch( loginStatus )
-
-  m_userDbPtr = m_dubsSession.user();
-
-  if( !m_userDbPtr )
-  {
-    loginScreen();
-    return;
-  }//if( !user )
-
-  const string username = m_userDbPtr->name;
-
-  if( m_server.sessionId(username) != sessionId() )
-    m_server.login( username, sessionId() );
-
-  //Everytime a new user logs in m_server.userLogIn() signal is emitted, so
-  //  that if the same user is already logged in, then all other instances
-  //  of there session will be logged out
-  m_logoutConnection.disconnect();
-  m_logoutConnection = m_server.userLogIn().connect( this, &WtGui::checkLogout );
-
-//  root()->clear();
-  root()->setStyleClass( "root" );
+  setStyleClass( "root" );
   WBorderLayout *layout = new WBorderLayout();
   //layout->setSpacing(0);
   layout->setContentsMargins( 0, 0, 0, 0 );
-  root()->setLayout( layout );
+  setLayout( layout );
 
   if( m_userDbPtr->currentFileName.empty() && !m_model )
   {
@@ -467,8 +371,7 @@ void WtGui::init()
 
   if( !m_model )
   {
-    setModelFileName( "" );
-    init();
+    openModelDialog();
     return;
   }//if( !m_model )
 
@@ -507,9 +410,9 @@ void WtGui::init()
 
   layout->addWidget( m_upperEqnDiv, WBorderLayout::North );
 
-  WPushButton *logout = new WPushButton( "logout", m_upperEqnDiv );
-  logout->setStyleClass( "logoutButton" );
-  logout->clicked().connect( boost::bind( &WtGui::logout, this) );
+//  WPushButton *logout = new WPushButton( "logout", m_upperEqnDiv );
+//  logout->setStyleClass( "logoutButton" );
+//  logout->clicked().connect( boost::bind( &WtGui::logout, this) );
 
 
   m_tabs = new WTabWidget();
@@ -622,9 +525,9 @@ void WtGui::init()
 
 
   //set the displayed data range to the last range used
-  if( m_userDbPtr )
+  if( m_userDbPtr && m_userDbPtr.session() )
   {
-    Dbo::Transaction transaction(m_dubsSession);
+    Dbo::Transaction transaction( *(m_userDbPtr.session()) );
     const DubUser::UsersModels &models = m_userDbPtr->models;
     Dbo::ptr<UsersModel> model = models.find().where( "fileName = ?" ).bind( m_userDbPtr->currentFileName );
     if( model )
@@ -1032,6 +935,9 @@ void WtGui::updateDataRange()
 
 void WtGui::updateDisplayedDateRange()
 {
+  if( !m_userDbPtr || !m_userDbPtr.session() )
+    return;
+
   const PosixTime end = m_bsEndTimePicker->dateTime().toPosixTime();
   const PosixTime start = m_bsBeginTimePicker->dateTime().toPosixTime();
   m_nlSimleDisplayModel->setDisplayedTimeRange( start, end );
@@ -1048,7 +954,7 @@ void WtGui::updateDisplayedDateRange()
     m_previousTimePeriodButton->enable();
 
   //Now save to database
-  Dbo::Transaction transaction(m_dubsSession);
+  Dbo::Transaction transaction( *(m_userDbPtr.session()) );
   const DubUser::UsersModels &models = m_userDbPtr->models;
 
   Dbo::ptr<UsersModel> model = models.find().where( "fileName = ?" ).bind( m_userDbPtr->currentFileName );
@@ -1210,7 +1116,7 @@ void WtGui::syncDisplayToModel()
 {
   //TODO: Whenever this function is called, we could much more efficiently
   //      tell the WViews what has changed...
-  WApplication::UpdateLock appLock( this );
+//  WApplication::UpdateLock appLock( this );
 
   updateDataRange();
   m_bsGraph->update();
@@ -1247,7 +1153,7 @@ void WtGui::updateClarkAnalysis( const ConsentrationGraph &xGraph,
 {
   typedef ConsentrationGraph::value_type cg_type;
 
-  WApplication::UpdateLock appLock( this );
+  WApplication::UpdateLock appLock( m_app );
   NLSimplePtr modelPtr( this, false, SRC_LOCATION );
   if( !modelPtr ) return;
 
@@ -1447,6 +1353,9 @@ const std::string &WtGui::currentFileName()
 
 void WtGui::saveModel( const std::string &fileName )
 {
+  if( !m_userDbPtr || !m_userDbPtr.session() )
+    return;
+
   if( fileName == "" )
   {
     saveModelAsDialog();
@@ -1469,7 +1378,7 @@ void WtGui::saveModel( const std::string &fileName )
 
 
   {
-    Dbo::Transaction transaction(m_dubsSession);
+    Dbo::Transaction transaction( *(m_userDbPtr.session()) );
     const DubUser::UsersModels &models = m_userDbPtr->models;
     Dbo::ptr<UsersModel> model = models.find().where( "fileName = ?" ).bind( fileName );
 
@@ -1483,14 +1392,14 @@ void WtGui::saveModel( const std::string &fileName )
     transaction.commit();
   }
 
-  Dbo::Transaction transaction(m_dubsSession);
+  Dbo::Transaction transaction( *(m_userDbPtr.session()) );
   UsersModel *newModel = new UsersModel();
   newModel->user     = m_userDbPtr;
   newModel->fileName = fileName;
   newModel->created  = WDateTime::fromPosixTime( boost::posix_time::second_clock::local_time() );
   newModel->modified = newModel->created;
   newModel->serializedData = serializedModelStream.str();
-  Dbo::ptr<UsersModel> newModelPtr = m_dubsSession.add( newModel );
+  Dbo::ptr<UsersModel> newModelPtr = m_userDbPtr.session()->add( newModel );
   if( newModelPtr )
     cerr << "Added new model:\n  "
          << "newModel->user->name='" << newModel->user->name
@@ -1505,12 +1414,13 @@ void WtGui::saveModel( const std::string &fileName )
 
 void WtGui::deleteModelFile( const std::string &fileName )
 {
-  if( fileName.empty() ) return;
+  if( fileName.empty() || !m_userDbPtr.session() || !m_userDbPtr.session() )
+    return;
 
   Dbo::ptr<UsersModel> usrmodel;
 
   {
-    Dbo::Transaction transaction(m_dubsSession);
+    Dbo::Transaction transaction( *(m_userDbPtr.session()) );
     const DubUser::UsersModels &models = m_userDbPtr->models;
     usrmodel = models.find().where( "fileName = ?" ).bind( fileName );
     if( usrmodel )
@@ -1531,6 +1441,9 @@ void WtGui::setModel( const std::string &fileName )
 {
   boost::recursive_mutex::scoped_lock lock( m_modelMutex, boost::try_to_lock );
 
+  if( !m_userDbPtr || !m_userDbPtr.session() )
+    return;
+
   if( !lock.owns_lock() )
   {
     const string msg = "Another operation (thread) is currently working, sorry I cant do this operation of setModel( string ): "
@@ -1544,7 +1457,7 @@ void WtGui::setModel( const std::string &fileName )
 
   Dbo::ptr<UsersModel> usrmodel;
   {
-    Dbo::Transaction transaction(m_dubsSession);
+    Dbo::Transaction transaction( *(m_userDbPtr.session()) );
     const DubUser::UsersModels &models = m_userDbPtr->models;
     usrmodel = models.find().where( "fileName = ?" ).bind( fileName );
     transaction.commit();
@@ -1586,10 +1499,13 @@ void WtGui::setModel( const std::string &fileName )
 
 void WtGui::setModelFileName( const std::string &fileName )
 {
+  if( !m_userDbPtr || !m_userDbPtr.session() )
+    return;
+
   if( m_userDbPtr->currentFileName == fileName )
     return;
 
-  Dbo::Transaction transaction(m_dubsSession);
+  Dbo::Transaction transaction( *(m_userDbPtr.session()) );
   m_userDbPtr.modify()->currentFileName = fileName;
   if( !transaction.commit() )
     cerr << "setModelFileName( const string & ) failed commit" << endl;
@@ -2150,11 +2066,12 @@ WtGeneticallyOptimize::WtGeneticallyOptimize( WtGui *wtGuiParent, Wt::WContainer
   m_chi2DbModel = new Dbo::QueryModel< Dbo::ptr<OptimizationChi2> >(this);
 
   {
-    Dbo::Session &session = m_parentWtGui->dbSession();
-    Dbo::Transaction transaction( session );
     Dbo::ptr<DubUser> user = m_parentWtGui->dubUserPtr();
-    if( user )
+
+    if( user && user.session() )
     {
+      Dbo::Transaction transaction( *(user.session()) );
+
       const string fileName = user->currentFileName;
       Dbo::ptr<UsersModel> usermodel = user->models.find().where("fileName = ?").bind(fileName);
 
@@ -2164,8 +2081,10 @@ WtGeneticallyOptimize::WtGeneticallyOptimize( WtGui *wtGuiParent, Wt::WContainer
         m_chi2DbModel->addColumn( "generation", "Generation" );
         m_chi2DbModel->addColumn( "chi2", "chi2" );
       }
-    }
-    if( !transaction.commit() ) cerr << "\nDid not commit adding to the chi2 of the optimization\n" << endl;
+      if( !transaction.commit() )
+        cerr << "\nDid not commit adding to the chi2 of the optimization\n" << endl;
+    }//if( user && user.session() )
+
   }
 
 
@@ -2286,11 +2205,12 @@ void WtGeneticallyOptimize::doMinuit2Optimization()
   WText *text = NULL;
 
   {
-    WApplication::UpdateLock appLock( m_parentWtGui );
+    WApplication::UpdateLock appLock( m_parentWtGui->app() );
     m_startOptimization->hide();
     text = new WText( "<font color=\"blue\"><b>Currently Optimizing</b></font>", XHTMLUnsafeText );
     m_layout->addWidget( text, WBorderLayout::North );
-    if( appLock ) m_parentWtGui->triggerUpdate();
+    if( appLock )
+      m_parentWtGui->app()->triggerUpdate();
   }//
 
 
@@ -2299,10 +2219,11 @@ void WtGeneticallyOptimize::doMinuit2Optimization()
 
 
   {
-    WApplication::UpdateLock appLock( m_parentWtGui );
+    WApplication::UpdateLock appLock( m_parentWtGui->app() );
     m_startOptimization->show();
     m_layout->removeWidget( text );
-    if( appLock ) m_parentWtGui->triggerUpdate();
+    if( appLock )
+      m_parentWtGui->app()->triggerUpdate();
   }//
 
 }//void WtGeneticallyOptimize::doMinuit2Optimization()
@@ -2332,22 +2253,24 @@ void WtGeneticallyOptimize::doGeneticOptimization()
   WText *text = NULL;
 
   {
-    WApplication::UpdateLock appLock( m_parentWtGui );
+    WApplication::UpdateLock appLock( m_parentWtGui->app() );
     //if( appLock )
     m_stopOptimization->show();  //TODO: figure out if we didn't get appLock, will the changes be propogated to user eventually?
     m_startOptimization->hide();
     text = new WText( "<font color=\"blue\"><b>Currently Optimizing</b></font>", XHTMLUnsafeText );
     m_layout->addWidget( text, WBorderLayout::North );
-    if( appLock ) m_parentWtGui->triggerUpdate();
+    if( appLock )
+      m_parentWtGui->app()->triggerUpdate();
   }//
 
 //  m_bestChi2.clear();
   {
-    Dbo::Session &session = m_parentWtGui->dbSession();
-    Dbo::Transaction transaction( session );
     Dbo::ptr<DubUser> user = m_parentWtGui->dubUserPtr();
-    if( user )
+
+    if( user && user.session() )
     {
+      Dbo::Transaction transaction( *(user.session()) );
+
       const string fileName = user->currentFileName;
       Dbo::ptr<UsersModel> usermodel = user->models.find().where("fileName = ?").bind(fileName);
 
@@ -2357,8 +2280,9 @@ void WtGeneticallyOptimize::doGeneticOptimization()
         Chi2s chi2s = usermodel->chi2s;
         for( Chi2s::iterator iter = chi2s.begin(); iter != chi2s.end(); ++iter ) iter->remove();
       }
-    }
-    if( !transaction.commit() ) cerr << "\nDid not commit adding to the chi2 of the optimization\n" << endl;
+      if( !transaction.commit() )
+        cerr << "\nDid not commit adding to the chi2 of the optimization\n" << endl;
+    }//if( user && user.session() )
   }
 
 
@@ -2376,12 +2300,12 @@ void WtGeneticallyOptimize::doGeneticOptimization()
   {
     string msg = "Warning: Optimization failed:\n";
     msg += e.what();
-    m_parentWtGui->doJavaScript( "alert( \"" + msg + "\" )", false );
+    m_parentWtGui->app()->doJavaScript( "alert( \"" + msg + "\" )", false );
     cerr << msg << endl;
   }catch(...)
   {
     string msg = "Warning: Optimization failed";
-    m_parentWtGui->doJavaScript( "alert( \"" + msg + "\" )", false );
+    m_parentWtGui->app()->doJavaScript( "alert( \"" + msg + "\" )", false );
     cerr << msg << endl;
   }//try / catch
 
@@ -2393,11 +2317,12 @@ void WtGeneticallyOptimize::doGeneticOptimization()
   if( fileName != "" ) m_parentWtGui->saveCurrentModel();
 
   {
-    WApplication::UpdateLock appLock( m_parentWtGui );
+    WApplication::UpdateLock appLock( m_parentWtGui->app() );
     m_stopOptimization->hide();
     m_startOptimization->show();
     m_layout->removeWidget( text );
-    if( appLock ) m_parentWtGui->triggerUpdate();
+    if( appLock )
+      m_parentWtGui->app()->triggerUpdate();
   }//
 
   //foreach( WWidget *w, m_disableWhenBusyItems ) w->setDisabled(false);
@@ -2420,7 +2345,7 @@ bool WtGeneticallyOptimize::continueOptimizing()
 
 void WtGeneticallyOptimize::optimizationUpdateFcn( double chi2 )
 {
-  WApplication::UpdateLock lock( m_parentWtGui );
+  WApplication::UpdateLock lock( m_parentWtGui->app() );
   if( !lock )
   {
     cerr << "Couldn't get WApplication lock!!!" << endl;
@@ -2431,17 +2356,20 @@ void WtGeneticallyOptimize::optimizationUpdateFcn( double chi2 )
 //  m_bestChi2.push_back( chi2 );
 
   {
-    Dbo::Session &session = m_parentWtGui->dbSession();
-    Dbo::Transaction transaction( session );
     Dbo::ptr<DubUser> user = m_parentWtGui->dubUserPtr();
-    const string fileName = user->currentFileName;
-    Dbo::ptr<UsersModel> usermodel = user->models.find().where("fileName = ?").bind(fileName);
-    Dbo::ptr<OptimizationChi2> newChi2;
-    newChi2 = session.add( new OptimizationChi2() );
-    newChi2.modify()->generation  = static_cast<int>(usermodel->chi2s.size());
-    newChi2.modify()->chi2        = chi2;
-    newChi2.modify()->usermodel   = usermodel;
-    if( !transaction.commit() ) cerr << "\nDid not commit adding to the chi2 of the optimization\n" << endl;
+    if( user && user.session() )
+    {
+      Dbo::Transaction transaction( *(user.session()) );
+
+      const string fileName = user->currentFileName;
+      Dbo::ptr<UsersModel> usermodel = user->models.find().where("fileName = ?").bind(fileName);
+      Dbo::ptr<OptimizationChi2> newChi2;
+      newChi2 = user.session()->add( new OptimizationChi2() );
+      newChi2.modify()->generation  = static_cast<int>(usermodel->chi2s.size());
+      newChi2.modify()->chi2        = chi2;
+      newChi2.modify()->usermodel   = usermodel;
+      if( !transaction.commit() ) cerr << "\nDid not commit adding to the chi2 of the optimization\n" << endl;
+    }//if( user && user.session() )
   }
 
   syncGraphDataToNLSimple();
@@ -2453,7 +2381,7 @@ void WtGeneticallyOptimize::optimizationUpdateFcn( double chi2 )
   }//if( we want to save the model )
 
   // Push the changes to the browser
-  wApp->triggerUpdate();
+  m_parentWtGui->app()->triggerUpdate();
 }//void optimizationUpdateFcn( double chi2 )
 
 
@@ -2461,14 +2389,18 @@ void WtGeneticallyOptimize::optimizationUpdateFcn( double chi2 )
 void WtGeneticallyOptimize::syncGraphDataToNLSimple()
 {
   typedef ConsentrationGraph::value_type cg_type;
-  WApplication::UpdateLock appLock( m_parentWtGui );
+  WApplication::UpdateLock appLock( m_parentWtGui->app() );
 
+  Dbo::ptr<DubUser> user = m_parentWtGui->dubUserPtr();
+  if( user && user.session() )
   {
-    Dbo::Session &session = m_parentWtGui->dbSession();
-    Dbo::Transaction transaction( session );
+    Dbo::Transaction transaction( *(user.session()) );
+
     m_chi2DbModel->reload();
     transaction.commit();
-  }
+  }//if( user && user.session() )
+
+
 
 //  m_chi2Model->removeRows( 0, m_chi2Model->rowCount() );
 //  m_chi2Model->insertRows( 0, m_bestChi2.size() );

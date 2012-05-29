@@ -13,14 +13,15 @@
 #include "dubs/DubsSession.hh"
 #include "dubs/WtUserManagment.hh"
 
-
+class WtGui;
 
 class DubsApplication : public Wt::WApplication
 {
+  //TODO: put a logout link in upper right hand corner
 public:
   DubsApplication( const Wt::WEnvironment& env,
-           DubUserServer &server,
-           const std::string &databaseName );
+                   DubUserServer &server,
+                   const std::string &databaseName );
   virtual ~DubsApplication();
 
   void showAppScreen();
@@ -31,8 +32,8 @@ public:
   void checkLogout( const std::string &username );
 
 protected:
+  WtGui *m_gui;
   DubsSession m_dubsSession;
-  Wt::Dbo::ptr<DubUser> m_userDbPtr;
 
   DubUserServer &m_server;
   boost::recursive_mutex  m_mutex;

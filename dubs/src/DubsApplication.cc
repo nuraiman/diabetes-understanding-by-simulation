@@ -13,6 +13,7 @@
 #include <boost/algorithm/string.hpp>
 #include <boost/signals/connection.hpp>
 
+#include "dubs/WtGui.hh"
 #include "dubs/DubUser.hh"
 #include "dubs/DubsSession.hh"
 #include "dubs/WtUserManagment.hh"
@@ -26,8 +27,8 @@ DubsApplication::DubsApplication( const Wt::WEnvironment& env,
                                   DubUserServer &server,
                                   const string &databaseName )
   : WApplication( env ),
+    m_gui( NULL ),
     m_dubsSession( databaseName ),
-    m_userDbPtr(),
     m_server( server ),
     m_mutex(),
     m_logoutConnection()
@@ -63,6 +64,10 @@ DubsApplication::~DubsApplication()
 {
   boost::recursive_mutex::scoped_lock lock( m_mutex );
   cout << "DubsApplication: terminating session" << endl;
+
+  m_logoutConnection.disconnect();
+  if( m_dubsSession.user() )
+    m_server.logout( m_dubsSession.user()->name );
 }//DubsApplication
 
 
@@ -89,15 +94,26 @@ void DubsApplication::setupAfterLoginStatusChange()
 
 void DubsApplication::showAppScreen()
 {
+  const string username = m_dubsSession.user() ? m_dubsSession.user()->name : string("");
+
+  if( m_server.sessionId(username) != sessionId() )
+    m_server.login( username, sessionId() );
+
   boost::recursive_mutex::scoped_lock lock( m_mutex );
   root()->clear();
+  m_gui = new WtGui( m_dubsSession.user(), this, root() );
 }//void showAppScreen()
 
 
 void DubsApplication::showLoginScreen()
 {
   boost::recursive_mutex::scoped_lock lock( m_mutex );
+
+//  if( m_gui )
+//    delete m_gui;
+
   root()->clear();
+  m_gui = NULL;
 
   Wt::Auth::AuthWidget *authWidget
         = new Wt::Auth::AuthWidget( DubsSession::auth(),
@@ -135,7 +151,8 @@ void DubsApplication::checkLogout( const std::string &username )
       triggerUpdate();
     }
 //    quit();
-  }//if( username.narrow() == m_userDbPtr->name )
+  }//if( username is trying to login again )
+
 }//void checkLogout( Wt::WString username )
 
 
