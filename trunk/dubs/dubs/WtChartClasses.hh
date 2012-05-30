@@ -123,6 +123,11 @@ public:
   const PosixTime &beginDisplayTime() const { return m_beginDisplayTime; }
   const PosixTime &endDisplayTime() const { return m_endDisplayTime; }
 
+
+  PosixTime earliestData() const;
+  PosixTime latestData() const;
+
+
   void setDisplayedTimeRange( const PosixTime &begin, const PosixTime &end );
 };//class NLSimpleDisplayModel
 

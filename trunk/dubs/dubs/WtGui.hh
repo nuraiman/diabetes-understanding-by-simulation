@@ -48,11 +48,12 @@ class MemGuiTimeDate;
 
 class WtNotesTab;
 class NLSimplePtr;
-class NLSimpleDisplayModel;
-class WChartWithLegend;
-class WtGeneralArrayModel;
-class WtNotesVectorModel;
 class WtCreateNLSimple;
+class WChartWithLegend;
+class WtNotesVectorModel;
+class WtGeneralArrayModel;
+class NLSimpleDisplayModel;
+class WtExcludeTimeRangesTab;
 
 namespace Wt
 {
@@ -73,7 +74,7 @@ namespace Wt
   class WDatePicker;
   class WBorderLayout;
   class WStandardItemModel;
-};//namespace Wt
+}//namespace Wt
 
 
 
@@ -225,7 +226,7 @@ public:
 
     boost::shared_ptr<NLSimpleDisplayModel> getSimpleSimDisplayModel() { return m_nlSimleDisplayModel; }
 
-    void notesTabClickedCallback( int clickedINdex );
+    void tabClickedCallback( int clickedINdex );
 
     Wt::Dbo::ptr<DubUser> dubUserPtr(){ return m_userDbPtr; }
 //    Wt::Dbo::Session &dbSession() { return m_dubsSession; }
@@ -263,6 +264,7 @@ public:
     Wt::WPushButton            *m_previousTimePeriodButton;
 
     WtNotesTab                 *m_notesTab;
+    WtExcludeTimeRangesTab     *m_excludeTimeRangeTab;
 
     std::vector<WtConsGraphModel*> m_inputModels;
 
@@ -467,7 +469,6 @@ public:
   void handleSelectionChange();
 
   void updateViewTable();
-  void userNavigatedToTab();
 };//class WtNotesTab : public Wt::WContainerWidget
 
 
@@ -500,7 +501,11 @@ public:
   void allowUserToEnterNewRange();
   void addEnteredRangeToModel();
   void deleteSelectedRange();
+  void finishDeleteSelectedDialog( Wt::WDialog *dialog,
+                                   const Wt::WModelIndex selected,
+                                   Wt::WCheckBox *save );
   void updateGraphWithUserRange();
+  void updateDataRangeDates();
 };//class WtExcludeTimeRangesTab : public Wt::WContainerWidget
 
 

@@ -56,7 +56,7 @@ enum AbsorbtionFunction
   FastCarbAbsorbtionRate,
   MediumCarbAbsorbtionRate,
   SlowCarbAbsorbtionRate,
-  NumAbsorbtionFunctions,
+  NumAbsorbtionFunctions
 };//enum AbsorbtionFunction
 
 
@@ -69,7 +69,7 @@ enum SmoothingAlgo
   ButterworthSmoothing,  //order 4 low-pass Butterworth filter
   BSplineSmoothing,      //B-Splines, okay smoothing of data (not above link type)
                          //  but excelentfor taking derivative
-  NoSmoothing,
+  NoSmoothing
 };//enum SmoothingAlgo
 
 

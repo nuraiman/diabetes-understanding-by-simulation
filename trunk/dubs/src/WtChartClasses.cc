@@ -262,18 +262,63 @@ Wt::WModelIndex NLSimpleDisplayModel::parent( const Wt::WModelIndex & ) const
   return WModelIndex();
 }
 
-boost::any NLSimpleDisplayModel::data( const WModelIndex& index, int role ) const
+PosixTime NLSimpleDisplayModel::earliestData() const
 {
-  if( role != Wt::DisplayRole ) return boost::any();
+  PosixTime start_time = boost::date_time::pos_infin;
 
   NLSimplePtr diabeticModel( m_wApp );
-  if( !diabeticModel ) return boost::any();
+  if( !diabeticModel )
+    return start_time;
+
+  for( size_t col = 0; col < m_columns.size(); ++col )
+  {
+    const NLSimple::DataGraphs &column = m_columns[col];
+    const ConsentrationGraph &data = diabeticModel->dataGraph( column );
+    PosixTime this_start = data.getStartTime();
+    start_time = min( start_time, this_start );
+  }//for( size_t col = 0; col < m_columns.size(); ++col )
+
+  return start_time;
+}//const PosixTime &NLSimpleDisplayModel::earliestData()
+
+
+PosixTime NLSimpleDisplayModel::latestData() const
+{
+  PosixTime last_time = boost::date_time::neg_infin;
+
+  NLSimplePtr diabeticModel( m_wApp );
+  if( !diabeticModel )
+    return last_time;
+
+  for( size_t col = 0; col < m_columns.size(); ++col )
+  {
+    const NLSimple::DataGraphs &column = m_columns[col];
+    const ConsentrationGraph &data = diabeticModel->dataGraph( column );
+    PosixTime this_last = data.getEndTime();
+    last_time = max( last_time, this_last );
+  }//for( size_t col = 0; col < m_columns.size(); ++col )
+
+  return last_time;
+}//const PosixTime &NLSimpleDisplayModel::latestData()
+
+
+
+boost::any NLSimpleDisplayModel::data( const WModelIndex& index, int role ) const
+{
+  if( role != Wt::DisplayRole )
+    return boost::any();
+
+  NLSimplePtr diabeticModel( m_wApp );
+
+  if( !diabeticModel )
+    return boost::any();
 
   const int columnWanted = index.column();
 
 //  cerr << "Want column=" << columnWanted << " row=" << index.row() << endl;
 
-  if( columnWanted > static_cast<int>(m_columns.size()) ) return boost::any();
+  if( columnWanted > static_cast<int>(m_columns.size()) )
+    return boost::any();
 
   const bool wantTime = (columnWanted==static_cast<int>(m_columns.size()));
   const size_t wantedRow = static_cast<size_t>( index.row() );
@@ -287,12 +332,15 @@ boost::any NLSimpleDisplayModel::data( const WModelIndex& index, int role ) cons
 
     const ConstGraphIter lb = data.lower_bound( m_beginDisplayTime );
     const ConstGraphIter ub = data.upper_bound( m_endDisplayTime );
-    if( ub == lb ) continue;  //garuntees us 'lb' is a valid iterator for below
+    if( ub == lb )
+      continue;  //garuntees us 'lb' is a valid iterator for below
 
     size_t dataSize = ub - lb;
 
 
-    if( !wantTime && (row_n>wantedRow) ) return boost::any();
+    if( !wantTime && (row_n>wantedRow) )
+      return boost::any();
+
     const bool isCorrColl = (col == static_cast<size_t>(columnWanted));
 
     if( column==NLSimple::kFreePlasmaInsulin )
@@ -303,10 +351,13 @@ boost::any NLSimpleDisplayModel::data( const WModelIndex& index, int role ) cons
       if( isCorrColl && inThisData )
       {
         const double value = data.value( t );
-        if( TMath::AreEqualAbs( 0.0, value, 0.00001 ) ) return boost::any();
+        if( TMath::AreEqualAbs( 0.0, value, 0.00001 ) )
+          return boost::any();
         return boost::any( value );
-      }else if( inThisData && !wantTime ) return boost::any();
-      else if( inThisData && wantTime )  return boost::any( WDateTime::fromPosixTime(t) );
+      }else if( inThisData && !wantTime )
+        return boost::any();
+      else if( inThisData && wantTime )
+        return boost::any( WDateTime::fromPosixTime(t) );
 
       dataSize = ((ub-1)->m_time - lb->m_time).total_seconds()
                  / sm_plasmaInsulinDt.total_seconds();
@@ -324,8 +375,8 @@ boost::any NLSimpleDisplayModel::data( const WModelIndex& index, int role ) cons
     else if( inThisData && wantTime )
     {
       if( column==NLSimple::kCgmsData )
-        return boost::any( WDateTime::fromPosixTime( dataIter->m_time - diabeticModel->m_settings.m_cgmsDelay) );
-      return boost::any( WDateTime::fromPosixTime( dataIter->m_time) );
+        return boost::any( WDateTime::fromPosixTime( dataIter->m_time - diabeticModel->m_settings.m_cgmsDelay ) );
+      return boost::any( WDateTime::fromPosixTime( dataIter->m_time ) );
     }
     row_n += dataSize;
   }//for( loop over columns )
@@ -592,7 +643,7 @@ boost::any NLSimpleDisplayModel::headerData( int section,
 
   HeaderData::const_iterator i = info.find(role);
 
-  return i != info.end() ? i->second : boost::any();
+  return ((i != info.end()) ? i->second : boost::any());
 }//boost::any NLSimpleDisplayModel::headerData(...)
 
 

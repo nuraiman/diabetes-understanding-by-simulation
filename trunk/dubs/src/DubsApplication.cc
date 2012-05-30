@@ -3,6 +3,7 @@
 #include <iostream>
 
 #include <Wt/WString>
+#include <Wt/WGridLayout>
 #include <Wt/WApplication>
 #include <Wt/WEnvironment>
 #include <Wt/Auth/AuthWidget>
@@ -94,14 +95,28 @@ void DubsApplication::setupAfterLoginStatusChange()
 
 void DubsApplication::showAppScreen()
 {
-  const string username = m_dubsSession.user() ? m_dubsSession.user()->name : string("");
-
-  if( m_server.sessionId(username) != sessionId() )
-    m_server.login( username, sessionId() );
-
   boost::recursive_mutex::scoped_lock lock( m_mutex );
+
+  const Dbo::ptr<DubUser> user = m_dubsSession.user();
+
+  if( !user )
+  {
+    cerr << SRC_LOCATION <<"\n\tI shouldnt ever be here" << endl;
+    showLoginScreen();
+    return;
+  }//if( !m_dubsSession.user() )
+
+  if( m_server.sessionId(user->name) != sessionId() )
+    m_server.login( user->name, sessionId() );
+
   root()->clear();
-  m_gui = new WtGui( m_dubsSession.user(), this, root() );
+  WGridLayout *layout = new WGridLayout();
+  root()->setLayout( layout );
+
+  m_gui = new WtGui( user, this );
+  layout->addWidget( m_gui, 0, 0, 1, 1 );
+  layout->setColumnStretch( 0, 5 );
+  layout->setRowStretch( 0, 5 );
 }//void showAppScreen()
 
 
@@ -134,7 +149,9 @@ void DubsApplication::showLoginScreen()
 void DubsApplication::logout()
 {
   boost::recursive_mutex::scoped_lock lock( m_mutex );
+
   m_dubsSession.login().logout();
+  setupAfterLoginStatusChange();
 }//void logout()
 
 
