@@ -89,7 +89,9 @@
 #include "ConsentrationGraph.hh"
 #include "dubs/DubUser.hh"
 #include "dubs/DubsSession.hh"
+#include "dubs/OverlayCanvas.hh"
 #include "dubs/DubsApplication.hh"
+
 
 using namespace Wt;
 using namespace std;
@@ -446,6 +448,9 @@ void WtGui::init()
   m_bsGraph->axis(Chart::Y2Axis).setPen( y2Pen );
   m_bsGraph->axis(Chart::YAxis).setTitle( "mg/dL" );
   m_bsGraph->setMinimumSize( 200, 150 );
+
+//  m_bsGraph->setWtResizeJsForOverlay();
+//  OverlayCanvas *overlay = new OverlayCanvas( m_bsGraph, true, true );
 
 
   m_nlSimleDisplayModel->useColumn(NLSimple::kPredictedBloodGlucose);

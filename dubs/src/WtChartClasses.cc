@@ -193,7 +193,43 @@ void WChartWithLegend::paintEvent( WPaintDevice *paintDevice )
 
 
 
+void WChartWithLegend::setWtResizeJsForOverlay()
+{
+  string js =
+  """function(self, w, h) {"
+  ""  "if (!self.wtWidth || self.wtWidth!=w "
+  ""      "|| !self.wtHeight || self.wtHeight!=h) {"
+  ""    "self.wtWidth=w; self.wtHeight=h;"
+  ""    "self.style.height=h + 'px';";
+  if( layoutSizeAware() )
+  {
+    //     + resized_->createCall("Math.round(w)", "Math.round(h)") +
+    js += ""    "Wt.emit('" + id() + "','resized',Math.round(w),Math.round(h));";
+  }//if( layoutSizeAware() )
 
+  js +=
+  ""  "}"
+  ""    "alignPaintedWidgets('" + id() + "Cover', '" + id() + "' );"
+  ""    "self.style.overflow = 'hidden';"
+
+//BEGIN HACK
+//XXX - On some browers (at least with QWebView and FF on windows) the <div> that
+//      holds the <canvas> element will get ugly vertical scrollbars that do
+//      nothing (element.style has overflow-x='hidden' by default), so lets get
+//      rid of the scroll bar by setting has overflow-y='hidden'.  Note that
+//      the <div> in question id is this->is() preceded by a 'p' by convention.
+//      only (not documented in Wt).
+//      This whole hack could probably be avoided by doing something like
+//      setting a border to o width or neggative padding or something...
+  ""    "var probNode = document.getElementById('p'+self.id);"
+  ""    "if(probNode){try{probNode.style.overflowY='hidden';}catch(e){};}"
+//END HACK
+  ""  "}";
+
+//    cout << "js 1381 is " << js << endl;
+
+  setJavaScriptMember( "wtResize", js );
+}//void setwtResizeJS()
 
 
 

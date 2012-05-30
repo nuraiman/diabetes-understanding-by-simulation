@@ -85,6 +85,7 @@ set( sources
     src/DubUser.cc
     src/DubsSession.cc
     src/DubsApplication.cc
+    src/OverlayCanvas.cc
 )
 
 
@@ -104,6 +105,7 @@ set( headers
     dubs/DubUser.hh
     dubs/DubsSession.hh
     dubs/DubsApplication.hh
+    dubs/OverlayCanvas.hh
 )
 
 
