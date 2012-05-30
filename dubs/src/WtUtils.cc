@@ -107,8 +107,10 @@ DateTimeSelect::~DateTimeSelect(){}
 
 void DateTimeSelect::set( const Wt::WDateTime &dt )
 {
-  if( !dt.isValid() ) return;
-  if( (dt < m_bottom)  || (dt > m_top) ) return;
+  if( !dt.isValid() )
+    return;
+  if( (dt < m_bottom)  || (dt > m_top) )
+    return;
 
   m_datePicker->setDate( dt.date() );
   const int hour = dt.time().hour();

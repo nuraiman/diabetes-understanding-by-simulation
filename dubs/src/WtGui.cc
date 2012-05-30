@@ -37,6 +37,8 @@
 #include <Wt/Chart/WDataSeries>
 #include <Wt/WTime>
 #include <Wt/WDate>
+#include <Wt/WLink>
+#include <Wt/WAnchor>
 #include <Wt/WDateTime>
 #include <Wt/WComboBox>
 #include <Wt/WIntValidator>
@@ -87,6 +89,7 @@
 #include "ConsentrationGraph.hh"
 #include "dubs/DubUser.hh"
 #include "dubs/DubsSession.hh"
+#include "dubs/DubsApplication.hh"
 
 using namespace Wt;
 using namespace std;
@@ -406,6 +409,15 @@ void WtGui::init()
   item->triggered().connect( boost::bind( &WtGui::addDataDialog, this ) );
   item->triggered().connect( boost::bind( &WPopupMenu::setHidden, dataMenuPopup, true, WAnimation() ) );
 
+  DubsApplication *dubsApp = dynamic_cast<DubsApplication *>( m_app );
+  if( dubsApp )
+  {
+    WText *logout = new WText( "logout", m_upperEqnDiv );
+    logout->setAttributeValue( "style", "color: blue;" );
+    logout->clicked().connect( dubsApp, &DubsApplication::logout );
+    logout->setFloatSide( Right );
+    logout->setPadding( WLength(2,WLength::FontEx), Wt::Right );
+  }//if( dubsApp )
 
 
   layout->addWidget( m_upperEqnDiv, WBorderLayout::North );
@@ -673,10 +685,12 @@ void WtGui::init()
   //Create 'Notes' Tabs
   m_notesTab = new WtNotesTab( this );
   /*WMenuItem *tabItem = */m_tabs->addTab( m_notesTab, "Notes", WTabWidget::PreLoading );
-  m_tabs->currentChanged().connect( boost::bind( &WtGui::notesTabClickedCallback, this, _1 ) );
 
-  WtExcludeTimeRangesTab *badDataRanges = new WtExcludeTimeRangesTab( this );
-  m_tabs->addTab( badDataRanges, "Excluded Data", WTabWidget::PreLoading  );
+  m_excludeTimeRangeTab = new WtExcludeTimeRangesTab( this );
+  /*WMenuItem *excludeTab = */m_tabs->addTab( m_excludeTimeRangeTab, "Excluded Data", WTabWidget::PreLoading  );
+
+
+  m_tabs->currentChanged().connect( boost::bind( &WtGui::tabClickedCallback, this, _1 ) );
 
   syncDisplayToModel();
 //  zoomToFullDateRange();
@@ -1512,18 +1526,18 @@ void WtGui::setModelFileName( const std::string &fileName )
 }//void setModelFileName( const std::string &fileName )
 
 
-void WtGui::notesTabClickedCallback( int clickedINdex )
+void WtGui::tabClickedCallback( int clickedIndex )
 {
-  const int notesTabIndex = m_tabs->indexOf(m_notesTab);
 
-  if( clickedINdex != notesTabIndex )
+  const int notesTabIndex = m_tabs->indexOf(m_notesTab);
+  const int exludeDataIndex = m_tabs->indexOf(m_excludeTimeRangeTab);
+
+  if( clickedIndex != notesTabIndex )
   {
     m_notesTab->saveCurrent();
     return;
-  }//if( clickedINdex != notesTabIndex )
-
-  m_notesTab->userNavigatedToTab();
-}//void notesTabClickedCallback(int);
+  }//if( clickedIndex != notesTabIndex )
+}//void tabClickedCallback(int);
 
 
 
@@ -3117,12 +3131,6 @@ void WtNotesTab::updateViewTable()
   m_model->refresh();
 }//void WtNotesTab::updateViewTable()
 
-void WtNotesTab::userNavigatedToTab()
-{
-  //What did I want this function to do?
-  //const WModelIndexSet selected = m_tableView->selectedIndexes();
-}//void WtNotesTab::userNavigatedToTab()
-
 
 
 
@@ -3186,10 +3194,12 @@ WtExcludeTimeRangesTab::WtExcludeTimeRangesTab( WtGui *parentWtGui,
   m_displayModel->useColumn( NLSimple::kFingerMeterData );
   m_displayModel->useColumn( NLSimple::kCalibrationData );
   m_displayModel->useColumn( NLSimple::kMealData );
-  m_chart->addSeries( Chart::WDataSeries( 0, Chart::LineSeries ) );
+  m_chart->addSeries( Chart::WDataSeries( 0, Chart::LineSeries  ) );
   m_chart->addSeries( Chart::WDataSeries( 1, Chart::PointSeries ) );
   m_chart->addSeries( Chart::WDataSeries( 2, Chart::PointSeries ) );
   m_chart->addSeries( Chart::WDataSeries( 3, Chart::PointSeries ) );
+
+  m_chart->setXSeriesColumn( m_displayModel->columnCount()-1 );
 
   //Now put all the widgets into the gui
   layout->addWidget( m_view, 0, 0, 1, 2  );
@@ -3275,8 +3285,11 @@ void WtExcludeTimeRangesTab::allowUserToEnterNewRange()
 
   m_endExcludeSelect->setToCurrentTime();
   m_startExcludeSelect->setToCurrentTime();
+
+  updateDataRangeDates();
   m_displayModel->setDisplayedTimeRange( m_startExcludeSelect->dateTime().toPosixTime(),
                                          m_endExcludeSelect->dateTime().toPosixTime() );
+
 }//allowUserToEnterNewRange()
 
 
@@ -3324,6 +3337,37 @@ void WtExcludeTimeRangesTab::addEnteredRangeToModel()
   displaySelected();
 }//void addEnteredRangeToModel()
 
+void WtExcludeTimeRangesTab::finishDeleteSelectedDialog( WDialog *dialog,
+                                                         const WModelIndex selected,
+                                                         WCheckBox *save)
+{
+  WDialog::DialogCode code = dialog->result();
+
+  if( code == WDialog::Rejected )
+  {
+    delete dialog;
+    return;
+  }
+
+  m_listModel->removeRows( selected.row(), 1 );
+
+  if( save->isChecked() )
+    m_parentWtGui->saveCurrentModel();
+
+  const int selectedRow = selected.row();
+
+  WModelIndexSet setSelected;
+  if( selectedRow < m_listModel->rowCount() )
+    setSelected.insert( m_listModel->index( selectedRow, 1 ) );
+  else if( selectedRow )
+    setSelected.insert( m_listModel->index( selectedRow-1, 1 ) );
+
+  m_view->setSelectedIndexes( setSelected );
+
+  displaySelected();
+
+  delete dialog;
+}//finishDeleteSelectedDialog(...)
 
 void WtExcludeTimeRangesTab::deleteSelectedRange()
 {
@@ -3346,35 +3390,22 @@ void WtExcludeTimeRangesTab::deleteSelectedRange()
     return;
   }//try / catch
 
-  WDialog dialog( "Confirmation" );
+  WDialog *dialog = new WDialog( "Confirmation" );
   const WString text = "Are you sure you would like to delete the time range"
                        "from " + start.toString() + " to " + end.toString()
                        + "?";
-  new WText( text, dialog.contents() );
-  new WBreak( dialog.contents() );
-  WPushButton *yes = new WPushButton(  "Yes", dialog.contents() );
-  WPushButton *no = new WPushButton(  "No", dialog.contents() );
+  new WText( text, dialog->contents() );
+  new WBreak( dialog->contents() );
+  WPushButton *yes = new WPushButton(  "Yes", dialog->contents() );
+  WPushButton *no = new WPushButton(  "No", dialog->contents() );
   WCheckBox *save = new WCheckBox( "Save Model" );
   save->setChecked();
-  yes->clicked().connect( &dialog, &WDialog::accept );
-  no->clicked().connect( &dialog, &WDialog::reject );
-  WDialog::DialogCode code = dialog.exec();
+  yes->clicked().connect( dialog, &WDialog::accept );
+  no->clicked().connect( dialog, &WDialog::reject );
 
-  if( code == WDialog::Rejected ) return;
+  dialog->finished().connect( boost::bind( &WtExcludeTimeRangesTab::finishDeleteSelectedDialog, this, dialog, beginDateIndex, save) );
 
-  m_listModel->removeRows( selected.begin()->row(), 1 );
-  if( save->isChecked() ) m_parentWtGui->saveCurrentModel();
-
-
-  WModelIndexSet setSelected;
-  if( selectedRow < m_listModel->rowCount() )
-    setSelected.insert( m_listModel->index( selectedRow, 1 ) );
-  else if( selectedRow )
-    setSelected.insert( m_listModel->index( selectedRow-1, 1 ) );
-
-  m_view->setSelectedIndexes( setSelected );
-
-  displaySelected();
+  dialog->show();
 }//void deleteSelectedRange()
 
 
@@ -3385,6 +3416,25 @@ void WtExcludeTimeRangesTab::updateGraphWithUserRange()
   m_description->setText( start.toString() + " through " + end.toString() );
   m_displayModel->setDisplayedTimeRange( start.toPosixTime(), end.toPosixTime() );
 }//void updateGraphWithUserRange()
+
+
+void WtExcludeTimeRangesTab::updateDataRangeDates()
+{
+  const PosixTime pBeginTime = m_parentWtGui->getSimpleSimDisplayModel()->earliestData();
+  const PosixTime pEndTime = m_parentWtGui->getSimpleSimDisplayModel()->latestData();
+  const WDateTime endTime = WDateTime::fromPosixTime( pEndTime );
+  const WDateTime beginTime = WDateTime::fromPosixTime( pBeginTime );
+
+  m_startExcludeSelect->setTop( endTime );
+  m_startExcludeSelect->setBottom( beginTime );
+  m_startExcludeSelect->set( beginTime );
+
+  m_endExcludeSelect->setTop( endTime );
+  m_endExcludeSelect->setBottom( beginTime );
+  m_endExcludeSelect->set( endTime );
+}//void WtExcludeTimeRangesTab::updateDataRangeDates()
+
+
 
 
 

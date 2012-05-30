@@ -81,7 +81,7 @@ DubsSession::DubsSession(const std::string& sqliteDb)
   mapClass<UsersModel>("UsersModel");
   mapClass<OptimizationChi2>("OptimizationChi2");
 
-  users_ = new UserDatabase(*this);
+  users_ = new UserDatabase( *this );
 
   dbo::Transaction transaction( *this );
 
@@ -133,9 +133,10 @@ dbo::ptr<DubUser> DubsSession::user()
     }//if (!user)
 
     return authInfo->user();
-  } else
-    return dbo::ptr<DubUser>();
-}
+  }//if( login_.loggedIn() )
+
+  return dbo::ptr<DubUser>();
+}//user()
 
 const Wt::Auth::AuthService& DubsSession::auth()
 {
