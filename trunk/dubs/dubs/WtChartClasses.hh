@@ -41,6 +41,7 @@ public:
 
   int getHeight() const;
   int getWidth() const;
+  void setWtResizeJsForOverlay();
   void setLegendOffsetFromTop( const int &offset );   //in pixels
   void setLegendOffsetFromRight( const int &offset ); //in pixels
   void paint( Wt::WPainter& painter, const Wt::WRectF& rectangle = Wt::WRectF() ) const;
