@@ -57,8 +57,8 @@ void DubsSession::configureAuth()
   verifier->addHashFunction(new Wt::Auth::BCryptHashFunction(7));
   myPasswordService.setVerifier(verifier);
   myPasswordService.setAttemptThrottlingEnabled(true);
-  myPasswordService.setStrengthValidator
-    (new Wt::Auth::PasswordStrengthValidator());
+  Wt::Auth::PasswordStrengthValidator *validator = new Wt::Auth::PasswordStrengthValidator() ;
+  myPasswordService.setStrengthValidator( validator );
 
   if (Wt::Auth::GoogleService::configured())
     myOAuthServices.push_back(new Wt::Auth::GoogleService(myAuthService));

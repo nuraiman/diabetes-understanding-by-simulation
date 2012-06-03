@@ -40,9 +40,7 @@ public:
   //  combo is a click {e.g. where the mouse stayed in one position}).
   //  All other signals are propogated through to parent widget passed in.
   //  Additionally, there is a signal for if a key is pressed while the mouse
-  //  is over the widget.  When a file is dragged from the filesystem onto this
-  //  canvas the file will be uploaded, and a signal will be emitted from the
-  //  fileDrop() signal, notifying connected slots of its availablilty.
+  //  is over the widget.
 
   OverlayCanvas( Wt::Chart::WAbstractChart *parent,
                  bool outline, bool highlight );
