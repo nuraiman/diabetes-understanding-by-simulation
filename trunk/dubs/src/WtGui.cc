@@ -187,6 +187,7 @@ WtGui::WtGui( Wt::Dbo::ptr<DubUser> user, Wt::WApplication *app, Wt::WContainerW
     m_nlSimleDisplayModel( new NLSimpleDisplayModel( this, NULL ) ),
     m_bsModel( NULL ),
     m_bsGraph( NULL ),
+    m_bsGraphOverlay( NULL ),
     m_bsBeginTimePicker( NULL ),
     m_bsEndTimePicker( NULL ),
     m_errorGridModel( NULL ),
@@ -450,7 +451,9 @@ void WtGui::init()
   m_bsGraph->setMinimumSize( 200, 150 );
 
 //  m_bsGraph->setWtResizeJsForOverlay();
-//  OverlayCanvas *overlay = new OverlayCanvas( m_bsGraph, true, true );
+//  m_bsGraphOverlay = new OverlayCanvas( m_bsGraph, true, true );
+//  m_bsGraphOverlay->userDragged().connect( this, &WtGui::userDragZoomedBsGraph );
+//  m_tabs->currentChanged().connect( m_bsGraphOverlay, &WTabWidget::hide );
 
 
   m_nlSimleDisplayModel->useColumn(NLSimple::kPredictedBloodGlucose);
@@ -910,6 +913,33 @@ void WtGui::zoomMostRecentDay()
   m_bsBeginTimePicker->set( m_bsEndTimePicker->top().addDays(-1) );
   updateDisplayedDateRange();
 }//void WtGui::zoomMostRecentDay()
+
+
+
+void WtGui::userDragZoomedBsGraph( int x0, int y0, Wt::WMouseEvent event )
+{
+  const WPointF start = m_bsGraph->mapFromDevice( WPointF(x0, y0) );
+  const WPointF finish = m_bsGraph->mapFromDevice( WPointF(event.document().x, event.document().y) );
+
+  const std::time_t startEpich = start.x();
+  const std::time_t finishEpich = finish.x();
+
+  const WDateTime startTime = WDateTime::fromTime_t( startEpich );
+  const WDateTime finishTime = WDateTime::fromTime_t( finishEpich );
+
+//  m_bsEndTimePicker->set( startTime );
+//  m_bsBeginTimePicker->set( finishTime );
+
+  cerr << "\n\nuserDragZoomedBsGraph: " << startEpich << ", " << finishEpich
+       << " (dif=" << finishEpich-startEpich << ")"
+       << " Times " << startTime.toString() << " and " << finishTime.toString()
+       << "Currently Time_t=" << Wt::WDateTime::currentDateTime().toTime_t()
+       << endl;
+
+//  updateDisplayedDateRange();
+}//void userDragZoomedBsGraph( int x1, int x2, Wt::WMouseEvent event )
+
+
 
 void WtGui::updateDataRange()
 {

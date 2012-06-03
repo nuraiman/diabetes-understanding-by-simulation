@@ -45,6 +45,7 @@ class ClarkErrorGridGraph;
 class WtModelSettingsGui;
 class MemVariableSpinBox;
 class MemGuiTimeDate;
+class OverlayCanvas;
 
 class WtNotesTab;
 class NLSimplePtr;
@@ -192,6 +193,7 @@ public:
     void newModel();
     void createNLSimpleDialogFinished( WtCreateNLSimple *creator,  Wt::WDialog *dialog );
 
+    void userDragZoomedBsGraph( int x0, int y0, Wt::WMouseEvent event );
     void updateDataRange();
     void zoomToFullDateRange();
     void zoomMostRecentDay();
@@ -253,6 +255,7 @@ public:
 
     Wt::WStandardItemModel     *m_bsModel;
     WChartWithLegend           *m_bsGraph;
+    OverlayCanvas              *m_bsGraphOverlay;
     DateTimeSelect             *m_bsBeginTimePicker;
     DateTimeSelect             *m_bsEndTimePicker;
 
