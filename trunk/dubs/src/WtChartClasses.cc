@@ -14,6 +14,7 @@
 #include <Wt/WPointF>
 #include <Wt/WString>
 #include <Wt/Chart/WChartPalette>
+#include <Wt/Chart/WAxis>
 #include <Wt/WRectArea>
 
 #include "TMath.h"
@@ -77,8 +78,8 @@ void WChartWithLegend::paint( WPainter& painter, const WRectF& rectangle ) const
   WPainter::Image syringe( url+"syringe.png", "local_resources/syringe.png");
   WPainter::Image burger(url+"hamburger.png","local_resources/hamburger.png");
 
-  const NLSimpleDisplayModel *dispModel;
-  dispModel = dynamic_cast<const NLSimpleDisplayModel *>( model() );
+  const NLSimpleDisplayModel *dispModel
+                        = dynamic_cast<const NLSimpleDisplayModel *>( model() );
 
   Wt::Chart::WCartesianChart::paint(painter, rectangle);
   for( size_t index=0; index<series().size(); ++index )
@@ -160,6 +161,36 @@ void WChartWithLegend::paint( WPainter& painter, const WRectF& rectangle ) const
       }//if( this point is inside the range to be displayed )
     }//foreach( const GraphElement &el, modelPtr->m_mealData )
 
+
+    foreach( const TimeRange &range, modelPtr->m_doNotUseTimeRanges )
+    {
+      //TimeRange == boost::posix_time::time_period
+      PosixTime start = range.begin();
+      PosixTime end = range.end();
+
+      if( start < minTime && end < minTime)
+        continue;
+
+      if( start > maxTime && end > maxTime)
+        continue;
+
+      if( start < minTime )
+        start = minTime;
+      if( start > maxTime )
+        start = maxTime;
+      if( end < minTime )
+        end = minTime;
+      if( end > maxTime )
+        end = maxTime;
+
+
+      WPointF upperLeft = mapToDevice( WDateTime::fromPosixTime(start),
+                                       axis(Chart::YAxis).maximum() );
+      WPointF lowerRight = mapToDevice( WDateTime::fromPosixTime(end),
+                                       axis(Chart::YAxis).minimum() );
+      WColor fillColor( 151, 151, 151, 100 );
+      painter.fillRect( WRectF( upperLeft, lowerRight ), WBrush( fillColor ) );
+    }//foreach( const TimeRange &range, m_doNotUseTimeRanges )
 
     painter.setPen( Wt::WPen() );
   }//if( m_parentGui )
