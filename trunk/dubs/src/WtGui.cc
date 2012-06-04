@@ -450,10 +450,10 @@ void WtGui::init()
   m_bsGraph->axis(Chart::YAxis).setTitle( "mg/dL" );
   m_bsGraph->setMinimumSize( 200, 150 );
 
-//  m_bsGraph->setWtResizeJsForOverlay();
-//  m_bsGraphOverlay = new OverlayCanvas( m_bsGraph, true, true );
-//  m_bsGraphOverlay->userDragged().connect( this, &WtGui::userDragZoomedBsGraph );
-//  m_tabs->currentChanged().connect( m_bsGraphOverlay, &WTabWidget::hide );
+  m_bsGraph->setWtResizeJsForOverlay();
+  m_bsGraphOverlay = new OverlayCanvas( m_bsGraph, true, true );
+  m_bsGraphOverlay->userDragged().connect( this, &WtGui::userDragZoomedBsGraph );
+  m_tabs->currentChanged().connect( m_bsGraphOverlay, &WTabWidget::hide );
 
 
   m_nlSimleDisplayModel->useColumn(NLSimple::kPredictedBloodGlucose);
@@ -525,13 +525,17 @@ void WtGui::init()
   m_previousTimePeriodButton->setFloatSide( Left );
   m_previousTimePeriodButton->clicked().connect( this, &WtGui::showPreviousTimePeriod );
 
-  WDateTime now( WDate(2010,1,3), WTime(2,30) );
+  WDateTime starDisplayTime = WDateTime::fromPosixTime( modelPtr->m_cgmsData.getStartTime() );
+  WDateTime endDisplayTime = WDateTime::fromPosixTime( modelPtr->m_cgmsData.getEndTime() );
+
   m_bsBeginTimePicker  = new DateTimeSelect( "Start Date/Time:&nbsp;",
-                                             WDateTime::fromPosixTime( modelPtr->m_cgmsData.getStartTime() ),
+                                              starDisplayTime,
                                              datePickingDiv );
   m_bsEndTimePicker    = new DateTimeSelect( "&nbsp;&nbsp;&nbsp;&nbsp;End Date/Time:&nbsp;",
-                                             WDateTime::fromPosixTime( modelPtr->m_cgmsData.getEndTime() ),
+                                             endDisplayTime,
                                              datePickingDiv );
+
+
   WPushButton *zoomOut = new WPushButton( "Full Date Range", datePickingDiv );
   zoomOut->clicked().connect( this, &WtGui::zoomToFullDateRange );
   WPushButton *mostRecentDay = new WPushButton( "Most Recent Day", datePickingDiv );
@@ -552,6 +556,9 @@ void WtGui::init()
     Dbo::ptr<UsersModel> model = models.find().where( "fileName = ?" ).bind( m_userDbPtr->currentFileName );
     if( model )
     {
+      if( model->displayBegin > model->displayEnd )
+        std::swap( model.modify()->displayBegin, model.modify()->displayEnd );
+
       cerr << endl << endl << "Setting to " << model->displayBegin.toString() << " and " << model->displayEnd.toString() << endl << endl;
       m_bsBeginTimePicker->set( model->displayBegin );
       m_bsEndTimePicker->set( model->displayEnd );
@@ -918,25 +925,66 @@ void WtGui::zoomMostRecentDay()
 
 void WtGui::userDragZoomedBsGraph( int x0, int y0, Wt::WMouseEvent event )
 {
+  if( fabs(event.document().x - double(x0)) < 20 )
+    return;
+
   const WPointF start = m_bsGraph->mapFromDevice( WPointF(x0, y0) );
   const WPointF finish = m_bsGraph->mapFromDevice( WPointF(event.document().x, event.document().y) );
 
   const std::time_t startEpich = start.x();
   const std::time_t finishEpich = finish.x();
 
-  const WDateTime startTime = WDateTime::fromTime_t( startEpich );
-  const WDateTime finishTime = WDateTime::fromTime_t( finishEpich );
+  WDateTime startTime = WDateTime::fromTime_t( startEpich );
+  WDateTime finishTime = WDateTime::fromTime_t( finishEpich );
 
-//  m_bsEndTimePicker->set( startTime );
-//  m_bsBeginTimePicker->set( finishTime );
+  if( startTime > finishTime )
+  {
+    std::swap( finishTime, startTime );
 
-  cerr << "\n\nuserDragZoomedBsGraph: " << startEpich << ", " << finishEpich
-       << " (dif=" << finishEpich-startEpich << ")"
-       << " Times " << startTime.toString() << " and " << finishTime.toString()
-       << "Currently Time_t=" << Wt::WDateTime::currentDateTime().toTime_t()
-       << endl;
+    const PosixTime oldBeginDisplay = m_bsBeginTimePicker->dateTime().toPosixTime();
+    const PosixTime oldEndDisplay = m_bsBeginTimePicker->dateTime().toPosixTime();
 
-//  updateDisplayedDateRange();
+    TimeDuration displayDuration = oldEndDisplay - oldBeginDisplay;
+    TimeDuration selectDuration = finishTime.toPosixTime() - startTime.toPosixTime();
+
+    PosixTime newBeginDisplay, newEnddisplay;
+
+    if( selectDuration.ticks() < 0.025*displayDuration.ticks() )
+    {
+      //do nothing
+      return;
+    }else if( selectDuration.ticks() < 0.2*displayDuration.ticks() )
+    {
+      double multiplier = 1.5;  //quandruple the time range
+      if( selectDuration.ticks() < 0.1*displayDuration.ticks() ) //double the time range
+        multiplier = 0.5;
+      TimeDuration dur( multiplier*displayDuration.hours(), multiplier*displayDuration.minutes(), multiplier*displayDuration.seconds(), multiplier*displayDuration.fractional_seconds() );
+      newBeginDisplay = oldBeginDisplay - dur;
+      if( newBeginDisplay < m_bsBeginTimePicker->bottom().toPosixTime() )
+        newBeginDisplay = m_bsBeginTimePicker->bottom().toPosixTime();
+
+      newEnddisplay = oldEndDisplay + dur;
+      if( newEnddisplay > m_bsEndTimePicker->top().toPosixTime() )
+        newEnddisplay = m_bsEndTimePicker->top().toPosixTime();
+    }else
+    {  //zoom all the way out
+      newBeginDisplay = m_bsBeginTimePicker->bottom().toPosixTime();
+      newEnddisplay = m_bsEndTimePicker->top().toPosixTime();
+    }
+
+    startTime = WDateTime::fromPosixTime(newBeginDisplay);
+    finishTime = WDateTime::fromPosixTime(newEnddisplay);
+  }//if( startTime > finishTime )
+
+  if( finishTime > m_bsEndTimePicker->top() )
+    finishTime = m_bsEndTimePicker->top();
+
+  if( startTime < m_bsBeginTimePicker->bottom() )
+    startTime = m_bsBeginTimePicker->bottom();
+
+  m_bsEndTimePicker->set( finishTime );
+  m_bsBeginTimePicker->set( startTime );
+  updateDisplayedDateRange();
 }//void userDragZoomedBsGraph( int x1, int x2, Wt::WMouseEvent event )
 
 
