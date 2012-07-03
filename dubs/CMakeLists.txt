@@ -86,6 +86,7 @@ set( sources
     src/DubsSession.cc
     src/DubsApplication.cc
     src/OverlayCanvas.cc
+    js/OverlayCanvas.js
 )
 
 

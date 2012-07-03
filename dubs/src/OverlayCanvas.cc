@@ -14,17 +14,102 @@
 #include <Wt/Http/Request>
 #include <Wt/Http/Response>
 #include <Wt/WResource>
+#include <Wt/WAbstractItemModel>
 
+#include <boost/thread.hpp>
 #include <boost/lexical_cast.hpp>
 #include <boost/algorithm/string.hpp>
 
 #include "dubs/OverlayCanvas.hh"
+#include "dubs/WtChartClasses.hh"
 
+#include "js/OverlayCanvas.js"
 
 using namespace Wt;
 using namespace std;
 
+/*
+ * See also: http://www.webtoolkit.eu/wt/blog/2010/03/02/javascript_that_is_c__
+ */
+#define INLINE_JAVASCRIPT(...) #__VA_ARGS__
 
+#if( TEST_OverlayDragEvent )
+void OverlayDragEvent::clear()
+{
+  button = keyCode = charCode = -1;
+  x0 = x1 = y0 = y1 = wheelDelta = keyModifiers = 0;
+  //  std::vector<Touch> touches, targetTouches, changedTouches;
+}//void OverlayDragEvent::clear()
+
+bool operator>>( std::istream &is, OverlayDragEvent& t )
+{
+  t.clear();
+
+  string arg;
+  is >> arg;
+  vector<string> fields;
+  boost::algorithm::split( fields, arg, boost::algorithm::is_any_of("&") );
+
+  if( fields.size() != 12 )
+  {
+    cerr << SRC_LOCATION
+         << "\n\tbool operator>>( std::istream &is, OverlayDragEvent& t ):\n\t"
+         << "Recieved an input with " << fields.size() << " fields; I expected 12"
+         << endl;
+    return is;
+  }//if( fields.size() != 12 )
+
+  OverlayDragEvent a;
+
+  try
+  {
+    int i = 0;
+    a.x0 = boost::lexical_cast<int>( fields[i++] );
+    a.x1 = boost::lexical_cast<int>( fields[i++] );
+    a.y0 = boost::lexical_cast<int>( fields[i++] );
+    a.y1 = boost::lexical_cast<int>( fields[i++] );
+    a.button = boost::lexical_cast<int>( fields[i++] );
+    a.keyCode = boost::lexical_cast<int>( fields[i++] );
+    a.charCode = boost::lexical_cast<int>( fields[i++] );
+    bool altKey = boost::lexical_cast<bool>( fields[i++] );
+    bool ctrlKey = boost::lexical_cast<bool>( fields[i++] );
+    bool metaKey = boost::lexical_cast<bool>( fields[i++] );
+    bool shiftKey = boost::lexical_cast<bool>( fields[i++] );
+
+    a.keyModifiers = 0;
+    if( altKey )
+      a.keyModifiers |= Wt::AltModifier;
+    if( ctrlKey )
+      a.keyModifiers |= Wt::ControlModifier;
+    if( metaKey )
+      a.keyModifiers |= Wt::MetaModifier;
+    if( shiftKey )
+      a.keyModifiers |= Wt::ShiftModifier;
+
+    a.wheelDelta = boost::lexical_cast<int>( fields[i++] );
+    //  std::vector<Touch> touches, targetTouches, changedTouches;
+  }catch(...)
+  {
+    cerr << SRC_LOCATION
+         << "\n\tbool operator>>( std::istream &is, OverlayDragEvent& t ):\n\t"
+         << "There was an error converting the stream to a OverlayDragEvent"
+         << endl;
+    return is;
+  }//try / catch
+
+  t = a;
+
+  return is;
+}//std::istream& operator<<( std::istream&, OverlayDragEvent& t)
+
+
+
+
+
+void testOverlayDragEvent( OverlayDragEvent a )
+{
+}
+#endif  //#if( TEST_OverlayDragEvent )
 
 OverlayCanvas::OverlayCanvas( Wt::Chart::WAbstractChart *parent,
                               bool outline,
@@ -36,8 +121,13 @@ OverlayCanvas::OverlayCanvas( Wt::Chart::WAbstractChart *parent,
     m_controlMouseDown( NULL ),
     m_controlMouseMove( NULL ),
     m_jsException( NULL ),
+    m_alignWithParentSlot( NULL ),
     m_parent( parent )
 {
+  WChartWithLegend *chartWithLeg = dynamic_cast<WChartWithLegend *>( parent );
+  if( chartWithLeg )
+    chartWithLeg->setWtResizeJsForOverlay();
+
   setLoadLaterWhenInvisible( false );
   setPreferredMethod( WPaintedWidget::HtmlCanvas );
 
@@ -79,9 +169,16 @@ OverlayCanvas::OverlayCanvas( Wt::Chart::WAbstractChart *parent,
   m_controlMouseMove              = new Wt::JSignal<int>( this, "cntrlMouseMove" );
   m_jsException                   = new JSignal<std::string>( this, "jsException" );
 
+#if( TEST_OverlayDragEvent )
+  JSignal<OverlayDragEvent> *overlayTest = new JSignal<OverlayDragEvent>( this , "OverlayDragEvent" );
+  overlayTest->connect( boost::bind( &testOverlayDragEvent, _1 ) );
+#endif  //TEST_OverlayDragEvent
+
   clicked().connect(        boost::bind( &EventSignal< WMouseEvent >::emit,   &(parent->clicked ()), _1 ) );
   doubleClicked().connect(  boost::bind( &EventSignal< WMouseEvent >::emit,   &(parent->doubleClicked ()), _1 ) );
 
+
+  loadInitOverlayCanvasJs();
 
   string js = "initOverlayCanvas('"+id()+"', "+chartPadding+", "+drawMode+ ");";
   wApp->doJavaScript( js );
@@ -89,6 +186,145 @@ OverlayCanvas::OverlayCanvas( Wt::Chart::WAbstractChart *parent,
 //  setJavaScriptMember( "wtResize", "function(self, w, h) { return false; };" );
 }//OverlayCanvas constructos
 
+
+void OverlayCanvas::alignWithParent()
+{
+  m_alignWithParentSlot->exec();
+}
+
+void OverlayCanvas::loadInitOverlayCanvasJs()
+{
+  WApplication *app = WApplication::instance();
+//  app->loadJavaScript( "js/OverlayCanvas.js", wtjs1 );
+  LOAD_JAVASCRIPT(app, "js/OverlayCanvas.js", "OverlayCanvas", wtjs1);
+  LOAD_JAVASCRIPT(app, "js/OverlayCanvas.js", "OverlayCanvas", wtjs2);
+  LOAD_JAVASCRIPT(app, "js/OverlayCanvas.js", "OverlayCanvas", wtjs3);
+
+  const string onclickSlotJS = "function(sender,event)"
+  "{"
+  ""  "var can = $('#c" + id() + "');"
+  ""  "var canElement = Wt.WT.getElement( 'c" + id() + "');"
+  ""  "if( !can || !canElement ) { console.log('onclickSlotJS Error'); return;}"
+//  ""  "Wt.WT.cancelEvent(event, Wt.WT.CancelPropagate);"
+  ""  "if( !can.data('mouseWasDrugged') )"
+  ""    "Wt.emit( '" + id() + "', {name: 'userSingleClicked', event: event, eventObject: canElement} );"
+  "}";
+  JSlot *onclickSlot = new JSlot( onclickSlotJS, this );
+  clicked().connect( *onclickSlot );
+
+  const string onMouseDownSlotJS = "function(sender,event)"
+  "{"
+  ""  "var can = $('#c" + id() + "');"
+  ""  "var canElement = Wt.WT.getElement( 'c" + id() + "');"
+  ""  "if( !can || !canElement ) { console.log('onMouseDownSlotJS Error'); return;}"
+//  ""  "Wt.WT.cancelEvent(event, Wt.WT.CancelPropagate);"
+  ""  "canElement.width = canElement.width;"
+  ""  "var x = event.pageX - can.offset().left;"
+  ""  "var y = event.pageY - can.offset().top;"
+  ""  "can.data('startDragX',x);"
+  ""  "can.data('startDragY',y);"
+  ""  "can.data('mouseWasDrugged', false);"
+  ""
+  ""  "if( event.ctrlKey )"
+  ""    "Wt.emit( '" + id() + "', { name: 'cntrlMouseDown' }, Math.round(x) );"
+  "}";
+
+  JSlot *onmousedown = new JSlot( onMouseDownSlotJS, this );
+  mouseWentDown().connect( *onmousedown );
+
+  //TODO - should put the below encoding of OverlayDragEvent into a static
+  //       javascript funtion.
+/*  const string onMouseUpSlotJS = "function(s,e)"
+      "{"
+      ""  "var can = $('#c" + id() + "');"
+      ""  "var canElement = Wt.WT.getElement( 'c" + id() + "');"
+      ""  "if( !can || !canElement ) { console.log('onMouseUpSlotJS Error'); return;}"
+//      ""  "Wt.WT.cancelEvent(e, Wt.WT.CancelPropagate);"
+      ""  "canElement.width = canElement.width;"
+      ""  "var x0 = can.data('startDragX');"
+      ""  "var y0 = can.data('startDragY');"
+      ""  "var x1 = e.pageX - can.offset().left;"
+      ""  "var y1 = e.pageY - can.offset().top;"
+      ""  "if( x0!==null && y0!==null && can.data('mouseWasDrugged') )"
+      ""    "Wt.emit( '" + id() + "', {name: 'userDragged', event: e, eventObject: canElement}, Math.round(x0), Math.round(y0) );"
+      ""  "can.data('startDragX',null);"
+      ""  "can.data('startDragY',null);"
+      ""  "can.data('cntrldwn',null);"
+      ""  "can.data('altdrag',null);"
+      ""  "var result = '' + x0 + '&' + x1 + '&' + y0 + '&' + y1;"
+      ""  "var button = Wt.WT.button(e);"
+      ""  "if(!button)"
+      ""  "{"
+      ""    "if (Wt.WT.buttons & 1)"
+      ""      "button = 1;"
+      ""    "else if (Wt.WT.buttons & 2)"
+      ""      "button = 2;"
+      ""    "else if (Wt.WT.buttons & 4)"
+      ""      "button = 4;"
+      ""    "button = -1;"
+      ""  "}"
+      ""  "result += '&' + button;"
+      ""  "if (typeof e.keyCode !== 'undefined')"
+      ""    "result += '&' + e.keyCode;"
+      ""  "else result += '&0';"
+      ""  "if (typeof e.charCode !== 'undefined')"
+      ""    "result += '&' + e.charCode;"
+      ""  "else result += '&0';"
+      ""  "if (e.altKey)   result += '&1';"
+      ""  "else            result += '&0';"
+      ""  "if (e.ctrlKey)  result += '&1';"
+      ""  "else            result += '&0';"
+      ""  "if (e.metaKey)  result += '&1';"
+      ""  "else            result += '&0';"
+      ""  "if (e.shiftKey) result += '&1';"
+      ""  "else            result += '&0';"
+      ""  "var delta = Wt.WT.wheelDelta(e);"
+      ""  "result += '&' + delta;"
+      ""  "Wt.emit( '" + id() + "', {name: 'OverlayDragEvent'}, result );"
+      "};";
+*/
+  const string onMouseUpSlotJS = "function(s,e){ Wt.WT.OnOverlayMouseUp(s,e);}";
+  JSlot *onmouseup = new JSlot( onMouseUpSlotJS, this );
+  mouseWentUp().connect( *onmouseup );
+
+/*  const string onMouseOutSlotJS = "function(s,e)"
+      "{"
+      ""  "var can = $('#c" + id() + "');"
+      ""  "var canElement = Wt.WT.getElement( 'c" + id() + "');"
+      ""  "if( !can || !canElement ) { console.log('onMouseOutSlotJS Error'); return;}"
+//      ""  "Wt.WT.cancelEvent(event, Wt.WT.CancelPropagate);"
+      ""  "canElement.width = canElement.width;"
+      ""  "can.data('startDragX',null);"
+      ""  "can.data('startDragY',null);"
+      ""  "can.data('hasMouse', false);"
+      ""  "can.data('cntrldwn',null);"
+      ""  "can.data('altdrag',null);"
+      "};";
+*/
+  const string onMouseOutSlotJS = "function(s,e){ Wt.WT.OnOverlayMouseOut(s.id); }";
+  JSlot *onmouseout = new JSlot( onMouseOutSlotJS, this );
+  mouseWentOut().connect( *onmouseout );
+
+  const string onMouseOverSlotJS = "function(s,e)"
+      "{"
+      ""  "var c = $('#c" + id() + "');"
+      ""  "if( !c ) { console.log('onMouseOverSlotJS Error'); return;}"
+//      ""  "Wt.WT.cancelEvent(event, Wt.WT.CancelPropagate);"
+      ""  "c.data('hasMouse', true);"
+      "};";
+
+  JSlot *onmouseoverSlot = new JSlot( onMouseOverSlotJS, this );
+  mouseWentOver().connect( *onmouseoverSlot );
+
+  // Now need to do onmousemove... and then connect all the signals
+
+
+  if( !m_alignWithParentSlot )
+    m_alignWithParentSlot = new JSlot( this );
+
+  string js = "function(s,e){ Wt.WT.AlignOverlay('" + id() + "','" + m_parent->id() + "'); }";
+  m_alignWithParentSlot->setJavaScript( js );
+}//void OverlayCanvas::loadInitOverlayCanvasJs()
 
 
 void OverlayCanvas::connectSignalsToParent( Wt::Chart::WAbstractChart *parent )
@@ -173,13 +409,8 @@ void OverlayCanvas::paintEvent( Wt::WPaintDevice *paintDevice )
 
 
 
-/*
- * See also: http://www.webtoolkit.eu/wt/blog/2010/03/02/javascript_that_is_c__
- */
-#define INLINE_JAVASCRIPT(...) #__VA_ARGS__
 
 /*
-
 var initializeLegend = function( id, parentId, chart_top_padding, chart_right_padding ) {
   try{
     var leg = $('#'+id);
@@ -240,497 +471,7 @@ var doLegendAlignment = function( id )
   };
 };
 
-var scrollOverlayIdArray;
 
-var initCanvasForDragging = function( parentDivId, chartPadding, drawMode, originalID, scrollOverlay )
-{
-  //It would be nice to only propogate to the server mouse movements when either a
-  //  click happens, or a drag operation completes.  Right now this script
-  //  blocks onmousemove, unless the user is dragging.
-  //It would also be nice to catch keyboard events when the mouse is in this widget..
-
-  //XXX - originalID is needed due to bug Wt, see CanvasForDragging for notes
-
-  //XXX - CanvasForDragging doe not work on pages which might be scrolled - this
-  //      can be fixed
-
-//    console.log("originalID is " + originalID + " setting scrollOverlay to " + scrollOverlay);
-
-    if ( scrollOverlayIdArray == undefined )
-    {
-        scrollOverlayIdArray = [ originalID ];
-    }
-    else
-    {
-        if ( scrollOverlay )
-        {
-            scrollOverlayIdArray.push( originalID );
-        }
-    }
-
-
-  try
-  {
-    var canElement = Wt.WT.getElement( 'c' + parentDivId );
-    var can = $('#c'+parentDivId);
-
-    if( !canElement )
-      throw ('Couldnt find parent div canvas element c'+parentDivId);
-        if( !can )
-      throw ('Couldnt find parent div canvas c'+parentDivId);
-
-
-    can.get(0).style.top = '0';
-    can.get(0).style.left = '0';
-
-    //we only want to send click events to the server when it was not a drag event
-    //  so we will use the mouseWasDrugged to keep frack of this
-    can.data('mouseWasDrugged', false);
-    can.data('hasMouse', false);
-
-    canElement.onclick = function(event)
-    {
-      Wt.WT.cancelEvent(event, Wt.WT.CancelPropagate);
-
-      if( !can.data('mouseWasDrugged') )
-        Wt.emit( originalID, {name: 'userSingleClicked', event: event, eventObject: canElement} );
-    };
-
-    canElement.onmousedown = function(event)
-    {
-      Wt.WT.cancelEvent(event, Wt.WT.CancelPropagate);
-      canElement.width = canElement.width;
-      var x = event.pageX - can.offset().left;
-      var y = event.pageY - can.offset().top;
-      can.data('startDragX',x);
-      can.data('startDragY',y);
-      can.data('mouseWasDrugged', false);
-
-      tip.hide();
-
-      if( event.ctrlKey )
-        Wt.emit( originalID, { name: 'cntrlMouseDown' }, Math.round(x) );
-    }
-
-    canElement.onmouseup = function(event)
-    {
-      Wt.WT.cancelEvent(event, Wt.WT.CancelPropagate);
-
-      canElement.width = canElement.width;
-
-      var x0 = can.data('startDragX');
-      var y0 = can.data('startDragY');
-      var x1 = event.pageX - can.offset().left;
-      var y1 = event.pageY - can.offset().top;
-
-      if( x0!==null && y0!==null && can.data('mouseWasDrugged') )
-      {
-        Wt.emit( originalID, {name: 'userDragged', event: event, eventObject: canElement}, Math.round(x0), Math.round(y0) );
-      }
-
-      can.data('startDragX',null);
-      can.data('startDragY',null);
-      can.data('cntrldwn',null);
-    };
-
-    $('<div id="' + parentDivId + '_tip" class=\"peakinfo\"></div>').appendTo(can.parent());
-      var tip = $('#' + parentDivId + '_tip');
-    tip.hide();
-
-//    canElement.setAttribute('title', 'my popup' );
-//    can.tooltip({tip: '#mytip', position: 'center center', offset: [0,15], delay: 0}).dynamic();
-
-
-
-    canElement.onmouseout = function(event)
-    {
-      Wt.WT.cancelEvent(event, Wt.WT.CancelPropagate);
-      canElement.width = canElement.width;
-      can.data('startDragX',null);
-      can.data('startDragY',null);
-      can.data('hasMouse', false);
-      can.data('cntrldwn',null);
-      can.data('altdrag',null);
-      tip.hide();
-      tip.data('curMean',null);
-    };
-
-    canElement.onmouseover = function(event)
-    {
-      Wt.WT.cancelEvent(event, Wt.WT.CancelPropagate);
-      can.data('hasMouse', true);
-    };
-
-
-
-    canElement.onmousemove = function(event)
-    {
-      Wt.WT.cancelEvent(event, Wt.WT.CancelPropagate);
-
-      var currentX = event.pageX - can.offset().left;
-      var currentY = event.pageY - can.offset().top;
-
-      if( can.data('startDragX')===null )
-      {
-        try
-        {
-          var peaks = can.data('peaks');
-          var dist = 99999.9;
-          var nearpeak = -1;
-
-          for( var i in peaks )
-          {
-            var peak = peaks[i];
-            var d = Math.abs(currentX-peak.mean);
-            if( d < dist && (currentX > peak.xminp && currentX < peak.xmaxp) )
-            {
-              dist = d;
-              nearpeak = i;
-            }
-          }
-
-          if( nearpeak < 0 )
-          {
-            tip.hide();
-            tip.data('curMean',null);
-          }else if( peaks[nearpeak].mean === tip.data('curMean') )
-          {
-            if( tip.isHidden() )
-              tip.show();
-          }else
-          {
-            var peak = peaks[nearpeak];
-            tip.data( 'curMean', peak.mean );
-            var htmlTxt = ''
-                         +'<b>mean</b>: ' + peak.mean + ' keV<br>'
-                         +'<b>&sigma;</b>: ' + peak.sigma + ', <b>FWHM</b>: ' + (2.35482*peak.sigma).toFixed(2) + '<br>'
-                         +'<b>peak area</b>: ' + peak.amp + '<br>'
-                         +'<b>cont. area</b>: ' + peak.cont + '<br>'
-                         +'';
-
-            tip.html( htmlTxt );
-            //need to set the peak properties text hear
-            //should transfer total area info, and continuum area info
-            // to display as well
-
-            tip.show();
-
-            var xpos = peak.xmaxp + 15;
-            var ypos = peak.yminp - 0.75*(peak.yminp - peak.ymaxp);
-            ypos = Math.max( ypos, 10 );
-            ypos = Math.min( ypos, can.height() );
-            xpos = Math.max( xpos, 10 );
-            xpos = Math.min( xpos, can.width() );
-
-
-            var leftpos = can.offset().left + xpos;
-//            var toppos = can.offset().top + ypos;
-            var toppos = Math.round(event.clientY);
-
-            if( (toppos + tip.height()+10) > $(window).height() )
-              toppos = $(window).height() - tip.height() - 10;
-
-            tip.offset({ top: toppos, left: leftpos });
-          }
-        }catch(e)
-        {
-          //console.log( "Caught exception with peaks" )
-        }
-      }
-
-      var highlight = drawMode.highlight;
-      var outline = drawMode.outline;
-
-      var cbottom = chartPadding.bottom;
-      var ctop    = chartPadding.top;
-      var cright  = chartPadding.right;
-      var cleft   = chartPadding.left;
-
-      var startX = can.data('startDragX');
-      var startY = can.data('startDragY');
-      if( startX===null || startY===null )
-        return;
-
-      if( !can.data('mouseWasDrugged') )
-        can.data('mouseWasDrugged', true);
-
-
-      canElement.width = canElement.width;
-      //might try the following for QWebView...:
-
-
-      var dx = currentX - startX;
-      var dy = currentY - startY;
-      var absDx = Math.abs(dx);
-      var absDy = Math.abs(dy);
-      var context = canElement.getContext("2d");
-      context.clearRect(0, 0, canElement.width, canElement.height);
-
-
-      if( event.ctrlKey && event.altKey )
-        return;
-
-      if( event.ctrlKey )
-        Wt.emit( originalID, { name: 'cntrlMouseMove' }, Math.round(currentX) );
-
-      if( event.altKey )
-      {
-        var drawArrow = function(y)
-        {
-          context.beginPath();
-          context.moveTo(startX, y);
-          context.lineTo(currentX, y);
-          context.stroke();
-
-          var mult = -1;
-          if( dx < 0 )
-            mult = 1;
-
-          context.beginPath();
-          context.moveTo(currentX,y);
-          context.lineTo(currentX + mult*10, y-4);
-          context.lineTo(currentX + mult*10, y+4);
-          context.moveTo(currentX,y);
-          context.fill();
-        };
-
-        context.beginPath();
-        context.moveTo(startX, 0.05*canElement.height);
-        context.lineTo(startX, 0.95*canElement.height);
-        context.stroke();
-
-        drawArrow( 0.1*canElement.height );
-        drawArrow( 0.33*canElement.height );
-//        drawArrow( 0.5*canElement.height );
-        drawArrow( 0.66*canElement.height );
-        drawArrow( 0.9*canElement.height );
-
-        context.strokeText('Changing Displayed X-axis Range', startX+5, 0.5*canElement.height );
-
-        return;
-      }
-
-
-      if( highlight )
-        context.fillStyle='rgba(255, 255, 0, 0.605)';
-
-// The following paints a green square on all of the canvas.
-// Used for debugging.
-//      context.fillStyle='rgba(0, 255, 0, 0.605)';
-//      context.fillRect(0, 0, 2000, 2000);
-
-      if( absDx==absDy && !event.ctrlKey && !event.shiftKey )
-      {
-        if( highlight )
-         context.fillRect(startX,startY,dx, dy);
-
-        if(outline)
-        {
-          context.beginPath();
-          context.moveTo(startX, startY);
-          context.lineTo(startX, currentY);
-          context.lineTo(currentX, currentY);
-          context.lineTo(currentX, startY);
-          context.lineTo(startX, startY);
-          context.stroke();
-        }//if( outline )
-      }else if( ((absDx > absDy) || event.ctrlKey) && !event.shiftKey )
-      {
-        if( highlight )
-          context.fillRect(startX, ctop +5,dx,canElement.height-ctop-cbottom -5);
-
-        if(outline)
-        {
-          context.moveTo(startX, canElement.height- cbottom );
-          context.lineTo(startX, ctop );
-          context.moveTo(currentX, canElement.height-cbottom );
-          context.lineTo(currentX, ctop );
-          context.stroke();
-        }//if( outline )
-
-        if( !event.ctrlKey && !highlight && absDx>10 )
-        {
-          if( dx>0 )
-            context.strokeText('Zoom In', -25 + (startX+currentX)/2.0, (ctop+5+canElement.height-cbottom)/2.0 );
-          else
-          {
-            if( absDx < 0.02*canElement.width )
-              context.strokeText('Zoom Out x2', -30 + (startX+currentX)/2.0, (ctop+5+canElement.height-cbottom)/2.0 );
-            else if( absDx < 0.04*canElement.width )
-              context.strokeText('Zoom Out x4', -30 + (startX+currentX)/2.0, (ctop+5+canElement.height-cbottom)/2.0 );
-            else
-              context.strokeText('Zoom Out Completely', -50 + (startX+currentX)/2.0, (ctop+5+canElement.height-cbottom-5)/2.0 );
-          }
-        }
-
-        if( event.ctrlKey  )
-        {
-          var cntrldwn = can.data('cntrldwn');
-          if( cntrldwn )
-          {
-        // Now well draw some arrows to indicate something besides a zoom-in will happen
-              context.strokeStyle = 'black';
-
-              var yheight = 15 + canElement.height/2.0;
-
-              context.beginPath();
-              context.moveTo(cntrldwn.x-35, yheight);
-              context.lineTo(cntrldwn.x, yheight);
-              context.stroke();
-
-              context.beginPath();
-              context.moveTo(cntrldwn.x,yheight);
-              context.lineTo(cntrldwn.x-10,yheight-4);
-              context.lineTo(cntrldwn.x-10,yheight+4);
-              context.moveTo(cntrldwn.x,yheight);
-              context.fill();
-
-              context.beginPath();
-              context.moveTo(currentX+35, yheight);
-              context.lineTo(currentX, yheight);
-              context.stroke();
-
-              context.beginPath();
-              context.moveTo(currentX,yheight);
-              context.lineTo(currentX+10,yheight-4);
-              context.lineTo(currentX+10,yheight+4);
-              context.moveTo(currentX,yheight);
-              context.fill();
-
-              context.strokeText('Will Search Within', -50 + (cntrldwn.x+currentX)/2.0, yheight-15);
-          }
-        }
-
-      }else if( !event.shiftKey )
-      {
-        if( highlight )
-          context.fillRect(cleft,startY,canElement.width-cright-cleft, dy);
-
-        if( outline )
-        {
-          context.moveTo( cleft, startY);
-          context.lineTo(canElement.width-cright, startY);
-          context.moveTo( cleft, currentY);
-          context.lineTo(canElement.width-cright, currentY);
-        }//if( outline )
-
-        if( absDy>10 )
-        {
-          if( dy > 0 )
-            context.strokeText('Zoom-in on Y-axis', -30 + canElement.width/2.0, 5 + startY + 0.5*dy );
-          else
-          {
-            if( absDy < 0.05*canElement.height )
-              context.strokeText('Zoom-out on Y-axis x2', -30 + canElement.width/2.0, 5 + startY + 0.5*dy );
-            else if( absDy < 0.075*canElement.height )
-              context.strokeText('Zoom-out on Y-axis x4', -30 + canElement.width/2.0, 5 + startY + 0.5*dy );
-            else
-              context.strokeText('Zoom-out on Y-axis full', -30 + canElement.width/2.0, 5 + startY + 0.5*dy );
-          }
-        }
-
-      }else if( event.shiftKey )
-      {
-        context.fillStyle='rgba(61, 61, 61, 0.25)';
-        context.fillRect(startX, ctop +5,dx,canElement.height-ctop-cbottom-10);
-        context.moveTo(startX, canElement.height- cbottom -5);
-        context.lineTo(startX, ctop+5);
-        context.moveTo(currentX, canElement.height-cbottom-5);
-        context.lineTo(currentX, ctop+5);
-        context.strokeText('Will Erase Peaks In Range', -45 + (startX+currentX)/2.0, (ctop+5+canElement.height-cbottom-5)/2.0 );
-      }
-
-      if( outline )
-      {
-        context.strokeStyle = "#544E4F";
-        context.stroke();
-      }//if( !highlight )
-    };
-
-    var keyPressWhileMousedOver = function(e)
-    {
-      if( (e.keyCode === 27) && (can.data('startDragX') !== null) )
-      {
-        canElement.width = canElement.width;
-
-        can.data('startDragX',null);
-        can.data('startDragY',null);
-        Wt.WT.cancelEvent(e, Wt.WT.CancelPropagate);
-        return;
-      }
-
-      if( can.data('hasMouse') )
-        Wt.emit( originalID, {name: 'keyPressWhileMousedOver', event: e, eventObject: canElement} );
-    };
-
-    $(document).keyup( keyPressWhileMousedOver );
-
-
-    function handleDrop(evt)
-    {
-//    Wt.WT.cancelEvent(evt, Wt.WT.CancelPropagate);
-      evt.stopPropagation();
-      evt.preventDefault();
-
-      var files = evt.dataTransfer.files; // FileList object.
-
-      if( files.length !== 1 )
-        return;
-
-      var uploadURL = null;
-      try
-      {
-        uploadURL = can.data('UploadURL');
-        if( !uploadURL ) return;
-      }catch(e){return; }
-
-      var file  = files[0];
-      var xhr = new XMLHttpRequest();
-      xhr.open("POST", uploadURL, false);
-      xhr.setRequestHeader("Content-type", "application/x-spectrum");
-      xhr.setRequestHeader("Cache-Control", "no-cache");
-      xhr.setRequestHeader("X-Requested-With", "XMLHttpRequest");
-      xhr.setRequestHeader("X-File-Name", file.name);
-      xhr.send(file);
-
-      var data = xhr.responseText;
-      var status = xhr.status;
-      if( status !== 200 && data )
-        alert( data + "\nResponse code " + status );
-    };//function handleDrop(evt)
-
-    function handleDragEnter(evt)
-    {
-  //      Wt.WT.cancelEvent(evt, Wt.WT.CancelPropagate);
-      evt.stopPropagation();
-      evt.preventDefault();
-      evt.dataTransfer.dropEffect = 'copy'; // Explicitly show this is a copy.
-//     console.log("handleDragEnter - " );
-    };//function handleDragOver(evt)
-
-    function handleDragExit(evt)
-    {
-      evt.stopPropagation();
-      evt.preventDefault();
-    }
-    function handleDragOver(evt)
-    {
-      evt.stopPropagation();
-      evt.preventDefault();
-    }
-
-    canElement.addEventListener('dragenter', handleDragEnter, false);
-    canElement.addEventListener("dragexit", handleDragExit, false);
-    canElement.addEventListener("dragover", handleDragOver, false);
-    canElement.addEventListener("drop", handleDrop, false);
-  }catch(e)
-  {
-    if( typeof(e)=='string')
-      Wt.emit(originalID, 'jsException', '[initCanvasForDragging exception]: ' + e );
-    else
-      Wt.emit(originalID, 'jsException', '[initCanvasForDragging exception]: ');
-  }
-}//var initCanvasForDragging = functiion(...)
 
 //var g_scrollY = 0;
 
@@ -795,29 +536,8 @@ var alignPaintedWidgets = function(childId,parentId)
     // the y-scrolled amount in the C++ callback function
     // (WtTh1Chart::handleDrag()
 
-    if ( ( scrollOverlayIdArray != undefined ) &&
-         ( scrollOverlayIdArray.indexOf( childId ) != -1 ) )
-    {
-      //upper chart
-      var newOffset = parent.offset();
 
-      if (scrollParentId != "")
-      {
-        // Only do this for the Anthony app
-        // The new y position should be lined up with the
-        // original (unscrolled) y position of the chart
-        var y = getOffset( parentEl ).top;
-        newOffset.top = y;
-      }
-
-      child.offset( newOffset );
-    }
-    else
-    {
-      // lower chart
-      // console.log('default behavior for lower chart childId ' + childId);
-      child.offset( parent.offset() );
-    }
+    child.offset( parent.offset() );
 
 
     var w, h;

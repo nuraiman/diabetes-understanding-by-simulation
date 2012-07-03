@@ -29,7 +29,7 @@ var initOverlayCanvas = function( parentDivId, chartPadding, drawMode )
     //  so we will use the mouseWasDrugged to keep frack of this
     can.data('mouseWasDrugged', false);
     can.data('hasMouse', false);
-
+/*
     canElement.onclick = function(event)
     {
       Wt.WT.cancelEvent(event, Wt.WT.CancelPropagate);
@@ -91,7 +91,7 @@ var initOverlayCanvas = function( parentDivId, chartPadding, drawMode )
       Wt.WT.cancelEvent(event, Wt.WT.CancelPropagate);
       can.data('hasMouse', true);
     };
-
+*/
 
 
     canElement.onmousemove = function(event)
@@ -215,9 +215,9 @@ var initOverlayCanvas = function( parentDivId, chartPadding, drawMode )
         if(outline)
         {
           context.moveTo(startX, canElement.height- cbottom );
-          context.lineTo(startX, ctop /*+5*/);
+          context.lineTo(startX, ctop +5);
           context.moveTo(currentX, canElement.height-cbottom );
-          context.lineTo(currentX, ctop /*+5*/);
+          context.lineTo(currentX, ctop +5);
           context.stroke();
         }//if( outline )
 
@@ -339,6 +339,9 @@ var initOverlayCanvas = function( parentDivId, chartPadding, drawMode )
     $(document).keyup( keyPressWhileMousedOver );
   }catch(e)
   {
+    if( console && console.log )
+      console.log( 'Caught the exeption' );
+
     if( typeof(e)=='string')
       Wt.emit(parentDivId, 'jsException', '[initCanvasForDragging exception]: ' + e );
     else 

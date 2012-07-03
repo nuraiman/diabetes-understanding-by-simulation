@@ -44,8 +44,8 @@ public:
   void setWtResizeJsForOverlay();
   void setLegendOffsetFromTop( const int &offset );   //in pixels
   void setLegendOffsetFromRight( const int &offset ); //in pixels
-  void paint( Wt::WPainter& painter, const Wt::WRectF& rectangle = Wt::WRectF() ) const;
-  void paintEvent( Wt::WPaintDevice *paintDevice );
+  virtual void paint( Wt::WPainter& painter, const Wt::WRectF& rectangle = Wt::WRectF() ) const;
+  virtual void paintEvent( Wt::WPaintDevice *paintDevice );
 };//class WChartWithLegend
 
 
