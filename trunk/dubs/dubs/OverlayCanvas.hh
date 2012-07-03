@@ -19,8 +19,26 @@ namespace Wt
   namespace Chart{ class WAbstractChart; }
 }//namespace Wt
 
+#define TEST_OverlayDragEvent 1
 
+#if( TEST_OverlayDragEvent )
+struct OverlayDragEvent
+{
+  //I have modified the JSlot onMouseUpSlot to actually be able to emit this
+  //  event - just no where else in the code.
+  //  Also I should delegate the encoding of the OverlayDragEvent
+  //  to a static javascript function to save bandwidth - right now it is just in
+  //  the onMouseUpSlotJS
+  int x0, x1, y0, y1;
+  int button, keyCode, charCode;
+  Wt::WFlags<Wt::KeyboardModifier> keyModifiers;
+  int wheelDelta;
+//  std::vector<Touch> touches, targetTouches, changedTouches;
+  void clear();
+};//struct OverlayDragEvent
 
+bool operator>>( std::istream &, OverlayDragEvent& t);
+#endif
 
 class OverlayCanvas : public Wt::WPaintedWidget
 {
@@ -56,6 +74,8 @@ public:
   Wt::JSignal<std::string> *jsException();  //[only partially implemented client side] notifies you of javascript exceptions - probably is not needed for non-debug releases
 
 
+  void alignWithParent();  //depreciated - should be removed or something
+
   //By default the clicked() and doubleClicked() EventSignals from the this
   //  OverlayCanvas are propogated server side to the parent WAbstractChart
   //  signals, but none of the other user signals such as mouseWheel,
@@ -65,6 +85,10 @@ public:
   void connectSignalsToParent( Wt::Chart::WAbstractChart *parent );
 
 protected:
+
+  void loadInitOverlayCanvasJs();
+
+
   virtual void paintEvent( Wt::WPaintDevice *paintDevice );
 
   Wt::JSignal<int/*x0*/,int/*y0*/,Wt::WMouseEvent /*mouseup event*/> *m_userDraggedSignal;
@@ -73,6 +97,8 @@ protected:
   Wt::JSignal<int> *m_controlMouseDown;
   Wt::JSignal<int> *m_controlMouseMove;
   Wt::JSignal<std::string> *m_jsException;
+
+  Wt::JSlot *m_alignWithParentSlot;  //depreciated - should be removed or something
 private:
   Wt::Chart::WAbstractChart* m_parent;
 };//class OverlayCanvas

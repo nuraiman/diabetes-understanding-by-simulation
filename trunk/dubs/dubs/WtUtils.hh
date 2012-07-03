@@ -4,12 +4,14 @@
 #include <vector>
 #include "boost/date_time/posix_time/posix_time.hpp"
 #include <boost/thread/recursive_mutex.hpp>
-#include <Wt/WApplication>
-#include <Wt/WContainerWidget>
-#include <Wt/WDateTime>
 
 #include <Wt/WSpinBox>
+#include <Wt/WDateTime>
+#include <Wt/WJavaScript>
+#include <Wt/WApplication>
 #include <Wt/WDoubleSpinBox>
+#include <Wt/WContainerWidget>
+
 #include "ArtificialPancrease.hh"
 
 
@@ -39,19 +41,32 @@ class Div : public Wt::WContainerWidget
   virtual ~Div() {}
 };//class Div : Wt::WContainerWidget
 
-
+//Right now I am having trouble using JSlot's to communicate from the server to
+//  the client to set the time or timeselect options; it seems to work fine
+//  using doJavaScript(...), but I would preffer using JSlot's
+#define USE_JSLOTS_WITH_DateTimeSelect 0
 
 class DateTimeSelect : public Wt::WContainerWidget
 {
-  Wt::WDatePicker *m_datePicker;
-  Wt::WSpinBox    *m_hourSelect;
-  Wt::WSpinBox    *m_minuteSelect;
+  Wt::WLineEdit *m_lineEdit;
+
+  Wt::JSignal<std::string> *m_timeSelected;  //string is in format '07/23/2010 12:15:00 pm'
+  Wt::JSignal<std::string> *m_sectionBoxClosed;  //string is in format '07/23/2010 12:15:00 pm'
+
+#if( USE_JSLOTS_WITH_DateTimeSelect )
+  Wt::JSlot *m_setTopSlot;
+  Wt::JSlot *m_setBottomSlot;
+  Wt::JSlot *m_setDateTimeSlot;
+#endif //USE_JSLOTS_WITH_DateTimeSelect
+
   Wt::WDateTime    m_top;
   Wt::WDateTime    m_bottom;
-  Wt::Signal<>     m_changed;
+  Wt::WDateTime    m_dateTime;
   Wt::Signal<>     m_topBottomChanged;
+  Wt::Signal<Wt::WDateTime> m_changed;
 
-  void validate( bool emitChanged = false );
+  void validate( bool emitChanged );
+  void changedCallback( const std::string &datTimeText );
 
 public:
   //If no initial time is given, will be set to current time
@@ -60,6 +75,17 @@ public:
                   Wt::WContainerWidget *parent = NULL );
 
   virtual ~DateTimeSelect();
+
+  //In the furuture if I make formatiing of date/time optional, dateTimeFromStr()
+  //  and dateTimeToStr() will obey this formatting.
+
+  //dateTimeFromStr(...) expects input like '07/23/2010 12:15:00 pm'
+  Wt::WDateTime dateTimeFromStr( const std::string &datetime ) const;
+
+  //dateTimeToStr(...) returns answer in format like '07/23/2010 12:15:00 pm'
+  std::string dateTimeToStr( const Wt::WDateTime &datetime ) const;
+
+  static std::string jsForDate( const Wt::WDateTime &datetime );
 
   void set( const Wt::WDateTime &dateTime );
   void setToCurrentTime();
@@ -70,7 +96,7 @@ public:
   const Wt::WDateTime &bottom() const;
 
 
-  Wt::Signal<> &changed();
+  Wt::Signal<Wt::WDateTime> &changed();
   Wt::Signal<> &topBottomUpdated();
 };//class DateTimeSelect
 

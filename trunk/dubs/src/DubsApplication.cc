@@ -99,6 +99,15 @@ void DubsApplication::showAppScreen()
 
   const Dbo::ptr<DubUser> user = m_dubsSession.user();
 
+  string username;
+
+  {
+    Dbo::Transaction transaction( m_dubsSession );
+    username = user->name;
+    transaction.commit();
+  }
+
+
   if( !user )
   {
     cerr << SRC_LOCATION <<"\n\tI shouldnt ever be here" << endl;
@@ -106,8 +115,8 @@ void DubsApplication::showAppScreen()
     return;
   }//if( !m_dubsSession.user() )
 
-  if( m_server.sessionId(user->name) != sessionId() )
-    m_server.login( user->name, sessionId() );
+  if( m_server.sessionId(username) != sessionId() )
+    m_server.login( username, sessionId() );
 
   root()->clear();
   WGridLayout *layout = new WGridLayout();

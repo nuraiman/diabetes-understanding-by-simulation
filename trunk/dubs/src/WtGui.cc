@@ -185,6 +185,7 @@ WtGui::WtGui( Wt::Dbo::ptr<DubUser> user, Wt::WApplication *app, Wt::WContainerW
     m_fileMenuPopup( NULL ),
     m_tabs( NULL ),
     m_nlSimleDisplayModel( new NLSimpleDisplayModel( this, NULL ) ),
+    m_overviewTab( NULL ),
     m_bsModel( NULL ),
     m_bsGraph( NULL ),
     m_bsGraphOverlay( NULL ),
@@ -353,6 +354,8 @@ void WtGui::openModelDialog()
 }//void openModelDialog()
 
 
+
+
 void WtGui::init()
 {
   boost::recursive_mutex::scoped_lock lock( m_modelMutex );
@@ -450,11 +453,8 @@ void WtGui::init()
   m_bsGraph->axis(Chart::YAxis).setTitle( "mg/dL" );
   m_bsGraph->setMinimumSize( 200, 150 );
 
-  m_bsGraph->setWtResizeJsForOverlay();
   m_bsGraphOverlay = new OverlayCanvas( m_bsGraph, true, true );
   m_bsGraphOverlay->userDragged().connect( this, &WtGui::userDragZoomedBsGraph );
-  m_tabs->currentChanged().connect( m_bsGraphOverlay, &WTabWidget::hide );
-
 
   m_nlSimleDisplayModel->useColumn(NLSimple::kPredictedBloodGlucose);
   Chart::WDataSeries predictSeries( m_nlSimleDisplayModel->columnCount()-2, Chart::LineSeries );
@@ -571,14 +571,14 @@ void WtGui::init()
   m_bsBeginTimePicker->changed().connect( boost::bind( &WtGui::updateDisplayedDateRange, this ) );
   m_bsEndTimePicker->changed().connect( boost::bind( &WtGui::updateDisplayedDateRange, this ) );
 
-  Div *bsTabDiv = new Div( "bsTabDiv" );
+  m_overviewTab = new Div( "bsTabDiv" );
   WBorderLayout *bsTabLayout = new WBorderLayout();
   bsTabLayout->setSpacing( 0 );
   bsTabLayout->setContentsMargins( 0, 0, 0, 0 );
-  bsTabDiv->setLayout( bsTabLayout );
+  m_overviewTab->setLayout( bsTabLayout );
   bsTabLayout->addWidget( m_bsGraph, WBorderLayout::Center );
   bsTabLayout->addWidget( datePickingDiv, WBorderLayout::South );
-  m_tabs->addTab( bsTabDiv, "Display", WTabWidget::PreLoading );
+  m_tabs->addTab( m_overviewTab, "Display", WTabWidget::PreLoading );
 
   /*Div *optionsTabDiv = new Div( "optionsTabDiv" );
   m_tabs->addTab( optionsTabDiv, "Options" );*/
@@ -702,7 +702,7 @@ void WtGui::init()
   /*WMenuItem *tabItem = */m_tabs->addTab( m_notesTab, "Notes", WTabWidget::PreLoading );
 
   m_excludeTimeRangeTab = new WtExcludeTimeRangesTab( this );
-  /*WMenuItem *excludeTab = */m_tabs->addTab( m_excludeTimeRangeTab, "Excluded Data", WTabWidget::PreLoading  );
+  m_tabs->addTab( m_excludeTimeRangeTab, "Excluded Data", WTabWidget::PreLoading  );
 
 
   m_tabs->currentChanged().connect( boost::bind( &WtGui::tabClickedCallback, this, _1 ) );
@@ -929,7 +929,7 @@ void WtGui::userDragZoomedBsGraph( int x0, int y0, Wt::WMouseEvent event )
     return;
 
   const WPointF start = m_bsGraph->mapFromDevice( WPointF(x0, y0) );
-  const WPointF finish = m_bsGraph->mapFromDevice( WPointF(event.document().x, event.document().y) );
+  const WPointF finish = m_bsGraph->mapFromDevice( WPointF(event.widget().x, event.widget().y) );
 
   const std::time_t startEpich = start.x();
   const std::time_t finishEpich = finish.x();
@@ -1611,15 +1611,23 @@ void WtGui::setModelFileName( const std::string &fileName )
 
 void WtGui::tabClickedCallback( int clickedIndex )
 {
-
-  const int notesTabIndex = m_tabs->indexOf(m_notesTab);
-  const int exludeDataIndex = m_tabs->indexOf(m_excludeTimeRangeTab);
+  const int overviewTabIndex = m_tabs->indexOf( m_overviewTab );
+  const int notesTabIndex = m_tabs->indexOf( m_notesTab );
+  const int exludeDataIndex = m_tabs->indexOf( m_excludeTimeRangeTab );
 
   if( clickedIndex != notesTabIndex )
-  {
     m_notesTab->saveCurrent();
-    return;
-  }//if( clickedIndex != notesTabIndex )
+
+  if( clickedIndex == overviewTabIndex )
+    m_bsGraphOverlay->show();
+  else
+    m_bsGraphOverlay->hide();
+
+  if( clickedIndex == exludeDataIndex )
+    m_excludeTimeRangeTab->showChartOverlay();
+  else
+    m_excludeTimeRangeTab->hideChartOverlay();
+
 }//void tabClickedCallback(int);
 
 
@@ -1931,7 +1939,7 @@ void WtModelSettingsGui::init()
   if( !m_settings ) return;
 
   WGridLayout *layout = new WGridLayout();
-  setLayout( layout );
+  setLayout( layout, Wt::AlignTop | Wt::AlignLeft );
 
   const int maxRows = 8;
   int row = 0, column = 0;
@@ -3217,18 +3225,87 @@ void WtNotesTab::updateViewTable()
 
 
 
+WtExcludeTimeRangesTab::ExcludedRangesChart::ExcludedRangesChart(
+              WtExcludeTimeRangesTab *parentTab, Wt::WContainerWidget *parent )
+  : WChartWithLegend( parentTab->m_parentWtGui, parent ),
+    m_parentTab( parentTab )
+{
+}//
+
+WtExcludeTimeRangesTab::ExcludedRangesChart::~ExcludedRangesChart()
+{
+}
+
+void WtExcludeTimeRangesTab::ExcludedRangesChart::paint( Wt::WPainter& painter, const Wt::WRectF& rectangle ) const
+{
+  WChartWithLegend::paint( painter, rectangle );
+
+  //excluded ranges are already greyed out, here we just want to yellow out the
+  //  currently selected range
+
+  const WModelIndexSet selected = m_parentTab->m_view->selectedIndexes();
+
+  const bool draw = ( selected.size() || m_parentTab->m_newRangeButton->isHidden() );
+
+  if( draw )
+  {
+    PosixTime start = m_parentTab->m_startExcludeSelect->dateTime().toPosixTime();
+    PosixTime end = m_parentTab->m_endExcludeSelect->dateTime().toPosixTime();
+
+    if( start.is_special() || end.is_special() )
+      return;
+
+    boost::shared_ptr<NLSimpleDisplayModel> displayModel;
+    displayModel = m_parentGui->getSimpleSimDisplayModel();
+    const PosixTime &minTime = displayModel->beginDisplayTime();
+    const PosixTime &maxTime = displayModel->endDisplayTime();
+
+    if( start >= minTime && start < maxTime  && end > minTime  )
+    {
+      if( start < minTime )
+        start = minTime;
+      if( start > maxTime )
+        start = maxTime;
+      if( end < minTime )
+        end = minTime;
+      if( end > maxTime )
+        end = maxTime;
+
+      WPointF upperLeft = mapToDevice( WDateTime::fromPosixTime(start),
+                                       axis(Chart::YAxis).maximum() );
+      WPointF lowerRight = mapToDevice( WDateTime::fromPosixTime(end),
+                                       axis(Chart::YAxis).minimum() );
+      WColor fillColor( 50, 0, 0, 100 );
+      painter.fillRect( WRectF( upperLeft, lowerRight ), WBrush( fillColor ) );
+//      cerr << "\n\nE"
+//           << ", ul={" << upperLeft.x() << "," << upperLeft.y() << "}"
+//           << ", lr={" << lowerRight.x() << "," << lowerRight.y() << "}"
+//           << endl << endl;
+    }//if( start >= minTime && start < maxTime  && end > minTime  )
+
+    painter.setPen( Wt::WPen() );
+
+  }//if( draw )
+
+}//paint(...)
+
+void WtExcludeTimeRangesTab::ExcludedRangesChart::paintEvent( Wt::WPaintDevice *paintDevice )
+{
+  WChartWithLegend::paintEvent( paintDevice );
+}
 
 
 
 WtExcludeTimeRangesTab::WtExcludeTimeRangesTab( WtGui *parentWtGui,
                                                 Wt::WContainerWidget *parent )
   : WContainerWidget( parent ), m_parentWtGui( parentWtGui ),
-    m_chart( new WChartWithLegend( parentWtGui ) ),
+    m_chart( new ExcludedRangesChart( this ) ),
+    m_chartOverlay( NULL ),
     m_displayModel( new NLSimpleDisplayModel( parentWtGui ) ),
     m_view( new WTableView() ),
     m_listModel( new WtTimeRangeVecModel( parentWtGui ) ),
     m_deleteButton( new WPushButton( "Delete Selected" ) ),
-    m_enableAddNewRangeButton( new WPushButton( "Add New Range" ) ),
+    m_newRangeButton( new WPushButton( "Add New Range" ) ),
     m_startExcludeSelect( new DateTimeSelect( "Start Time") ),
     m_endExcludeSelect( new DateTimeSelect( "&nbsp;&nbsp;&nbsp;End Time") ),
     m_addRangeButton( new WPushButton( "Add to Model" ) ),
@@ -3241,10 +3318,12 @@ WtExcludeTimeRangesTab::WtExcludeTimeRangesTab( WtGui *parentWtGui,
   //hook the widgets up to the functions interacting with them should call
   m_view->selectionChanged().connect( this, &WtExcludeTimeRangesTab::displaySelected );
   m_addRangeButton->clicked().connect( this, &WtExcludeTimeRangesTab::addEnteredRangeToModel );
-  m_enableAddNewRangeButton->clicked().connect( this, &WtExcludeTimeRangesTab::allowUserToEnterNewRange );
   m_deleteButton->clicked().connect( this, &WtExcludeTimeRangesTab::deleteSelectedRange );
-  m_endExcludeSelect->changed().connect( this, &WtExcludeTimeRangesTab::updateGraphWithUserRange );
-  m_startExcludeSelect->changed().connect( this, &WtExcludeTimeRangesTab::updateGraphWithUserRange );
+  m_endExcludeSelect->changed().connect( boost::bind( &ExcludedRangesChart::update, m_chart, WFlags<PaintFlag>() ) );
+  m_startExcludeSelect->changed().connect( boost::bind( &ExcludedRangesChart::update, m_chart, WFlags<PaintFlag>() ) );
+
+//  m_endExcludeSelect->changed().connect( this, &WtExcludeTimeRangesTab::updateGraphWithUserRange );
+//  m_startExcludeSelect->changed().connect( this, &WtExcludeTimeRangesTab::updateGraphWithUserRange );
 
   //Set up the view for the list of excluded time ranges
   m_view->setModel( m_listModel );
@@ -3284,13 +3363,20 @@ WtExcludeTimeRangesTab::WtExcludeTimeRangesTab( WtGui *parentWtGui,
 
   m_chart->setXSeriesColumn( m_displayModel->columnCount()-1 );
 
+  m_chartOverlay = new OverlayCanvas( m_chart, true, true );
+//  m_chartOverlay->jsException()->connect( boost::bind( printexp, _1 ) );
+  m_chartOverlay->userDragged().connect( boost::bind( &WtExcludeTimeRangesTab::userDraggedCallback, this, _1, _2, _3 ) );
+
+  m_newRangeButton->clicked().connect( boost::bind( &WtExcludeTimeRangesTab::allowUserToEnterNewRange, this ) );
+
   //Now put all the widgets into the gui
   layout->addWidget( m_view, 0, 0, 1, 2  );
   layout->addWidget( m_chart, 0, 2, 1, 1  );
-  layout->addWidget( m_enableAddNewRangeButton, 1, 0, 1, 1 );
+  layout->addWidget( m_newRangeButton, 1, 0, 1, 1 );
   layout->addWidget( m_deleteButton, 1, 1, 1, 1 );
   layout->addWidget( m_description, 1, 2, 1, 1  );
   Div *newTimePeriodDiv = new Div();
+
   newTimePeriodDiv->addWidget( m_startExcludeSelect );
   newTimePeriodDiv->addWidget( m_endExcludeSelect );
   newTimePeriodDiv->addWidget( m_addRangeButton );
@@ -3302,7 +3388,7 @@ WtExcludeTimeRangesTab::WtExcludeTimeRangesTab( WtGui *parentWtGui,
   layout->setColumnStretch( 1, 2 );
   layout->setColumnStretch( 2, 10 );
   layout->setRowStretch( 0, 10 );
-  layout->setRowStretch( 1, 1 );
+//  layout->setRowStretch( 1, 1 );
   layout->setRowStretch( 2, 1 );
 
   m_saveModel->setHiddenKeepsGeometry( true );
@@ -3310,10 +3396,90 @@ WtExcludeTimeRangesTab::WtExcludeTimeRangesTab( WtGui *parentWtGui,
   m_addRangeButton->setHiddenKeepsGeometry( true );
   m_endExcludeSelect->setHiddenKeepsGeometry( true );
   m_startExcludeSelect->setHiddenKeepsGeometry( true );
-  m_enableAddNewRangeButton->setHiddenKeepsGeometry( true );
 
-  displaySelected();
+  setShowingExistingRange();
 }//WtExcludeTimeRangesTab constructor
+
+
+void WtExcludeTimeRangesTab::hideChartOverlay()
+{
+  if( m_chartOverlay )
+    m_chartOverlay->hide();
+}//void hideChartOverlay()
+
+
+void WtExcludeTimeRangesTab::showChartOverlay()
+{
+  m_chartOverlay->show();
+//  m_chartOverlay->alignWithParent();
+}//void showChartOverlay()
+
+
+void WtExcludeTimeRangesTab::userDraggedCallback( int x0, int y0, Wt::WMouseEvent event )
+{
+  if( fabs(event.document().x - double(x0)) < 5 )
+    return;
+
+  WPointF start = m_chart->mapFromDevice( WPointF(x0, y0) );
+  WPointF finish = m_chart->mapFromDevice( WPointF(event.widget().x, event.widget().y) );
+
+  const bool zoom = event.ctrlKey();
+
+  const std::time_t startEpich = start.x();
+  const std::time_t finishEpich = finish.x();
+
+  const WDateTime earliesData = WDateTime::fromPosixTime( m_parentWtGui->getSimpleSimDisplayModel()->earliestData() );
+  const WDateTime latestData  = WDateTime::fromPosixTime( m_parentWtGui->getSimpleSimDisplayModel()->latestData() );
+
+
+  WDateTime startTime = WDateTime::fromTime_t( startEpich );
+  WDateTime finishTime = WDateTime::fromTime_t( finishEpich );
+
+
+  cerr << "Initish startTime=" << startTime.toString()
+       << ", finishTime=" << finishTime.toString() << endl << endl;
+
+//  const TimeDuration initialTimeDiff = finishTime - startTime;
+
+  if( finishTime < earliesData )
+    finishTime = earliesData;
+  if( finishTime > latestData )
+    finishTime = latestData;
+  if( startTime < earliesData )
+    startTime = earliesData;
+  if( startTime > latestData )
+    startTime = latestData;
+
+  if( zoom )
+  {
+    if( startTime == finishTime )
+    {
+      startTime = earliesData;
+      finishTime = latestData;
+    }//if( startTime == finishTime )
+
+    if( startTime > finishTime )
+      std::swap( finishTime, startTime );
+    zoomGraph( startTime, finishTime );
+  }else
+  {
+    if( m_view->selectedIndexes().size() > 0 )
+    {
+      cerr << "WtExcludeTimeRangesTab::userDraggedCallback(...): "
+              "You cant zoom in when anything is selected" << endl;
+      return;
+    }//if( m_view->selectedIndexes().size() > 0 )
+
+    cerr << "\nExcluding from " << startTime.toString()
+         << " to " << finishTime.toString() << endl << endl;
+
+    m_startExcludeSelect->set( startTime );
+    m_endExcludeSelect->set( finishTime );
+  }//if( zoom ) / else
+
+  m_chart->update();  //XXX - Is this necassary?
+}//void userDragZoomedBsGraph( int x1, int x2, Wt::WMouseEvent event )
+
 
 
 void WtExcludeTimeRangesTab::displaySelected()
@@ -3339,40 +3505,72 @@ void WtExcludeTimeRangesTab::displaySelected()
       return;
     }//try / catch
 
+    m_startExcludeSelect->set( start );
+    m_endExcludeSelect->set( end );
     m_description->setText( start.toString() + " through " + end.toString() );
-    m_displayModel->setDisplayedTimeRange( start.toPosixTime(), end.toPosixTime() );
+//    m_displayModel->setDisplayedTimeRange( start.toPosixTime(), end.toPosixTime() );
+    setShowingExistingRange();
   }else
   {
-    const PosixTime now = boost::posix_time::second_clock::local_time();
+//    const PosixTime now = boost::posix_time::second_clock::local_time();
     m_description->setText( "Select a range to view activity" );
-    m_displayModel->setDisplayedTimeRange( now, now );
+//    m_displayModel->setDisplayedTimeRange( now, now );
+    setShowingExistingRange();
   }//if we have something to display / else
 
-  m_saveModel->setHidden( true );
-  m_deleteButton->setHidden( false );
-  m_addRangeButton->setHidden( true );
-  m_endExcludeSelect->setHidden( true );
-  m_startExcludeSelect->setHidden( true );
-  m_enableAddNewRangeButton->setHidden( false );
+//  m_saveModel->setHidden( true );
+  m_saveModel->setHidden( false );
+  m_chart->update();
 }//displaySelected()
 
 
-void WtExcludeTimeRangesTab::allowUserToEnterNewRange()
+void WtExcludeTimeRangesTab::setAddingNewRange()
 {
-  m_saveModel->setHidden( false );
+  m_view->setSelectedIndexes( WModelIndexSet() );
   m_deleteButton->setHidden( true );
+  m_newRangeButton->setHidden( true );
   m_addRangeButton->setHidden( false );
   m_endExcludeSelect->setHidden( false );
   m_startExcludeSelect->setHidden( false );
-  m_enableAddNewRangeButton->setHidden( true );
+}//void setAddingNewRange()
 
-  m_endExcludeSelect->setToCurrentTime();
-  m_startExcludeSelect->setToCurrentTime();
+void WtExcludeTimeRangesTab::setShowingExistingRange()
+{
+  if( m_view->selectedIndexes().size() )
+  {
+    m_newRangeButton->setHidden( false );
+    m_deleteButton->setHidden( false );
+    m_addRangeButton->setHidden( true );
+    m_endExcludeSelect->setHidden( true );
+    m_startExcludeSelect->setHidden( true );
+  }else
+  {
+    m_newRangeButton->setHidden( false );
+    m_deleteButton->setHidden( true );
+    m_addRangeButton->setHidden( true );
+    m_endExcludeSelect->setHidden( true );
+    m_startExcludeSelect->setHidden( true );
+  }//if( m_view->selectedIndexes().size() ) / else
+}//void setShowingExistingRange()
+
+void WtExcludeTimeRangesTab::allowUserToEnterNewRange()
+{
+  m_view->setSelectedIndexes( WModelIndexSet() );
+
+  m_saveModel->setHidden( false );
+  m_deleteButton->setHidden( true );
+  m_newRangeButton->setHidden( true );
+
+  m_addRangeButton->setHidden( false );
+  m_endExcludeSelect->setHidden( false );
+  m_startExcludeSelect->setHidden( false );
+
+//  m_endExcludeSelect->setToCurrentTime();
+//  m_startExcludeSelect->setToCurrentTime();
 
   updateDataRangeDates();
-  m_displayModel->setDisplayedTimeRange( m_startExcludeSelect->dateTime().toPosixTime(),
-                                         m_endExcludeSelect->dateTime().toPosixTime() );
-
+//  m_displayModel->setDisplayedTimeRange( m_startExcludeSelect->dateTime().toPosixTime(),
+//                                         m_endExcludeSelect->dateTime().toPosixTime() );
 }//allowUserToEnterNewRange()
 
 
@@ -3492,21 +3690,32 @@ void WtExcludeTimeRangesTab::deleteSelectedRange()
 }//void deleteSelectedRange()
 
 
-void WtExcludeTimeRangesTab::updateGraphWithUserRange()
+void WtExcludeTimeRangesTab::zoomGraph( const WDateTime start, const WDateTime end )
 {
-  const WDateTime start = m_startExcludeSelect->dateTime();
-  const WDateTime end = m_endExcludeSelect->dateTime();
-  m_description->setText( start.toString() + " through " + end.toString() );
-  m_displayModel->setDisplayedTimeRange( start.toPosixTime(), end.toPosixTime() );
-}//void updateGraphWithUserRange()
+  if( !start.isValid() || !end.isValid() )
+  {
+    cerr << "Warning: WtExcludeTimeRangesTab::zoomGraph(...): and invalid date" << endl;
+    return;
+  }//if( !start.isValid() || !end.isValid() )
+
+  if( start < end )
+  {
+    m_description->setText( start.toString() + " through " + end.toString() );
+    m_displayModel->setDisplayedTimeRange( start.toPosixTime(), end.toPosixTime() );
+  }else
+  {
+    m_description->setText( end.toString() + " through " + start.toString() );
+    m_displayModel->setDisplayedTimeRange( end.toPosixTime(), start.toPosixTime() );
+  }//if( start < end ) / else
+}//void zoomGraph( const WDateTime start, const WDateTime end )
 
 
 void WtExcludeTimeRangesTab::updateDataRangeDates()
 {
   const PosixTime pBeginTime = m_parentWtGui->getSimpleSimDisplayModel()->earliestData();
-  const PosixTime pEndTime = m_parentWtGui->getSimpleSimDisplayModel()->latestData();
-  const WDateTime endTime = WDateTime::fromPosixTime( pEndTime );
-  const WDateTime beginTime = WDateTime::fromPosixTime( pBeginTime );
+  const PosixTime pEndTime   = m_parentWtGui->getSimpleSimDisplayModel()->latestData();
+  const WDateTime endTime    = WDateTime::fromPosixTime( pEndTime );
+  const WDateTime beginTime  = WDateTime::fromPosixTime( pBeginTime );
 
   m_startExcludeSelect->setTop( endTime );
   m_startExcludeSelect->setBottom( beginTime );

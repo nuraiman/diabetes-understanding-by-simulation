@@ -25,6 +25,7 @@
 #include "ArtificialPancrease.hh"
 #include "WtUserManagment.hh"
 #include "dubs/DubsSession.hh"
+#include "dubs/WtChartClasses.hh"
 
 //Some forward declarations
 class NLSimple;
@@ -253,6 +254,7 @@ public:
 
     boost::shared_ptr<NLSimpleDisplayModel> m_nlSimleDisplayModel;
 
+    Div                        *m_overviewTab;
     Wt::WStandardItemModel     *m_bsModel;
     WChartWithLegend           *m_bsGraph;
     OverlayCanvas              *m_bsGraphOverlay;
@@ -477,17 +479,32 @@ public:
 
 class WtExcludeTimeRangesTab : public Wt::WContainerWidget
 {
+  class ExcludedRangesChart : public WChartWithLegend
+  {
+  public:
+    ExcludedRangesChart( WtExcludeTimeRangesTab *parentTab, Wt::WContainerWidget *parent = NULL  );
+    virtual ~ExcludedRangesChart();
+
+    virtual void paint( Wt::WPainter& painter, const Wt::WRectF& rectangle = Wt::WRectF() ) const;
+    virtual void paintEvent( Wt::WPaintDevice *paintDevice );
+
+    WtExcludeTimeRangesTab *m_parentTab;
+  };//class ExcludedRangesChart
+
+  friend class ExcludedRangesChart;
+
 protected:
   WtGui                      *m_parentWtGui;
 
-  WChartWithLegend           *m_chart;
+  ExcludedRangesChart        *m_chart;
+  OverlayCanvas              *m_chartOverlay;
   NLSimpleDisplayModel       *m_displayModel;
 
   Wt::WTableView             *m_view;
   WtTimeRangeVecModel        *m_listModel;
 
   Wt::WPushButton            *m_deleteButton;
-  Wt::WPushButton            *m_enableAddNewRangeButton;
+  Wt::WPushButton            *m_newRangeButton;
 
   DateTimeSelect             *m_startExcludeSelect;
   DateTimeSelect             *m_endExcludeSelect;
@@ -500,15 +517,21 @@ public:
   WtExcludeTimeRangesTab( WtGui *parentWtGui, Wt::WContainerWidget *parent = NULL );
   virtual ~WtExcludeTimeRangesTab(){}
 
+  void hideChartOverlay();
+  void showChartOverlay();
+  void userDraggedCallback( int, int, Wt::WMouseEvent );
+
   void displaySelected();
-  void allowUserToEnterNewRange();
   void addEnteredRangeToModel();
   void deleteSelectedRange();
   void finishDeleteSelectedDialog( Wt::WDialog *dialog,
                                    const Wt::WModelIndex selected,
                                    Wt::WCheckBox *save );
-  void updateGraphWithUserRange();
+  void zoomGraph( const Wt::WDateTime start, const Wt::WDateTime end );
+  void allowUserToEnterNewRange();
   void updateDataRangeDates();
+  void setAddingNewRange();
+  void setShowingExistingRange();  //shows the currently highlighted range.  If none are highlighted
 };//class WtExcludeTimeRangesTab : public Wt::WContainerWidget
 
 

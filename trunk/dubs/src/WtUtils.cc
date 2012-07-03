@@ -34,6 +34,7 @@
 #include <Wt/WDialog>
 #include <Wt/WLengthValidator>
 #include <Wt/WTableView>
+#include <Wt/WJavaScript>
 
 #include "WtGui.hh"
 #include "WtUtils.hh"
@@ -42,7 +43,7 @@
 using namespace Wt;
 using namespace std;
 
-
+#define INLINE_JAVASCRIPT(...) #__VA_ARGS__
 
 Div::Div( const std::string &styleClass, Wt::WContainerWidget *parent )
   : Wt::WContainerWidget( parent )
@@ -53,54 +54,81 @@ Div::Div( const std::string &styleClass, Wt::WContainerWidget *parent )
 
 
 
-
-
-
 DateTimeSelect::DateTimeSelect( const std::string &labelText,
                                 const Wt::WDateTime &initialTime,
                                 Wt::WContainerWidget *parent )
-  : WContainerWidget(parent),
-  m_datePicker( new WDatePicker() ),
-  m_hourSelect( new WSpinBox() ),
-  m_minuteSelect( new WSpinBox() ),
-  m_top( WDate(3000,1,1), WTime(0,0,0) ),
-  m_bottom( WDate(1901,1,1), WTime(0,0,0) )
+  : WContainerWidget( parent ),
+    m_lineEdit( new WLineEdit( this ) ),
+    m_timeSelected( new JSignal<std::string>( this, "timeSelected" ) ),
+    m_sectionBoxClosed( new JSignal<std::string>( this, "sectionBoxClosed" ) ),
+#if( USE_JSLOTS_WITH_DateTimeSelect )
+    m_setTopSlot( NULL ),
+    m_setBottomSlot( NULL ),
+    m_setDateTimeSlot( NULL ),
+#endif //USE_JSLOTS_WITH_DateTimeSelect
+    m_top( WDate(3000,1,1), WTime(0,0,0) ),
+    m_bottom( WDate(1901,1,1), WTime(0,0,0) ),
+    m_dateTime( initialTime )
 {
   setInline(true);
   setStyleClass( "DateTimeSelect" );
 
-  m_hourSelect->setSingleStep( 1.0 );
-  m_hourSelect->setMinimum(0);
-  m_hourSelect->setMaximum(23);
-  m_hourSelect->setMaxLength(2);
-  m_hourSelect->setTextSize(2);
-
-  m_minuteSelect->setSingleStep( 1.0 );
-  m_minuteSelect->setMinimum(0);
-  m_minuteSelect->setMaximum(59);
-  m_minuteSelect->setMaxLength(2);
-  m_minuteSelect->setTextSize(2);
-
-  if( labelText != "" )
+  if( !labelText.empty() )
   {
-    WLabel *label = new WLabel( labelText, this );
-    label->setBuddy( m_datePicker->lineEdit() );
-  }//if( labelText != "" )
+    WLabel *label = new WLabel( labelText );
+    this->insertWidget( 0, label );
+    label->setBuddy( m_lineEdit );
+  }//if( !labelText.empty() )
 
-  addWidget( m_datePicker );
-  addWidget( new WText("&nbsp;&nbsp;") );
-  addWidget( m_hourSelect );
-  addWidget( new WText(":") );
-  addWidget( m_minuteSelect );
+  wApp->useStyleSheet( "local_resources/jquery-ui-1.8.16.custom.css" );
+  wApp->require( "local_resources/jquery-ui-1.8.16.custom.min.js", "jquery-ui" );
+  wApp->require( "local_resources/jquery-ui-sliderAccess.js",      "jquery-ui-sliderAccess" );
+  wApp->require( "local_resources/jquery-ui-timepicker-addon.js",  "timepicker-addon" );
 
-  m_datePicker->setGlobalPopup( true );
-  m_datePicker->changed().connect(   boost::bind( &DateTimeSelect::validate, this, true ) );
-  m_hourSelect->changed().connect(   boost::bind( &DateTimeSelect::validate, this, true ) );
-  m_minuteSelect->changed().connect( boost::bind( &DateTimeSelect::validate, this, true ) );
-  m_datePicker->changed().connect(  boost::bind( &WDatePicker::setPopupVisible, m_datePicker, false ) );
+  m_lineEdit->setTextSize( 20 );
 
-  if( initialTime.isValid() ) set( initialTime );
-  else                        setToCurrentTime();
+  const string jsref = "$('#" + m_lineEdit->id() + "')";
+
+  m_lineEdit->setStyleClass( "hasDatePicker" );
+
+  string datetime_options =
+      "{"
+        "showSecond: true"
+        ",showMillisec: false"
+        ",timeFormat: 'h:mm:ss tt'"
+        ",addSliderAccess: true"
+        ",sliderAccessArgs:{touchonly:false}"
+        ",ampm: true";
+  datetime_options += ",onSelect: function(dateText, inst){"
+      "Wt.emit( '" + id() + "', {name: 'timeSelected'}, dateText ); }";
+  datetime_options += ",onClose: function(dateText, inst){"
+      "Wt.emit( '" + id() + "', {name: 'sectionBoxClosed'}, dateText ); }";
+
+  datetime_options += "}";
+
+  doJavaScript( jsref + ".datetimepicker(" + datetime_options + ");" );
+
+#if( USE_JSLOTS_WITH_DateTimeSelect )
+  const string topSlotJs = "function(s,date){" + jsref + ".datetimepicker('option','maxDate',date);}";
+  const string bottomSlotJs = "function(s,date){" + jsref + ".datetimepicker('option','minDate',date);}";
+  const string setDateTimeSlotJs = "function(s,date){" + jsref + ".datetimepicker('setDate',date);}";
+
+  m_setTopSlot      = new JSlot( topSlotJs, this );
+  m_setBottomSlot   = new JSlot( bottomSlotJs, this );
+  m_setDateTimeSlot = new JSlot( setDateTimeSlotJs, this );
+#endif  //USE_JSLOTS_WITH_DateTimeSelect
+
+
+  if( m_dateTime.isValid() )
+    set( m_dateTime );
+  else
+    setToCurrentTime();
+
+  setTop( m_top );
+  setBottom( m_bottom );
+
+  m_timeSelected->connect( boost::bind( &DateTimeSelect::changedCallback, this, _1 ) );
+
 }//DateTimeSelect constructor
 
 DateTimeSelect::~DateTimeSelect(){}
@@ -112,13 +140,29 @@ void DateTimeSelect::set( const Wt::WDateTime &dt )
   if( (dt < m_bottom)  || (dt > m_top) )
     return;
 
-  m_datePicker->setDate( dt.date() );
-  const int hour = dt.time().hour();
-  const int minute = dt.time().minute();
-  m_hourSelect->setText( boost::lexical_cast<string>(hour) );
-  m_minuteSelect->setText( boost::lexical_cast<string>(minute) );
-  //validate();
+  m_dateTime = dt;
+#if( USE_JSLOTS_WITH_DateTimeSelect )
+  m_setDateTimeSlot->exec( "''", jsForDate( m_dateTime ) );
+#else
+  const string js = "$('#" + m_lineEdit->id() + "').datetimepicker('setDate'," + jsForDate( m_dateTime ) + ");";
+  doJavaScript( js );
+#endif  //USE_JSLOTS_WITH_DateTimeSelect
 }//void set( const Wt::WDateTime *dateTime )
+
+string DateTimeSelect::jsForDate( const WDateTime &datetime )
+{
+  stringstream datestrm;
+
+  datestrm << "(new Date(" << datetime.date().year()
+           << "," << datetime.date().month() - 1  //aparently javascript uses '0' based months
+           << "," << datetime.date().day()
+           << "," << datetime.time().hour()
+           << "," << datetime.time().minute()
+           << "," << datetime.time().second()
+           << ") )";
+
+  return datestrm.str();
+}//string DateTimeSelect::jsForDate( const Wt::WDateTime &datetime )
 
 void DateTimeSelect::setToCurrentTime()
 {
@@ -127,39 +171,101 @@ void DateTimeSelect::setToCurrentTime()
 
 Wt::WDateTime DateTimeSelect::dateTime() const
 {
-  const int hour = floor( m_hourSelect->value() + 0.5 );
-  const int minute = floor( m_minuteSelect->value() + 0.5 );
-  return WDateTime( m_datePicker->date(), WTime( hour, minute ) );
+  return m_dateTime;
 }//Wt::WDateTime DateTimeSelect::dateTime() const
+
+
+//dateTimeFromStr(...) expects input like '07/23/2010 12:15:00 pm'
+string DateTimeSelect::dateTimeToStr( const WDateTime &datetime ) const
+{
+  return datetime.toString( "MM/dd/yyyy hh:mm:ss ap" ).narrow();
+}//string dateTimeToStr( const WDateTime &datetime ) const
+
+
+//dateTimeToStr(...) returns answer in format like '07/23/2010 12:15:00 pm'
+WDateTime DateTimeSelect::dateTimeFromStr( const string &datetime ) const
+{
+  return WDateTime::fromString( datetime, "MM/dd/yyyy hh:mm:ss ap" );
+}//WDateTime dateTimeFromStr( const string &datetime ) const
+
 
 void DateTimeSelect::setTop( const Wt::WDateTime &top )
 {
-  int secs = top.time().second();
-  if( secs ) secs = 60 - secs;
-  m_top = top.addSecs( secs );
-  m_datePicker->setTop( top.date() );
-  validate();
+  if( top == m_top )
+    return;
+
+  m_top = top;
+
+#if( USE_JSLOTS_WITH_DateTimeSelect )
+  m_setTopSlot->exec( "''", jsForDate( top ) );
+#else
+  const string js = "$('#" + m_lineEdit->id() + "').datetimepicker('option','maxDate'," + jsForDate( top ) + ");";
+  doJavaScript( js );
+#endif
+
+  validate( false );
   m_topBottomChanged.emit();
 }//setTop( const Wt::WDateTime &top )
 
+
 void DateTimeSelect::setBottom( const Wt::WDateTime &bottom )
 {
-  m_bottom = bottom.addSecs( -bottom.time().second() );
-  m_datePicker->setBottom( bottom.date() );
-  validate();
+  if( bottom == m_bottom )
+    return;
+
+  m_bottom = bottom;
+
+#if( USE_JSLOTS_WITH_DateTimeSelect )
+  m_setBottomSlot->exec( "''", jsForDate( bottom ) );
+#else
+  const string js = "$('#" + m_lineEdit->id() + "').datetimepicker('option','minDate'," + jsForDate( bottom ) + ");";
+  doJavaScript( js );
+#endif //USE_JSLOTS_WITH_DateTimeSelect
+
+  validate( false );
   m_topBottomChanged.emit();
 }//setBottom( const Wt::WDateTime &bottom )
+
+
+void DateTimeSelect::changedCallback( const std::string &datTimeText )
+{
+  const WDateTime newDateTime = dateTimeFromStr( datTimeText );
+
+  if( newDateTime.isValid() )
+  {
+    if( newDateTime < m_bottom )
+      set( m_bottom );
+    else if( newDateTime > m_top )
+      set( m_top );
+    else
+      m_dateTime = newDateTime;
+
+//    cerr << "\n\nChanged time to " << m_dateTime.toString()
+//         << " tried " << newDateTime.toString()
+//         << ", m_top=" << m_top.toString()
+//         << ", m_bottom=" << m_bottom.toString()
+//         << endl << endl;
+    m_changed.emit( m_dateTime );
+  }else
+  {
+    cerr << "Time string '" << datTimeText << "' is an invalid dateTime" << endl;
+  }//if( newDateTime.isValid() )
+}//void changedCallback( const std::string &datTimeText )
+
 
 void DateTimeSelect::validate( bool emitChanged )
 {
   const WDateTime currentDT = dateTime();
-  if( currentDT < m_bottom ) set( m_bottom );
-  else if( currentDT > m_top ) set( m_top );
+  if( currentDT < m_bottom )
+    set( m_bottom );
+  else if( currentDT > m_top )
+    set( m_top );
 
-  if( emitChanged ) m_changed.emit();
+  if( emitChanged )
+    m_changed.emit( m_dateTime );
 }//void notify()
 
-Wt::Signal<> &DateTimeSelect::changed()
+Wt::Signal<Wt::WDateTime> &DateTimeSelect::changed()
 {
   return m_changed;
 }//Wt::Signal<> changed()
