@@ -303,7 +303,11 @@ class DubEventEntry : public Wt::WContainerWidget
   void setTimeToLastData();
 
 public:
-  DubEventEntry( WtGui *wtguiparent, Wt::WContainerWidget *parent = NULL );
+  //if 'isMobile' is true, then the DubEventEntry widget is layed-out in a div
+  //  that should be displayed roughly as a square, so that entry on mobile devises
+  DubEventEntry( const bool isMobile,
+                 WtGui *wtguiparent,
+                 Wt::WContainerWidget *parent = NULL );
   virtual ~DubEventEntry();
 
    Wt::Signal<WtGui::EventInformation> &entered();

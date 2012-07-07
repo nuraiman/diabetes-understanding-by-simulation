@@ -349,6 +349,7 @@ var initOverlayCanvas = function( parentDivId, chartPadding, drawMode )
   }
 }//var initCanvasForDragging = functiion(...)
 
+/*
 
 var alignPaintedWidgets = function(childId,parentId)
 {
@@ -397,7 +398,7 @@ var alignPaintedWidgets = function(childId,parentId)
     console.log("Failed in alignPaintedWidgets");
   }
 };
-
+*/
 
 
 

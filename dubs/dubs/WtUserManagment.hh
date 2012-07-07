@@ -63,7 +63,11 @@ private:
 
 
 
+class SerializedModel;
 class OptimizationChi2;
+
+//USE_SerializedModel == true has yet to be tested
+#define USE_SerializedModel 0
 
 class UsersModel
 {
@@ -78,7 +82,14 @@ public:
   Wt::WDateTime displayBegin;
   Wt::WDateTime displayEnd;
 
+#if(USE_SerializedModel)
+  Wt::Dbo::ptr<SerializedModel> serializedModel;
+#else
+  //TODO - serializedData should be stored in a seperate table, so this way
+  //       everytime 'displayBegin' or 'displayEnd' is changed, the serialized
+  //       data doesnt have to be changed
   std::string serializedData;
+#endif
 
   template<class Action>
   void persist(Action& a)
@@ -89,10 +100,30 @@ public:
     Wt::Dbo::field(a, modified,       "modified" );
     Wt::Dbo::field(a, displayBegin,   "displayBegin" );
     Wt::Dbo::field(a, displayEnd,     "displayEnd" );
+
+#if(USE_SerializedModel)
+    Wt::Dbo::field(a, serializedModel,"serializedModel" );
+#else
     Wt::Dbo::field(a, serializedData, "serializedData" );
+#endif
     Wt::Dbo::hasMany(a, chi2s, Wt::Dbo::ManyToOne, "usermodel");
   }//persist function
 };//class UsersModel
+
+
+class SerializedModel
+{
+public:
+  Wt::Dbo::ptr<UsersModel> usermodel;
+  std::string data;
+
+  template<class Action>
+  void persist(Action& a)
+  {
+    Wt::Dbo::belongsTo(a, usermodel, "usermodel");
+    Wt::Dbo::field(a, data, "data" );
+  }//persist function
+};//class SerializedModel
 
 
 class OptimizationChi2
@@ -112,7 +143,9 @@ public:
   }//presist function
 };//class UsersModel
 
+
 DBO_EXTERN_TEMPLATES(UsersModel);
+DBO_EXTERN_TEMPLATES(SerializedModel);
 DBO_EXTERN_TEMPLATES(OptimizationChi2);
 
 #endif // WTUSERMANAGMENT_HH

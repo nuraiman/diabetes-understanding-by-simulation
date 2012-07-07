@@ -240,7 +240,7 @@ void WChartWithLegend::setWtResizeJsForOverlay()
 
   js +=
   ""  "}"
-  ""    "alignPaintedWidgets('" + id() + "Cover', '" + id() + "' );"
+  ""    "Wt.WT.AlignOverlay('" + id() + "Cover', '" + id() + "' );"
   ""    "self.style.overflow = 'hidden';"
 
 //BEGIN HACK

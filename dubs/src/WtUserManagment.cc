@@ -57,6 +57,7 @@ using namespace std;
 
 
 DBO_INSTANTIATE_TEMPLATES(UsersModel);
+DBO_INSTANTIATE_TEMPLATES(SerializedModel);
 DBO_INSTANTIATE_TEMPLATES(OptimizationChi2);
 
 

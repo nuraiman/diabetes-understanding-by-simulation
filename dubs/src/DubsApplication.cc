@@ -36,6 +36,15 @@ DubsApplication::DubsApplication( const Wt::WEnvironment& env,
 {
   boost::recursive_mutex::scoped_lock lock( m_mutex );
 
+
+  try
+  {
+    cout << "\n\n\n\n\nenv.getCookie()=" << flush << env.getCookie("dubslogin") << endl;
+  }catch(...)
+  {
+    cout << "....failed\n\n\n" << endl;
+  }
+
   enableUpdates( true );
   setTitle( "Diabetes Understanding By Simulation (dubs)" );
 
@@ -75,7 +84,70 @@ DubsApplication::~DubsApplication()
 void DubsApplication::setupAfterLoginStatusChange()
 {
   boost::recursive_mutex::scoped_lock lock( m_mutex );
-  const Wt::Auth::LoginState loginStatus = m_dubsSession.login().state();
+  Wt::Auth::LoginState loginStatus = m_dubsSession.login().state();
+
+  /*
+  const Wt::Auth::AuthService &auth = DubsSession::auth();
+
+  Wt::WEnvironment::CookieMap cookies = environment().cookies();
+  cerr << "\n\n\nThere are " << cookies.size() << " cookies\n\n" << endl;
+  foreach( const Wt::WEnvironment::CookieMap::value_type &a, cookies )
+    cerr << "\t" << a.first << " - " << a.second << endl;
+  cerr << endl << endl;
+
+  switch( loginStatus )
+  {
+    case Wt::Auth::LoggedOut:
+    case Wt::Auth::DisabledLogin:
+      if( auth.authTokensEnabled() )
+      {
+        cerr << "\n\n\n\nauth.authTokensEnabled() - and not logged in" << endl;
+        Auth::AbstractUserDatabase &users = m_dubsSession.users();
+
+        const string cookieName = auth.authTokenCookieName();
+
+        try
+        {
+          const string authToken = environment().getCookie( cookieName );
+          const Auth::AuthTokenResult authRes = auth.processAuthToken( authToken, users );
+          cerr << "Got cookie " << cookieName << endl;
+
+          if( authRes.result() == Auth::AuthTokenResult::Valid )
+          {
+            cerr << "Auth results were valid" << endl;
+            const Auth::User &user = authRes.user();
+            setCookie( cookieName, authRes.newToken(), auth.authTokenValidity() );
+            m_dubsSession.login().login( user, Auth::StrongLogin );
+            loginStatus = m_dubsSession.login().state();
+          }//if( authRes.result() == Auth::AuthTokenResult::Valid )
+          else
+            cerr << "Auth results were NOT-valid" << endl;
+        }catch(...)
+        {
+          cerr << "There was no cookie named " << cookieName << endl;
+        }
+      }//if( auth.authTokensEnabled() )
+    break;
+
+    case Wt::Auth::WeakLogin:
+    case Wt::Auth::StrongLogin:
+    if( auth.authTokensEnabled() )
+    {
+      //XXX - right now I'm having
+      cerr << "\n\n\n\nauth.authTokensEnabled() - and logged in - will set cookie" << endl;
+      const Auth::User &user  = m_dubsSession.login().user();
+      const string cookieName = auth.authTokenCookieName();
+      const string authToken  = auth.createAuthToken( user );
+//      setCookie( cookieName, authToken, auth.authTokenValidity() );
+      setCookie( cookieName, authToken, 5000000, "localhost:8080", "" );
+      Wt::WEnvironment::CookieMap cookies = environment().cookies();
+      cerr << "\tthere are now " << cookies.size() << " cookies\n\n" << endl;
+      cerr << "Setting cookie " << cookieName << " to " << authToken << endl;
+    }//if( auth.authTokensEnabled() )
+    break;
+  }//switch( loginStatus )
+*/
+
 
   switch( loginStatus )
   {
