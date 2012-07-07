@@ -111,6 +111,12 @@ void testOverlayDragEvent( OverlayDragEvent a )
 }
 #endif  //#if( TEST_OverlayDragEvent )
 
+
+void dummyMouseEvent( WMouseEvent a )
+{
+  cout << "dummyMouseEvent" << endl;
+}
+
 OverlayCanvas::OverlayCanvas( Wt::Chart::WAbstractChart *parent,
                               bool outline,
                               bool highlight )
@@ -157,6 +163,8 @@ OverlayCanvas::OverlayCanvas( Wt::Chart::WAbstractChart *parent,
   const string drawMode = "{ highlight: " + string(highlight?"true":"false")
                           + ", outline: " + (outline?"true":"false") + " }";
 
+  doJavaScript( "$('#c" + id() + "').data('drawMode'," + drawMode + ");" );
+  doJavaScript( "$('#c" + id() + "').data('chartPadding'," + chartPadding + ");" );
 
   //make it so we can use control-drag and right click on the cavas without
   //  the browsers context menu poping up
@@ -169,6 +177,8 @@ OverlayCanvas::OverlayCanvas( Wt::Chart::WAbstractChart *parent,
   m_controlMouseMove              = new Wt::JSignal<int>( this, "cntrlMouseMove" );
   m_jsException                   = new JSignal<std::string>( this, "jsException" );
 
+  m_userSingleClickedSignal->connect( boost::bind( &dummyMouseEvent, _1 ) );
+
 #if( TEST_OverlayDragEvent )
   JSignal<OverlayDragEvent> *overlayTest = new JSignal<OverlayDragEvent>( this , "OverlayDragEvent" );
   overlayTest->connect( boost::bind( &testOverlayDragEvent, _1 ) );
@@ -180,9 +190,11 @@ OverlayCanvas::OverlayCanvas( Wt::Chart::WAbstractChart *parent,
 
   loadInitOverlayCanvasJs();
 
-  string js = "initOverlayCanvas('"+id()+"', "+chartPadding+", "+drawMode+ ");";
-  wApp->doJavaScript( js );
+  WApplication *app = WApplication::instance();
+  LOAD_JAVASCRIPT(app, "js/OverlayCanvas.js", "OverlayCanvas", wtjsAlignOverlay);
 
+//  string js = "initOverlayCanvas('"+id()+"', "+chartPadding+", "+drawMode+ ");";
+//  wApp->doJavaScript( js );
 //  setJavaScriptMember( "wtResize", "function(self, w, h) { return false; };" );
 }//OverlayCanvas constructos
 
@@ -195,129 +207,47 @@ void OverlayCanvas::alignWithParent()
 void OverlayCanvas::loadInitOverlayCanvasJs()
 {
   WApplication *app = WApplication::instance();
-//  app->loadJavaScript( "js/OverlayCanvas.js", wtjs1 );
-  LOAD_JAVASCRIPT(app, "js/OverlayCanvas.js", "OverlayCanvas", wtjs1);
-  LOAD_JAVASCRIPT(app, "js/OverlayCanvas.js", "OverlayCanvas", wtjs2);
-  LOAD_JAVASCRIPT(app, "js/OverlayCanvas.js", "OverlayCanvas", wtjs3);
 
-  const string onclickSlotJS = "function(sender,event)"
-  "{"
-  ""  "var can = $('#c" + id() + "');"
-  ""  "var canElement = Wt.WT.getElement( 'c" + id() + "');"
-  ""  "if( !can || !canElement ) { console.log('onclickSlotJS Error'); return;}"
-//  ""  "Wt.WT.cancelEvent(event, Wt.WT.CancelPropagate);"
-  ""  "if( !can.data('mouseWasDrugged') )"
-  ""    "Wt.emit( '" + id() + "', {name: 'userSingleClicked', event: event, eventObject: canElement} );"
-  "}";
+  LOAD_JAVASCRIPT(app, "js/OverlayCanvas.js", "OverlayCanvas", wtjsOverlayOnClick);
+  const string onclickSlotJS = "function(s,e){ this.WT.OverlayOnClick(s,e);}";
   JSlot *onclickSlot = new JSlot( onclickSlotJS, this );
   clicked().connect( *onclickSlot );
 
-  const string onMouseDownSlotJS = "function(sender,event)"
-  "{"
-  ""  "var can = $('#c" + id() + "');"
-  ""  "var canElement = Wt.WT.getElement( 'c" + id() + "');"
-  ""  "if( !can || !canElement ) { console.log('onMouseDownSlotJS Error'); return;}"
-//  ""  "Wt.WT.cancelEvent(event, Wt.WT.CancelPropagate);"
-  ""  "canElement.width = canElement.width;"
-  ""  "var x = event.pageX - can.offset().left;"
-  ""  "var y = event.pageY - can.offset().top;"
-  ""  "can.data('startDragX',x);"
-  ""  "can.data('startDragY',y);"
-  ""  "can.data('mouseWasDrugged', false);"
-  ""
-  ""  "if( event.ctrlKey )"
-  ""    "Wt.emit( '" + id() + "', { name: 'cntrlMouseDown' }, Math.round(x) );"
-  "}";
-
+  LOAD_JAVASCRIPT(app, "js/OverlayCanvas.js", "OverlayCanvas", wtjsOverlayOnMouseDown);
+  const string onMouseDownSlotJS = "function(s,e){ this.WT.OverlayOnMouseDown(s,e);}";
   JSlot *onmousedown = new JSlot( onMouseDownSlotJS, this );
   mouseWentDown().connect( *onmousedown );
 
-  //TODO - should put the below encoding of OverlayDragEvent into a static
-  //       javascript funtion.
-/*  const string onMouseUpSlotJS = "function(s,e)"
-      "{"
-      ""  "var can = $('#c" + id() + "');"
-      ""  "var canElement = Wt.WT.getElement( 'c" + id() + "');"
-      ""  "if( !can || !canElement ) { console.log('onMouseUpSlotJS Error'); return;}"
-//      ""  "Wt.WT.cancelEvent(e, Wt.WT.CancelPropagate);"
-      ""  "canElement.width = canElement.width;"
-      ""  "var x0 = can.data('startDragX');"
-      ""  "var y0 = can.data('startDragY');"
-      ""  "var x1 = e.pageX - can.offset().left;"
-      ""  "var y1 = e.pageY - can.offset().top;"
-      ""  "if( x0!==null && y0!==null && can.data('mouseWasDrugged') )"
-      ""    "Wt.emit( '" + id() + "', {name: 'userDragged', event: e, eventObject: canElement}, Math.round(x0), Math.round(y0) );"
-      ""  "can.data('startDragX',null);"
-      ""  "can.data('startDragY',null);"
-      ""  "can.data('cntrldwn',null);"
-      ""  "can.data('altdrag',null);"
-      ""  "var result = '' + x0 + '&' + x1 + '&' + y0 + '&' + y1;"
-      ""  "var button = Wt.WT.button(e);"
-      ""  "if(!button)"
-      ""  "{"
-      ""    "if (Wt.WT.buttons & 1)"
-      ""      "button = 1;"
-      ""    "else if (Wt.WT.buttons & 2)"
-      ""      "button = 2;"
-      ""    "else if (Wt.WT.buttons & 4)"
-      ""      "button = 4;"
-      ""    "button = -1;"
-      ""  "}"
-      ""  "result += '&' + button;"
-      ""  "if (typeof e.keyCode !== 'undefined')"
-      ""    "result += '&' + e.keyCode;"
-      ""  "else result += '&0';"
-      ""  "if (typeof e.charCode !== 'undefined')"
-      ""    "result += '&' + e.charCode;"
-      ""  "else result += '&0';"
-      ""  "if (e.altKey)   result += '&1';"
-      ""  "else            result += '&0';"
-      ""  "if (e.ctrlKey)  result += '&1';"
-      ""  "else            result += '&0';"
-      ""  "if (e.metaKey)  result += '&1';"
-      ""  "else            result += '&0';"
-      ""  "if (e.shiftKey) result += '&1';"
-      ""  "else            result += '&0';"
-      ""  "var delta = Wt.WT.wheelDelta(e);"
-      ""  "result += '&' + delta;"
-      ""  "Wt.emit( '" + id() + "', {name: 'OverlayDragEvent'}, result );"
-      "};";
-*/
-  const string onMouseUpSlotJS = "function(s,e){ Wt.WT.OnOverlayMouseUp(s,e);}";
+  LOAD_JAVASCRIPT(app, "js/OverlayCanvas.js", "OverlayCanvas", wtjsOverlayOnMouseUp);
+  const string onMouseUpSlotJS = "function(s,e){ this.WT.OverlayOnMouseUp(s,e);}";
   JSlot *onmouseup = new JSlot( onMouseUpSlotJS, this );
   mouseWentUp().connect( *onmouseup );
 
-/*  const string onMouseOutSlotJS = "function(s,e)"
-      "{"
-      ""  "var can = $('#c" + id() + "');"
-      ""  "var canElement = Wt.WT.getElement( 'c" + id() + "');"
-      ""  "if( !can || !canElement ) { console.log('onMouseOutSlotJS Error'); return;}"
-//      ""  "Wt.WT.cancelEvent(event, Wt.WT.CancelPropagate);"
-      ""  "canElement.width = canElement.width;"
-      ""  "can.data('startDragX',null);"
-      ""  "can.data('startDragY',null);"
-      ""  "can.data('hasMouse', false);"
-      ""  "can.data('cntrldwn',null);"
-      ""  "can.data('altdrag',null);"
-      "};";
-*/
-  const string onMouseOutSlotJS = "function(s,e){ Wt.WT.OnOverlayMouseOut(s.id); }";
+  LOAD_JAVASCRIPT(app, "js/OverlayCanvas.js", "OverlayCanvas", wtjsOverlayOnMouseOut);
+  const string onMouseOutSlotJS = "function(s,e){ this.WT.OverlayOnMouseOut(s.id); }";
   JSlot *onmouseout = new JSlot( onMouseOutSlotJS, this );
   mouseWentOut().connect( *onmouseout );
 
-  const string onMouseOverSlotJS = "function(s,e)"
-      "{"
-      ""  "var c = $('#c" + id() + "');"
-      ""  "if( !c ) { console.log('onMouseOverSlotJS Error'); return;}"
-//      ""  "Wt.WT.cancelEvent(event, Wt.WT.CancelPropagate);"
-      ""  "c.data('hasMouse', true);"
-      "};";
-
+  LOAD_JAVASCRIPT(app, "js/OverlayCanvas.js", "OverlayCanvas", wtjsOverlayOnMouseOver);
+  const string onMouseOverSlotJS = "function(s,e){ this.WT.OverlayOnMouseOver(s,e); }";
   JSlot *onmouseoverSlot = new JSlot( onMouseOverSlotJS, this );
   mouseWentOver().connect( *onmouseoverSlot );
 
-  // Now need to do onmousemove... and then connect all the signals
+  // Now need to do onmousemove... and then connect all the signals...
+  LOAD_JAVASCRIPT(app, "js/OverlayCanvas.js", "OverlayCanvas", wtjsOverlayOnMouseMove);
+  const string onMouseMoveSlotJS = "function(s,e){ this.WT.OverlayOnMouseMove(s,e); }";
+  JSlot *onmousemoveSlot = new JSlot( onMouseMoveSlotJS, this );
+  mouseMoved().connect( *onmousemoveSlot );
 
+  LOAD_JAVASCRIPT(app, "js/OverlayCanvas.js", "OverlayCanvas", wtjsOverlayOnKeyPress);
+//  const string onKeyPressSlotJS = "function(s,e){ this.WT.OverlayOnKeyPress('" + id() + "',s,e); }";
+//  JSlot *onpressSlot = new JSlot( onKeyPressSlotJS, this );
+//  app->globalKeyPressed().connect( onpressSlot );  //<<---This statment doesnt compile, therefore the next few lines are a workarount
+  //BEGIN WORKAROUND
+//  LOAD_JAVASCRIPT(app, "js/OverlayCanvas.js", "OverlayCanvas", wtjsOverlayOnKeyPressJQuery);
+  const string onKeyPressSlotJQuery = "$(document).keyup( function(e){ " + app->javaScriptClass() + ".WT.OverlayOnKeyPress('" + id() + "',e.target,e); } );";
+  doJavaScript( onKeyPressSlotJQuery );
+  //END WORKAROUND
 
   if( !m_alignWithParentSlot )
     m_alignWithParentSlot = new JSlot( this );
@@ -332,9 +262,9 @@ void OverlayCanvas::connectSignalsToParent( Wt::Chart::WAbstractChart *parent )
   //Now we have to propogate all signals down to the canvas we are covering up
   //  Note: this is brittle to future versions of Wt (we might miss some signals
   //        in the future).
-  //It might be best to prpogate all of these signals client side!
-  //Also, I need to verify doing this isnt bad for performance.
-  //  --It may be best just to do this client side via javascript...
+  //It would be best to prpogate all of these signals client side!
+  //as doing this server side causes all the signals to be transmitted to the
+  //  server!
   keyWentDown().connect(    boost::bind( &EventSignal<WKeyEvent>::emit,       &(parent->keyWentDown()), _1 ) );
   keyPressed().connect(     boost::bind( &EventSignal<WKeyEvent>::emit,       &(parent->keyPressed()), _1 ) );
   keyWentUp().connect(      boost::bind( &EventSignal< WKeyEvent >::emit,     &(parent->keyWentUp ()), _1 ) );

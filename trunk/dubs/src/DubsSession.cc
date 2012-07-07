@@ -48,7 +48,8 @@ void DubsSession::configureAuth()
 
   configured = true;
 
-  myAuthService.setAuthTokensEnabled(true, "logincookie");
+
+  myAuthService.setAuthTokensEnabled(true, "dubslogin");
   myAuthService.setEmailVerificationEnabled(true);
 
   myAuthService.setIdentityPolicy( Wt::Auth::EmailAddressIdentity  );
@@ -97,7 +98,7 @@ DubsSession::DubsSession(const std::string& sqliteDb)
 */
   } catch (std::exception& e) {
     std::cerr << e.what() << std::endl;
-    std::cerr << "DubsSession: Using existing database";
+    std::cerr << "DubsSession: Using existing database" << std::endl;
   }
 
   transaction.commit();

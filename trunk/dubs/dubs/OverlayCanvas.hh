@@ -26,9 +26,6 @@ struct OverlayDragEvent
 {
   //I have modified the JSlot onMouseUpSlot to actually be able to emit this
   //  event - just no where else in the code.
-  //  Also I should delegate the encoding of the OverlayDragEvent
-  //  to a static javascript function to save bandwidth - right now it is just in
-  //  the onMouseUpSlotJS
   int x0, x1, y0, y1;
   int button, keyCode, charCode;
   Wt::WFlags<Wt::KeyboardModifier> keyModifiers;

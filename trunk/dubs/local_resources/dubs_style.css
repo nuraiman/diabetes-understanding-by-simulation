@@ -99,6 +99,11 @@ br.Wt-tabs-clear
   /*min-width: 50ex;*/
 }
 
+.DubEventEntry_m_saveModel
+{
+  padding-left: 2ex;
+}
+
 .dubEventEntryTimeButton
 {
   border: none;

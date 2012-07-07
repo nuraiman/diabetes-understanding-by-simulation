@@ -507,6 +507,23 @@ void WtGui::init()
   updateClarkAnalysis();
 
 
+  const WEnvironment &env = app()->environment();
+  const bool isMobile = (env.agentIsMobileWebKit() || env.agentIsIEMobile());
+
+  DubEventEntry *dataEntry = new DubEventEntry( isMobile, this );
+  dataEntry->entered().connect( boost::bind(&WtGui::addData, this, _1) );
+
+  if( isMobile )
+  {
+    m_tabs->addTab( dataEntry, "Event Entry" );
+  }else
+  {
+    layout->addWidget( dataEntry, WBorderLayout::South );
+
+  }//if( isMobile ) / else
+
+
+
   NLSimplePtr modelPtr( this );
 
   /*
@@ -691,10 +708,6 @@ void WtGui::init()
 
   WtCustomEventTab *customEventTab = new WtCustomEventTab( this );
   m_tabs->addTab( customEventTab, "Custom Events", WTabWidget::PreLoading );
-
-  DubEventEntry *dataEntry = new DubEventEntry( this );
-  layout->addWidget( dataEntry, WBorderLayout::South );
-  dataEntry->entered().connect( boost::bind(&WtGui::addData, this, _1) );
 
 
   //Create 'Notes' Tabs
@@ -1482,7 +1495,11 @@ void WtGui::saveModel( const std::string &fileName )
     if( model )
     {
       model.modify()->modified = WDateTime::fromPosixTime( boost::posix_time::second_clock::local_time() );
+#if(USE_SerializedModel)
+      model.modify()->serializedModel.modify()->data = serializedModelStream.str();
+#else
       model.modify()->serializedData = serializedModelStream.str();
+#endif
       transaction.commit();
       return;
     }
@@ -1495,7 +1512,15 @@ void WtGui::saveModel( const std::string &fileName )
   newModel->fileName = fileName;
   newModel->created  = WDateTime::fromPosixTime( boost::posix_time::second_clock::local_time() );
   newModel->modified = newModel->created;
+#if(USE_SerializedModel)
+  Dbo::ptr<SerializedModel> serializedModel = user.session()->add( new SerializedModel() );
+  serializedModel.modify()->data = serializedModelStream.str();
+  serializedModel.modify()->usermodel = newModel;
+//  newModel.modify()->serializedModel = serializedModel;
+#else
   newModel->serializedData = serializedModelStream.str();
+#endif
+
   Dbo::ptr<UsersModel> newModelPtr = m_userDbPtr.session()->add( newModel );
   if( newModelPtr )
     cerr << "Added new model:\n  "
@@ -1560,16 +1585,25 @@ void WtGui::setModel( const std::string &fileName )
     transaction.commit();
   }
 
+#if(USE_SerializedModel)
+  if( usrmodel && usrmodel->serializedModel && !usrmodel->serializedModel->data.empty() )
+#else
   if( usrmodel && !usrmodel->serializedData.empty() )
+#endif
   {
     try
     {
       m_model = NLSimpleShrdPtr( new NLSimple( "description", 0.0, ProgramOptions::kBasalGlucConc, kGenericT0 ) );
+#if(USE_SerializedModel)
+      stringstream inputstream( usrmodel->serializedModel->data );
+#else
       stringstream inputstream( usrmodel->serializedData );
+#endif
       boost::archive::text_iarchive ia( inputstream );
       ia >> (*m_model);
       setModelFileName( fileName );
-      cerr << "\n\nSuccessgully got the NLSimple named " << fileName << " From the database" << endl;
+      cerr << "\n\nSuccessgully got the NLSimple named "
+           << fileName << " From the database" << endl;
       m_nlSimleDisplayModel->doneSettingNewModel();
       return;
     }catch(...)
@@ -1635,7 +1669,7 @@ void WtGui::tabClickedCallback( int clickedIndex )
 
 
 
-DubEventEntry::DubEventEntry( WtGui *wtguiparent, WContainerWidget *parent )
+DubEventEntry::DubEventEntry( const bool isMobile, WtGui *wtguiparent, WContainerWidget *parent )
   : WContainerWidget( parent ),
   m_time( new DateTimeSelect( "&nbsp;&nbsp;Date/Time:&nbsp;",
                               WDateTime::fromPosixTime(boost::posix_time::second_clock::local_time())
@@ -1665,15 +1699,6 @@ DubEventEntry::DubEventEntry( WtGui *wtguiparent, WContainerWidget *parent )
 
   m_saveModel->setCheckState( Checked );
 
-  addWidget( new WText( "<b>Enter New Event:</b>&nbsp;&nbsp;" ) );
-  addWidget( timeSelectDiv );
-  addWidget( m_type );
-  addWidget( m_value );
-  addWidget( m_units );
-  addWidget( m_customTypes );
-  addWidget( new WText( "&nbsp;&nbsp;" ) );
-  addWidget( m_saveModel );
-  addWidget( m_button );
 
   for( WtGui::EntryType et = WtGui::EntryType(0);
        et < WtGui::kNumEntryType;
@@ -1681,7 +1706,7 @@ DubEventEntry::DubEventEntry( WtGui *wtguiparent, WContainerWidget *parent )
   {
     switch( et )
     {
-      case WtGui::kNotSelected:      m_type->addItem( "Event Type" );  break;
+      case WtGui::kNotSelected:      m_type->addItem( "Event Type" );   break;
       case WtGui::kCgmsReading:      m_type->addItem( "CGMS Reading" ); break;
       case WtGui::kMeterReading:     m_type->addItem( "Fingerstick" );  break;
       case WtGui::kMeterCalibration: m_type->addItem( "CGMS Cal." );    break;
@@ -1693,6 +1718,41 @@ DubEventEntry::DubEventEntry( WtGui *wtguiparent, WContainerWidget *parent )
   };//enum EntryType
 
   m_type->setCurrentIndex( WtGui::kNotSelected );
+
+  if( !isMobile )
+  {
+    addWidget( new WText( "<b>Enter New Event:</b>&nbsp;&nbsp;" ) );
+    addWidget( timeSelectDiv );
+    addWidget( m_type );
+    addWidget( m_value );
+    addWidget( m_units );
+    addWidget( m_customTypes );
+    addWidget( new WText( "&nbsp;&nbsp;" ) );
+    m_saveModel->setStyleClass( "DubEventEntry_m_saveModel" );
+    addWidget( m_saveModel );
+    addWidget( m_button );
+  }else
+  {
+    WGridLayout *layout = new WGridLayout();
+    setLayout( layout );
+    layout->addWidget( new WText( "<b>Enter New Event:</b>" ), 0, 0, 1, 4 );
+
+    layout->addWidget( new WLabel( "Event Type" ), 1, 0, 1, 1 );
+    layout->addWidget( m_type, 1, 1, 1, 3, AlignLeft );
+
+    layout->addWidget( new WLabel( "Date/Time" ), 2, 0, 1, 1 );
+    layout->addWidget( timeSelectDiv, 2, 1, 1, 3 );
+
+    layout->addWidget( new WLabel( "Value" ), 3, 0, 1, 1, AlignTop );
+    layout->addWidget( m_value,               3, 1, 1, 1, AlignTop );
+    layout->addWidget( m_units,               3, 2, 1, 1, AlignTop | AlignLeft );
+    layout->addWidget( m_customTypes,         3, 3, 1, 1, AlignTop | AlignLeft );
+
+    layout->addWidget( m_button, 4, 0, 1, 2, AlignLeft | AlignTop );
+    layout->addWidget( m_saveModel, 4, 2, 1, 2, AlignLeft | AlignTop );
+  }//if( !isMobile ) / else
+
+
   m_customTypes->setHidden( true );
   m_value->enterPressed().connect( boost::bind( &DubEventEntry::emitEntered, this ) );
   m_type->changed().connect( boost::bind( &DubEventEntry::typeChanged, this ) );
