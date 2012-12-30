@@ -1,3 +1,5 @@
+#include "DubsConfig.hh"
+
 //
 #include <cstdlib>
 #include <iostream>
@@ -13,13 +15,15 @@
 #include <algorithm> //min/max_element
 #include <float.h> // for DBL_MAX
 
+
+#if(USE_CERNS_ROOT)
 #include "TH1F.h"
 #include "TH2D.h"
 #include "TLine.h"
 #include "TText.h"
 #include "TLegend.h"
-#include "TSpline.h"
 #include "TGraph.h"
+#include "TSpline.h"
 //#include "TGAxis.h"
 #include "TCanvas.h"
 #include "TRandom3.h"
@@ -27,7 +31,7 @@
 #include "TLegendEntry.h"
 #include "TApplication.h"
 #include "TMath.h"
-
+#endif
 
 //Roots Minuit2 includes
 #include "Minuit2/FCNBase.h"
@@ -63,6 +67,8 @@
 #include <boost/date_time/gregorian/greg_serialize.hpp>
 #include <boost/date_time/posix_time/time_serialize.hpp>
 
+#include "external_libs/spline/spline.hpp"
+
 #include "ResponseModel.hh"
 #include "KineticModels.hh"
 #include "CgmsDataImport.hh"
@@ -73,8 +79,9 @@ using namespace std;
 using namespace boost;
 using namespace boost::posix_time;
 
-
+#if(USE_CERNS_ROOT)
 extern TApplication *gTheApp;
+#endif
 
 //To make the code prettier
 #define foreach         BOOST_FOREACH
@@ -2283,7 +2290,7 @@ bool NLSimple::fitEvents( TimeRangeVec timeRanges,
 
 
 
-
+#if(USE_CERNS_ROOT)
 //okay what were going to do is assume every parameter has a 20% error
 //  we will perform 100 Pseudo-Experiments foreach parameter, where the
 //  paramater is varied within a gaussian
@@ -2385,8 +2392,9 @@ DVec NLSimple::chi2DofStudy( double endPredChi2Weight,
 
   return dof;
 }//chi2DofStudy
+#endif  //#if(USE_CERNS_ROOT)
 
-
+#if(USE_CERNS_ROOT)
 void NLSimple::draw( bool pause,
                      boost::posix_time::ptime t_start,
                      boost::posix_time::ptime t_end  )
@@ -2551,9 +2559,11 @@ void NLSimple::draw( bool pause,
   }//if( pause )
 
 }//draw()
+#endif
 
-void NLSimple::runGui()
-{
+
+//void NLSimple::runGui()
+//{
   /*
   assert( !m_gui );
 
@@ -2564,7 +2574,7 @@ void NLSimple::runGui()
   delete m_gui;
   m_gui = NULL;
   */
-}//runGui
+//}//runGui
 
 
 std::string NLSimple::convertToRootLatexString( double num, int nPrecision )
@@ -3116,7 +3126,7 @@ void FitNLSimpleEvent::updateModelWithCurrentGuesses( NLSimple &model ) const
 
 
 
-
+#if( USE_CERNS_ROOT )
 
 void drawClarkeErrorGrid( TVirtualPad *pad,
                           const ConsentrationGraph &cmgsGraph,
@@ -3153,8 +3163,9 @@ void drawClarkeErrorGrid( TVirtualPad *pad,
 
   pad->Update();
 }//void drawClarkeErrorGrid( TPad * )
+#endif //USE_CERNS_ROOT
 
-
+#if( USE_CERNS_ROOT )
 std::vector<TObject *>
 getClarkeErrorGridObjs( const ConsentrationGraph &cmgsGraph,
                         const ConsentrationGraph &meterGraph,
@@ -3352,6 +3363,7 @@ getClarkeErrorGridObjs( const ConsentrationGraph &cmgsGraph,
 
   return returnObjects;
 }//getClarkeErrorGridObjs(...)
+#endif //USE_CERNS_ROOT
 
 
 EventDef::EventDef():
@@ -3460,36 +3472,38 @@ const EventDef &EventDef::operator=( const EventDef &rhs )
 template<class Archive>
 void EventDef::save(Archive & ar, const unsigned int /*version*/ ) const
 {
-  ar & m_name;
-  ar & m_nPoints;
-  ar & m_duration;
-  ar & m_eventDefType;
+  ar & m_name
+     & m_nPoints
+     & m_duration
+     & m_eventDefType;
 
   if( m_nPoints )
   {
     DVec timesV(m_times+0,  m_times+m_nPoints );
     DVec valueV(m_values+0, m_values+m_nPoints );
-    ar & timesV;
-    ar & valueV;
+    ar & timesV
+       & valueV;
   }else
   {
     DVec emptyVec1(0), emptyVec2(0);
-    ar & emptyVec1;
-    ar & emptyVec2;
+    ar & emptyVec1
+       & emptyVec2;
   }//if( m_nPoints ) / else
 }//EventDef::save(...)
 
 
 template<class Archive>
-void EventDef::load(Archive & ar, const unsigned int /*version*/ )
+void EventDef::load(Archive &ar, const unsigned int /*version*/ )
 {
-  ar & m_name;
-  ar & m_nPoints;
-  ar & m_duration;
-  ar & m_eventDefType;
+  ar & m_name
+     & m_nPoints
+     & m_duration
+     & m_eventDefType;
 
-  if( m_times )  delete [] m_times;
-  if( m_values ) delete [] m_values;
+  if( m_times )
+    delete [] m_times;
+  if( m_values )
+    delete [] m_values;
 
   m_times = m_values = NULL;
 
@@ -3500,8 +3514,8 @@ void EventDef::load(Archive & ar, const unsigned int /*version*/ )
   }//if( m_nPoints )
 
   DVec timesV, valueV;
-  ar & timesV;
-  ar & valueV;
+  ar & timesV
+     & valueV;
 
   for( size_t i = 0; i < m_nPoints; ++i )
   {
@@ -3569,12 +3583,16 @@ void EventDef::setPar( const std::vector<double> &par )
 
 double EventDef::eval( const TimeDuration &dur ) const
 {
-  if( !m_nPoints ) return 0.0;
-  if( dur > m_duration ) return 0.0;
+  if( !m_nPoints )
+    return 0.0;
+  if( dur > m_duration )
+    return 0.0;
 
-  if( !m_spline ) buildSpline();
+  if( !m_spline )
+    buildSpline();
 
-  return m_spline->Eval( toNMinutes(dur) );
+//  return m_spline->Eval( toNMinutes(dur) );
+  return m_spline->operator()( toNMinutes(dur) );
 }//double EventDef::eval( const TimeDuration &dur )
 
 
@@ -3583,16 +3601,30 @@ void EventDef::buildSpline() const
   if( !m_nPoints ) return;
   assert( !m_spline );
 
+  cerr << "\n\n" << SRC_LOCATION << "\n\tWaringing this function untested after migration from ROOT!" << endl;
+
   //create new spline with zero derivatives at begining and end of functions
-  m_spline = new TSpline3( m_name.c_str(), m_times, m_values, m_nPoints, "b1 e1", 0.0, 0.0 );
+//  m_spline = new TSpline3( m_name.c_str(), m_times, m_values, m_nPoints, "b1 e1", 0.0, 0.0 );
+  m_spline = new magnet::math::Spline();
+  m_spline->setType( magnet::math::Spline::CUBIC );
+
+  for( unsigned int i = 0; i < m_nPoints; ++i )
+    m_spline->addPoint( m_times[i], m_values[i] );
+
+  m_spline->setLowBC( magnet::math::Spline::FIXED_1ST_DERIV_BC, 0.0 );
+  m_spline->setHighBC( magnet::math::Spline::FIXED_1ST_DERIV_BC, 0.0 );
+
 }//void EventDef::buildSpline() const
 
-
+#if( USE_CERNS_ROOT )
 void EventDef::draw() const
 {
-  if( !m_spline ) buildSpline();
-  if( !m_spline ) return;
-  if( !gPad )     new TCanvas();
+  if( !m_spline )
+    buildSpline();
+  if( !m_spline )
+    return;
+  if( !gPad )
+    new TCanvas();
 
   string yTitle = "";
   string title = m_name;
@@ -3624,7 +3656,8 @@ void EventDef::draw() const
 
   for( unsigned int i = 0; i < m_nPoints; ++i )
   {
-    graph->SetPoint( (int)i, m_times[i], m_spline->Eval( m_times[i] ) );
+//    graph->SetPoint( (int)i, m_times[i], m_spline->Eval( m_times[i] ) );
+    graph->SetPoint( (int)i, m_times[i], m_spline->operator()( m_times[i] ) );
   }//for( loop over times )
 
   TH1 *hist = graph->GetHistogram();
@@ -3632,7 +3665,7 @@ void EventDef::draw() const
   hist->GetYaxis()->SetTitle( yTitle.c_str() );
   graph->Draw( "a l c *" );
 }//void draw() const
-
+#endif //#if( USE_CERNS_ROOT )
 
 
 

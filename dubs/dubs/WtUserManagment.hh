@@ -1,14 +1,18 @@
-  #ifndef WTUSERMANAGMENT_HH
+#ifndef WTUSERMANAGMENT_HH
 #define WTUSERMANAGMENT_HH
+
+#include "DubsConfig.hh"
 
 #include <map>
 #include <string>
-#include <Wt/WContainerWidget>
+
+#include <boost/thread.hpp>
+
 #include <Wt/WString>
 #include <Wt/Dbo/Dbo>
-#include <Wt/Dbo/backend/Sqlite3>
 #include <Wt/Dbo/WtSqlTraits>
-#include <boost/thread.hpp>
+#include <Wt/WContainerWidget>
+#include <Wt/Dbo/backend/Sqlite3>
 
 #include "dubs/DubUser.hh"
 

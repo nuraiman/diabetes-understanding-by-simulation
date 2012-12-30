@@ -2,10 +2,12 @@
 #ifndef DUBUSER_HH
 #define DUBUSER_HH
 
+#include "DubsConfig.hh"
+
 #include <string>
 
-#include <Wt/Dbo/Types>
 #include <Wt/WGlobal>
+#include <Wt/Dbo/Types>
 
 
 class DubUser;

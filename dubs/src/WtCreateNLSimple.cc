@@ -1,3 +1,5 @@
+#include "DubsConfig.hh"
+
 #include <set>
 #include <cmath>
 #include <vector>
@@ -39,13 +41,15 @@
 #include <Wt/Dbo/backend/Sqlite3>
 #include <Wt/Chart/WCartesianChart>
 
+#if(USE_CERNS_ROOT)
 #include "TH1.h"
-#include "TH1F.h"
 #include "TH2.h"
+#include "TH1F.h"
 #include "TH2F.h"
 #include "TMD5.h"
-#include "TRandom3.h"
 #include "TSystem.h"
+#include "TRandom3.h"
+#endif  //#if(USE_CERNS_ROOT)
 
 #include "dubs/WtUtils.hh"
 #include "dubs/ResponseModel.hh"

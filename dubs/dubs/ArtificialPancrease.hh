@@ -1,13 +1,17 @@
 #if !defined(ARTIFICIAL_PANCREASE_HH)
 #define ARTIFICIAL_PANCREASE_HH
 
+#include "DubsConfig.hh"
+
 //Started Thursday April 23 2009 -- Will Johnson
 #include <string>
 #include <vector>
 #include <exception>
-#include <boost/date_time/posix_time/posix_time.hpp>
+
+#include <boost/format.hpp>
 #include <boost/function.hpp>
-#include "TString.h"  //for the Form in SRC_Location macro
+#include <boost/date_time/posix_time/posix_time.hpp>
+
 
 const double kFailValue = -9999.9;
 
@@ -61,9 +65,12 @@ public:
 //  we need the below three macros
 #define STRINGIFY(x) #x
 #define TOSTRING(x) STRINGIFY(x)
-#define SRC_LOCATION Form("File %s: Function '%s': Line %s",\
-                              __FILE__,BOOST_CURRENT_FUNCTION,TOSTRING(__LINE__))
 
+#ifdef SRC_LOCATION
+#undef SRC_LOCATION
+#endif
+#define SRC_LOCATION ((boost::format("File %s: Function '%s': Line %s") \
+                       % __FILE__  % BOOST_CURRENT_FUNCTION  % TOSTRING(__LINE__)).str())
 
 //The below YEAR MONTH DAY macros are taken from
 //http://bytes.com/topic/c/answers/215378-convert-__date__-unsigned-int
@@ -85,6 +92,9 @@ public:
 
 //The below is helpful to keep track of what day a particular executable
 //  was compiled on
-#define COMPILE_DATE Form("%d%02d%02d", (YEAR), ((MONTH) + 1), (DAY) )
+#ifdef COMPILE_DATE
+#undef COMPILE_DATE
+#endif
+#define COMPILE_DATE ((boost::format("%d%02d%02d") % (YEAR) % ((MONTH) + 1) % (DAY)).str())
 
 #endif //ARTIFICIAL_PANCREASE_HH

@@ -2,6 +2,7 @@
 This file is based almost enttirely off of Session.C file/class of 'auth1' example of Wt
 which is Copyright (C) 2008 Emweb bvba, Kessel-Lo, Belgium.
 */
+#include "DubsConfig.hh"
 
 #include <boost/foreach.hpp>
 #include <boost/thread/mutex.hpp>

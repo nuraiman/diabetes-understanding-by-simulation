@@ -1,3 +1,5 @@
+#include "DubsConfig.hh"
+
 #include <algorithm>
 
 #include <boost/any.hpp>
@@ -17,8 +19,6 @@
 #include <Wt/Chart/WChartPalette>
 #include <Wt/Chart/WCartesianChart>
 #include <Wt/Chart/WChart2DRenderer>
-
-#include "TMath.h"
 
 #include "WtGui.hh"
 #include "ResponseModel.hh"
@@ -126,7 +126,8 @@ void WChartWithLegend::paint( WPainter& painter, const WRectF& rectangle ) const
       {
         WPointF pos = mapToDevice( WDateTime::fromPosixTime(el.m_time), ypos );
         WRectF loc( pos.x(), pos.y(), 0.1, 0.1 );
-        painter.drawText( loc, AlignLeft, WString(Form("%i", TMath::Nint(el.m_value))) );
+        const int val = static_cast<int>( floor(el.m_value + 0.5) );
+        painter.drawText( loc, AlignLeft, boost::lexical_cast<string>(val) );
       }//if( this point is inside the range to be displayed )
     }//foreach custom event
 
@@ -418,7 +419,7 @@ boost::any NLSimpleDisplayModel::data( const WModelIndex& index, int role ) cons
       if( isCorrColl && inThisData )
       {
         const double value = data.value( t );
-        if( TMath::AreEqualAbs( 0.0, value, 0.00001 ) )
+        if( fabs(0.0-value) < 0.00001 )
           return boost::any();
         return boost::any( value );
       }else if( inThisData && !wantTime )
@@ -864,7 +865,7 @@ boost::any WtConsGraphModel::data( const Wt::WModelIndex& index, int role ) cons
   if( m_column == NLSimple::kCustomEvents )
   {
     const NLSimple::EventDefMap &map = ptr->m_customEventDefs;
-    const int key = TMath::Nint(el.m_value);
+    const int key = static_cast<int>( floor(el.m_value+0.5) );
     const NLSimple::EventDefMap::const_iterator iter = map.find(key);
     if( iter == map.end() )  return boost::any();
     const string &name = iter->second.getName();

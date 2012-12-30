@@ -1,14 +1,15 @@
-#include <cstdlib>
-#include <iostream>
-#include <iomanip>
-#include <vector>
+#include "DubsConfig.hh"
+
 #include <map>
 #include <string>
-#include <fstream>
-#include <stdio.h>
 #include <math.h>
+#include <vector>
+#include <cstdlib>
+#include <fstream>
+#include <iomanip>
+#include <stdio.h>
+#include <iostream>
 #include <stdlib.h>
-
 
 #include <boost/range.hpp>
 #include <boost/format.hpp>
@@ -19,7 +20,6 @@
 #include <boost/algorithm/string/split.hpp>
 #include <boost/date_time/gregorian/gregorian.hpp>
 #include <boost/date_time/posix_time/posix_time.hpp>
-
 
 #include "dubs/CgmsDataImport.hh"
 #include "dubs/RungeKuttaIntegrater.hh" //for toNMinutes()
@@ -699,7 +699,13 @@ CgmsDataImport::getInfoFromLine( std::string &line,
   if( feilds.size() <= (unsigned int)headerMap[key]
       || feilds.size() <= (unsigned int)headerMap[kDateKey]
       || feilds.size() <= (unsigned int)headerMap[kTimeKey] )
-    throw runtime_error( Form("getInfoFromLine(...) : unexpected fields size=%i, headerMap[key]=%i, headerMap[kDateKey]=%i, headerMap[kTimeKey]=%i", (int)feilds.size(), (int)headerMap[key], (int)headerMap[kDateKey], (int)headerMap[kTimeKey] ) );
+    throw runtime_error(
+      (boost::format("getInfoFromLine(...) : unexpected fields size=%i, "
+                     "headerMap[key]=%i, headerMap[kDateKey]=%i, "
+                     "headerMap[kTimeKey]=%i")
+                      % (int)feilds.size()
+                      % (int)headerMap[key] % (int)headerMap[kDateKey]
+                      % (int)headerMap[kTimeKey] ).str() );
 
   string dateStr = feilds[headerMap[kDateKey]];
   string timeStr = feilds[headerMap[kTimeKey]];
@@ -757,7 +763,10 @@ CgmsDataImport::sanitizeDateAndTimeInput( std::string time, SpreadSheetSource so
    //do some really basic format checks
 
   if( (time.find(" ") == string::npos) || (time.find(":") == string::npos) )
-    throw runtime_error( Form( "CgmsDataImport::sanitizeDateAndTimeInput(...): '%s' is not a time in an accepted format", time.c_str() ) );
+    throw runtime_error(
+              (boost::format("CgmsDataImport::sanitizeDateAndTimeInput(...): "
+                             "'%s' is not a time in an accepted format")
+               % time).str() );
 
   string monthDay  = time.substr(0, time.find(" "));
   string timeOfDay  = time.substr( time.find(" ") );

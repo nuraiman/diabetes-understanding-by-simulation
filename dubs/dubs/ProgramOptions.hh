@@ -1,21 +1,26 @@
 #if !defined(PROGRAM_OPTIONS_HH)
 #define PROGRAM_OPTIONS_HH
 
+#include "DubsConfig.hh"
+
 #include <map>
 
 // so I should have the gui in a seperate file, but in the interest of easy
 //  programming, I'll do this later (maybe)
 
 //We have to hide anything boost from ROOTS CINT
-#include "ArtificialPancrease.hh"
+
 #include <boost/program_options.hpp>
 
 // include headers that implement a archive in simple text format
+#include <boost/serialization/set.hpp>
+#include <boost/serialization/string.hpp>
 #include <boost/archive/text_oarchive.hpp>
 #include <boost/archive/text_iarchive.hpp>
-#include <boost/serialization/string.hpp>
-#include <boost/serialization/set.hpp>
 #include <boost/serialization/version.hpp>
+
+
+#include "dubs/ArtificialPancrease.hh"
 
 namespace ProgramOptions
 {

@@ -1,3 +1,4 @@
+#include "DubsConfig.hh"
 
 #include <string>
 #include <iostream>

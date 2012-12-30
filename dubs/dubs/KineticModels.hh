@@ -1,14 +1,15 @@
 #if !defined(KINETIC_MODEL_HH)
 #define KINETIC_MODEL_HH
 
+#include "DubsConfig.hh"
 
 #include <vector>
-#include "boost/function.hpp"
-#include "boost/date_time/posix_time/posix_time.hpp"
 
-#include "ArtificialPancrease.hh" //contains useful typedefs and constants
+#include <boost/function.hpp>
+#include <boost/date_time/posix_time/posix_time.hpp>
 
-#include "ConsentrationGraph.hh"
+#include "dubs/ConsentrationGraph.hh"
+#include "dubs/ArtificialPancrease.hh" //contains useful typedefs and constants
 
 //I'll put this stuff in a namepace later
 

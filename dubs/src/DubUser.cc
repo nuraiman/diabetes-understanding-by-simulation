@@ -1,3 +1,5 @@
+#include "DubsConfig.hh"
+
 #include <Wt/Dbo/Impl>
 #include <Wt/Auth/Dbo/AuthInfo>
 

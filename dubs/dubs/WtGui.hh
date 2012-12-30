@@ -1,32 +1,37 @@
 #ifndef WTGUI_H
 #define WTGUI_H
+
+#include "DubsConfig.hh"
+
 #include <map>
 #include <string>
 #include <vector>
-#include <boost/date_time/posix_time/posix_time.hpp>
-#include <boost/thread/recursive_mutex.hpp>
-#include <boost/thread/mutex.hpp>
-#include <boost/shared_ptr.hpp>
-#include <boost/foreach.hpp>
+
+
 #include <boost/thread.hpp>
+#include <boost/foreach.hpp>
+#include <boost/shared_ptr.hpp>
+#include <boost/thread/mutex.hpp>
+#include <boost/thread/recursive_mutex.hpp>
+#include <boost/date_time/posix_time/posix_time.hpp>
 
 
-#include <Wt/WApplication>
-#include <Wt/WContainerWidget>
-#include <Wt/WDateTime>
-#include <Wt/Dbo/ptr>
-#include <Wt/WContainerWidget>
-#include <Wt/Dbo/Session>
-#include <Wt/Dbo/backend/Sqlite3>
-#include <Wt/Chart/WCartesianChart>
 #include <Wt/WLineF>
 #include <Wt/WRectF>
+#include <Wt/Dbo/ptr>
+#include <Wt/WDateTime>
+#include <Wt/Dbo/Session>
+#include <Wt/WApplication>
 #include <Wt/Dbo/QueryModel>
+#include <Wt/WContainerWidget>
+#include <Wt/WContainerWidget>
+#include <Wt/Dbo/backend/Sqlite3>
+#include <Wt/Chart/WCartesianChart>
 
-#include "ArtificialPancrease.hh"
-#include "WtUserManagment.hh"
 #include "dubs/DubsSession.hh"
 #include "dubs/WtChartClasses.hh"
+#include "dubs/WtUserManagment.hh"
+#include "dubs/ArtificialPancrease.hh"
 
 //Some forward declarations
 class NLSimple;

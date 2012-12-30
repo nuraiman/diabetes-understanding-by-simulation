@@ -2,12 +2,13 @@
 #ifndef DubsSession_hh
 #define DubsSession_hh
 
+#include "DubsConfig.hh"
+
 #include <string>
 
-#include <Wt/Auth/Login>
-
-#include <Wt/Dbo/Session>
 #include <Wt/Dbo/ptr>
+#include <Wt/Auth/Login>
+#include <Wt/Dbo/Session>
 #include <Wt/Dbo/backend/Sqlite3>
 
 #include "dubs/DubUser.hh"

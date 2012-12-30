@@ -19,6 +19,7 @@ set( CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DBOOST_FILESYSTEM_VERSION=3" )
 
 option( TRY_TO_STATIC_LINK "Try to link to static libs whenever possible" OFF )
 option( BUILD_AS_DESKTOP_APP "Build as a standalone dektop type application" OFF )
+option( USE_CERNS_ROOT "Use CERNs ROOT libraries" OFF )
 
 
 IF(NOT CMAKE_BUILD_TYPE)
@@ -153,7 +154,8 @@ INCLUDE_DIRECTORIES(
     ${Boost_INCLUDE_DIR}
     ${CMAKE_BINARY_DIR}
     ${GSL_INCLUDE_DIRS}
-    dubs
+    dubs  #I should be able to get rid of this soon
+    external_libs
     .
     ..
 )
@@ -229,12 +231,39 @@ endif ()
 
 
 
-#configure_file(
-#    ${CMAKE_CURRENT_SOURCE_DIR}/wt_histogram/wt_histogram_config.h.in
-#    ${CMAKE_BINARY_DIR}/wt_histogram_config.h
-#)
+
+configure_file(
+    ${CMAKE_CURRENT_SOURCE_DIR}/dubs/DubsConfig.hh.in
+    ${CMAKE_BINARY_DIR}/DubsConfig.hh
+)
+
+FIND_PATH( WT_RESOURCES_DIRECTORY form.css
+        ${Wt_INCLUDE_DIR}/../share/Wt/resources
+)
+
+IF(NOT WT_RESOURCES_DIRECTORY)
+  MESSAGE("Could not find the Wt resources path to copy into current directory")
+ELSE(NOT WT_RESOURCES_DIRECTORY)
+  MESSAGE("Using Wt resources from ${WT_RESOURCES_DIRECTORY}")
+  file(COPY ${WT_RESOURCES_DIRECTORY}
+      DESTINATION ${PROJECT_BINARY_DIR}/
+      )
+ENDIF(NOT WT_RESOURCES_DIRECTORY)
 
 
+
+SET(SUPPORT_DIRECTORIES
+    local_resources
+)
+
+
+foreach(_dir ${SUPPORT_DIRECTORIES})
+  file(COPY
+    ${PROJECT_SOURCE_DIR}/${_dir}
+    DESTINATION
+    ${PROJECT_BINARY_DIR}/
+    )
+endforeach()
 
 
 #Copy files to the install directory

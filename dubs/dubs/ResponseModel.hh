@@ -1,19 +1,22 @@
 #if !defined(RESPONSE_MODEL_HH)
 #define RESPONSE_MODEL_HH
 
+#include "DubsConfig.hh"
+
 #include <vector>
 #include <utility> //for pair<,>
-#include "boost/function.hpp"
-#include "boost/date_time/posix_time/posix_time.hpp"
+
+#include <boost/function.hpp>
 #include <boost/serialization/set.hpp>
-#include <boost/serialization/version.hpp>
 #include <boost/serialization/string.hpp>
+#include <boost/serialization/version.hpp>
+#include <boost/date_time/posix_time/posix_time.hpp>
 
 
-#include "KineticModels.hh"
-#include "ConsentrationGraph.hh"
-#include "ArtificialPancrease.hh" //contains useful typedefs and constants
-#include "ProgramOptions.hh"
+#include "dubs/KineticModels.hh"
+#include "dubs/ProgramOptions.hh"
+#include "dubs/ConsentrationGraph.hh"
+#include "dubs/ArtificialPancrease.hh" //contains useful typedefs and constants
 
 #include "Minuit2/FCNBase.h"
 #include "TMVA/IFitterTarget.h"
@@ -68,8 +71,10 @@
 class TVirtualPad;
 class NLSimple;
 
-class TSpline3;
+
 class EventDef;
+//class TSpline3;
+namespace magnet{ namespace math{ class Spline; } }
 
 class CustomEventAmplitudeCache;
 
@@ -202,7 +207,7 @@ class NLSimple
               double basalGlucoseConcen = ProgramOptions::kBasalGlucConc,
               PosixTime t0 = kGenericT0 );
 
-    ~NLSimple() {};
+    ~NLSimple(){}
 
     double getOffset( const PosixTime &absoluteTime ) const;
     PosixTime getAbsoluteTime( double nOffsetMinutes ) const;
@@ -380,9 +385,10 @@ class NLSimple
 
     double fitModelToDataViaMinuit2( double endPredChi2Weight,
                                      TimeRangeVec timeRanges = EmptyTimeRangeVec );
-
+#if(USE_CERNS_ROOT)
     DVec chi2DofStudy( double endPredChi2Weight,
                              TimeRangeVec timeRanges = EmptyTimeRangeVec ) const;
+#endif  //#if(USE_CERNS_ROOT)
 
     // timeRanges -- the time range of events your fitting
     // paramaterV -- contains answers and starting values
@@ -398,9 +404,11 @@ class NLSimple
     static TimeRangeVec subtractTimeRanges( const TimeRangeVec &wanted_ranges,
                                             const TimeRange    &not_wanted );
 
-    void runGui();
+//    void runGui();
+#if(USE_CERNS_ROOT)
     void draw( bool pause = true, PosixTime t_start = kGenericT0,
                PosixTime t_end = kGenericT0 );
+#endif  //#if(USE_CERNS_ROOT)
 
     static std::string convertToRootLatexString( double num, int nPrecision  );
     std::vector<std::string> getEquationDescription() const;
@@ -555,7 +563,9 @@ class EventDef
 
   private:
     std::string m_name;
-    mutable TSpline3 *m_spline;
+
+//    mutable TSpline3 *m_spline;
+    mutable magnet::math::Spline *m_spline;
 
     double *m_times;
     double *m_values;
@@ -585,7 +595,9 @@ class EventDef
     const TimeDuration &getDuration() const;
     const EventDefType &getEventDefType() const;
 
+#if( USE_CERNS_ROOT )
     void draw() const;
+#endif
 
     const double *times() const { return m_times; }
     const double *values() const { return m_values; }
@@ -680,6 +692,7 @@ private:
 };//struct CustomEventAmplitudes
 
 
+#if( USE_CERNS_ROOT )
 void drawClarkeErrorGrid( TVirtualPad *pad,
                           const ConsentrationGraph &cmgsGraph,
                           const ConsentrationGraph &meterGraph,
@@ -690,7 +703,7 @@ std::vector<TObject *> getClarkeErrorGridObjs( const ConsentrationGraph &cmgsGra
                                                const ConsentrationGraph &meterGraph,
                                                const TimeDuration &cmgsDelay,
                                                bool isCgmsVsMeter );
-
+#endif //USE_CERNS_ROOT
 
 
 BOOST_CLASS_VERSION(NLSimple, 1)

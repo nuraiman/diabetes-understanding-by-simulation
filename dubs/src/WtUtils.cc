@@ -1,3 +1,5 @@
+#include "DubsConfig.hh"
+
 #include <cstdlib>
 #include <iostream>
 #include <iomanip>

@@ -1,3 +1,5 @@
+#include "DubsConfig.hh"
+
 #include <set>
 #include <cmath>
 #include <math.h>
@@ -37,6 +39,7 @@
 #include <Wt/Dbo/backend/Sqlite3>
 #include <Wt/Auth/PasswordService>
 
+#if(USE_CERNS_ROOT)
 #include "TH1.h"
 #include "TH2.h"
 #include "TH2F.h"
@@ -44,6 +47,7 @@
 #include "TH1F.h"
 #include "TSystem.h"
 #include "TRandom3.h"
+#endif  //#if(USE_CERNS_ROOT)
 
 #include "dubs/DubUser.hh"
 #include "dubs/WtUserManagment.hh"
