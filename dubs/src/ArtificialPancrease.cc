@@ -1,46 +1,53 @@
-#include <cstdlib>
-#include <iostream>
-#include <iomanip>
 #include <vector>
 #include <string>
-#include <stdio.h>
 #include <math.h>
-#include <stdlib.h>
 #include <fstream>
+#include <stdio.h>
+#include <cstdlib>
+#include <iomanip>
+#include <stdlib.h>
+#include <iostream>
+
 
 //ROOT includes (using root 5.14)
-#include "TSystem.h"
-#include "TStyle.h"
 #include "TF1.h"
-#include "TClonesArray.h"
-#include "TTree.h"
-#include "TGraph.h"
 #include "TH1.h"
 #include "TH2.h"
-#include "TCanvas.h"
-#include "TApplication.h"
 #include "TRint.h"
-#include "TLegend.h"
 #include "TROOT.h"
-#include "TPaveText.h"
 #include "TMath.h"
-
+#include "TTree.h"
+#include "TGraph.h"
+#include "TStyle.h"
+#include "TLegend.h"
+#include "TSystem.h"
+#include "TCanvas.h"
+#include "TPaveText.h"
+#include "TClonesArray.h"
+#include "TApplication.h"
 
 
 //Boost includes (developing with boost 1.38)
-#include "boost/date_time/gregorian/gregorian.hpp"
-#include "boost/date_time/posix_time/posix_time.hpp"
+#include <boost/bind.hpp>
+#include <boost/foreach.hpp>
+#include <boost/function.hpp>
+#include <boost/date_time/gregorian/gregorian.hpp>
+#include <boost/date_time/posix_time/posix_time.hpp>
 
-#include "boost/bind.hpp"
-#include "boost/function.hpp"
 
-#include "KineticModels.hh"
-#include "ResponseModel.hh"
-#include "RungeKuttaIntegrater.hh"
-#include "ConsentrationGraph.hh"
-#include "ArtificialPancrease.hh"
-#include "CgmsDataImport.hh"
-#include "ProgramOptions.hh"
+#include "dubs/KineticModels.hh"
+#include "dubs/ResponseModel.hh"
+#include "dubs/CgmsDataImport.hh"
+#include "dubs/ProgramOptions.hh"
+#include "dubs/ConsentrationGraph.hh"
+#include "dubs/ArtificialPancrease.hh"
+#include "dubs/RungeKuttaIntegrater.hh"
+
+
+
+//To make the code prettier
+#define foreach         BOOST_FOREACH
+#define reverse_foreach BOOST_REVERSE_FOREACH
 
 
 TApplication *gTheApp = (TApplication *)NULL;

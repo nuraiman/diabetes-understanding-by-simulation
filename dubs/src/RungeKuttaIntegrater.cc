@@ -1,11 +1,10 @@
 
+#include <boost/bind.hpp>
+#include <boost/function.hpp>
+#include <boost/date_time/posix_time/posix_time.hpp>
+
 #include "ArtificialPancrease.hh"
 #include "RungeKuttaIntegrater.hh"
-
-
-#include "boost/bind.hpp"
-#include "boost/function.hpp"
-#include "boost/date_time/posix_time/posix_time.hpp"
 
 using namespace std;
 using namespace boost;

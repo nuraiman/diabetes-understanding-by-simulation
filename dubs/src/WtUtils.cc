@@ -16,32 +16,37 @@
 #include <boost/thread/recursive_mutex.hpp>
 #include <boost/thread/mutex.hpp>
 
-#include <Wt/WApplication>
-#include <Wt/WEnvironment>
-#include <Wt/WContainerWidget>
-#include <Wt/WLabel>
-#include <Wt/WSpinBox>
-#include <Wt/WDatePicker>
-#include <Wt/WPopupMenu>
-#include <Wt/WPushButton>
 #include <Wt/WText>
 #include <Wt/WTime>
 #include <Wt/WDate>
-#include <Wt/WDateTime>
-#include <Wt/WComboBox>
-#include <Wt/WIntValidator>
-#include <Wt/WDoubleValidator>
+#include <Wt/WLabel>
 #include <Wt/WDialog>
-#include <Wt/WLengthValidator>
+#include <Wt/WSpinBox>
+#include <Wt/WComboBox>
+#include <Wt/WDateTime>
+#include <Wt/WPopupMenu>
 #include <Wt/WTableView>
 #include <Wt/WJavaScript>
+#include <Wt/WDatePicker>
+#include <Wt/WPushButton>
+#include <Wt/WApplication>
+#include <Wt/WEnvironment>
+#include <Wt/WIntValidator>
+#include <Wt/WContainerWidget>
+#include <Wt/WLengthValidator>
+#include <Wt/WDoubleValidator>
 
-#include "WtGui.hh"
-#include "WtUtils.hh"
-#include "ArtificialPancrease.hh"
+#include "dubs/WtGui.hh"
+#include "dubs/WtUtils.hh"
+#include "dubs/ArtificialPancrease.hh"
 
 using namespace Wt;
 using namespace std;
+
+
+#define foreach         BOOST_FOREACH
+#define reverse_foreach BOOST_REVERSE_FOREACH
+
 
 #define INLINE_JAVASCRIPT(...) #__VA_ARGS__
 

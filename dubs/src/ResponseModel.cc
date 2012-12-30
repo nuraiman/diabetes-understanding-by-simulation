@@ -44,23 +44,24 @@
 #include "TMVA/GeneticAlgorithm.h"
 
 
-#include "boost/date_time/gregorian/gregorian.hpp"
-#include "boost/date_time/posix_time/posix_time.hpp"
-#include "boost/date_time/posix_time/time_serialize.hpp"
-#include "boost/date_time/gregorian/greg_serialize.hpp"
-#include "boost/foreach.hpp"
-#include "boost/bind.hpp"
-#include "boost/ref.hpp"
-#include "boost/function.hpp"
-#include "boost/assign/list_of.hpp" //for 'list_of()'
-#include "boost/assign/list_inserter.hpp"
+
+#include <boost/ref.hpp>
+#include <boost/bind.hpp>
+#include <boost/format.hpp>
+#include <boost/foreach.hpp>
+#include <boost/function.hpp>
+#include <boost/assign/list_of.hpp> //for 'list_of()'
+#include <boost/serialization/map.hpp>
 #include <boost/serialization/set.hpp>
-#include <boost/serialization/version.hpp>
 #include <boost/serialization/array.hpp>
 #include <boost/serialization/vector.hpp>
 #include <boost/serialization/string.hpp>
-#include <boost/serialization/map.hpp>
-#include "boost/format.hpp"
+#include <boost/assign/list_inserter.hpp>
+#include <boost/serialization/version.hpp>
+#include <boost/date_time/gregorian/gregorian.hpp>
+#include <boost/date_time/posix_time/posix_time.hpp>
+#include <boost/date_time/gregorian/greg_serialize.hpp>
+#include <boost/date_time/posix_time/time_serialize.hpp>
 
 #include "ResponseModel.hh"
 #include "KineticModels.hh"
@@ -75,6 +76,9 @@ using namespace boost::posix_time;
 
 extern TApplication *gTheApp;
 
+//To make the code prettier
+#define foreach         BOOST_FOREACH
+#define reverse_foreach BOOST_REVERSE_FOREACH
 
 
 NLSimple::NLSimple( const string &description, double basalUnitsPerKiloPerhour,
@@ -2708,7 +2712,9 @@ void NLSimple::serialize( Archive &ar, const unsigned int version )
   ar & m_predictedInsulinX;
   ar & m_predictedBloodGlucose;
 
-  if( version > 0 ) ar & m_doNotUseTimeRanges & m_userNotes;
+  if( version > 0 )
+    ar & m_doNotUseTimeRanges
+       & m_userNotes;
 
   ar & m_startSteadyStateTimes;
 
@@ -2729,7 +2735,8 @@ bool NLSimple::saveToFile( std::string filename )
 
 
   size_t beginExtension = filename.find_last_of( "." );
-  if( beginExtension == string::npos ) filename += ".dubm";
+  if( beginExtension == string::npos )
+    filename += ".dubm";
   else
   {
     string extention = filename.substr( beginExtension );

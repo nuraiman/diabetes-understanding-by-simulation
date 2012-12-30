@@ -4,17 +4,17 @@
 
 #include <Wt/WColor>
 #include <Wt/WBorder>
+#include <Wt/WResource>
 #include <Wt/WJavaScript>
 #include <Wt/WApplication>
 #include <Wt/WPaintDevice>
-#include <Wt/WPaintedWidget>
-#include <Wt/WContainerWidget>
-#include <Wt/WCssDecorationStyle>
-#include <Wt/Chart/WAbstractChart>
 #include <Wt/Http/Request>
 #include <Wt/Http/Response>
-#include <Wt/WResource>
+#include <Wt/WPaintedWidget>
+#include <Wt/WContainerWidget>
 #include <Wt/WAbstractItemModel>
+#include <Wt/WCssDecorationStyle>
+#include <Wt/Chart/WAbstractChart>
 
 #include <boost/thread.hpp>
 #include <boost/lexical_cast.hpp>
@@ -27,6 +27,13 @@
 
 using namespace Wt;
 using namespace std;
+
+
+//To make the code prettier
+#define foreach         BOOST_FOREACH
+#define reverse_foreach BOOST_REVERSE_FOREACH
+
+
 
 /*
  * See also: http://www.webtoolkit.eu/wt/blog/2010/03/02/javascript_that_is_c__
@@ -193,8 +200,6 @@ OverlayCanvas::OverlayCanvas( Wt::Chart::WAbstractChart *parent,
   WApplication *app = WApplication::instance();
   LOAD_JAVASCRIPT(app, "js/OverlayCanvas.js", "OverlayCanvas", wtjsAlignOverlay);
 
-//  string js = "initOverlayCanvas('"+id()+"', "+chartPadding+", "+drawMode+ ");";
-//  wApp->doJavaScript( js );
 //  setJavaScriptMember( "wtResize", "function(self, w, h) { return false; };" );
 }//OverlayCanvas constructos
 
@@ -207,6 +212,7 @@ void OverlayCanvas::alignWithParent()
 void OverlayCanvas::loadInitOverlayCanvasJs()
 {
   WApplication *app = WApplication::instance();
+  LOAD_JAVASCRIPT(app, "js/OverlayCanvas.js", "OverlayCanvas", wtjsEncodeOverlayEvent);
 
   LOAD_JAVASCRIPT(app, "js/OverlayCanvas.js", "OverlayCanvas", wtjsOverlayOnClick);
   const string onclickSlotJS = "function(s,e){ this.WT.OverlayOnClick(s,e);}";

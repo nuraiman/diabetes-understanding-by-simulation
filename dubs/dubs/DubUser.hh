@@ -7,8 +7,9 @@
 #include <Wt/Dbo/Types>
 #include <Wt/WGlobal>
 
-class UsersModel;
+
 class DubUser;
+class UsersModel;
 typedef Wt::Auth::Dbo::AuthInfo<DubUser> AuthInfo;
 
 

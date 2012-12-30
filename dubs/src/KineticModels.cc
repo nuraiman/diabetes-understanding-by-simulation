@@ -1,17 +1,27 @@
 #include <iostream>
-#include "KineticModels.hh"
-#include "RungeKuttaIntegrater.hh"
-#include "boost/date_time/gregorian/gregorian.hpp"
-#include "boost/date_time/posix_time/posix_time.hpp"
-#include "boost/foreach.hpp"
-#include "boost/bind.hpp"
-#include "boost/assign/list_of.hpp" //for 'list_of()'
-#include "boost/assign/list_inserter.hpp"
+
+#include <boost/bind.hpp>
+#include <boost/foreach.hpp>
+#include <boost/assign/list_of.hpp> //for 'list_of()'
+#include <boost/assign/list_inserter.hpp>
+#include <boost/date_time/gregorian/gregorian.hpp>
+#include <boost/date_time/posix_time/posix_time.hpp>
+
+
+#include "dubs/KineticModels.hh"
+#include "dubs/RungeKuttaIntegrater.hh"
 
 
 using namespace std;
 using namespace boost;
 using namespace boost::posix_time;
+
+
+//To make the code prettier
+#define foreach         BOOST_FOREACH
+#define reverse_foreach BOOST_REVERSE_FOREACH
+
+
 
 //FastCarbAbsorbtion,
 //A 1/2 hour absorbtion function, return carbs absorbed per minute

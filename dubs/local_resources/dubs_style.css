@@ -93,6 +93,23 @@ br.Wt-tabs-clear
  /*overflow: auto; */
 }
 
+
+.DubEventEntryMobile
+{
+  padding-top: 10px;
+  padding-bottom: 10px;
+  padding-left: 20px;
+  border: solid 1px #D5D8E2;
+  text-align: left;
+  background-color:#F6F6F9;
+  font-size:1.5em;
+/*  position: static; */
+  /*min-width: 150ex;*/
+ /*overflow: auto; */
+}
+
+
+
 .DubEventEntry_timeSelectDiv
 {
   border: solid 1px #D5D8E2;
@@ -110,7 +127,7 @@ br.Wt-tabs-clear
   border: solid 1px #D5D8E2;
 }
 
-.WtExcludeTimeRangesTabTableView
+.ExcludeTimeRangesTabTableView
 {
 }
 
@@ -121,12 +138,12 @@ br.Wt-tabs-clear
   height: 99%;
 }
 
-.WtModelSettingsGui
+.ModelSettingsTab
 {
   border: solid 1px #D5D8E2;
 }
 
-.WtGeneticallyOptimize
+.GeneticallyOptimizeTab
 {
 }
 
@@ -135,7 +152,7 @@ br.Wt-tabs-clear
 {
 }
 
-.WtNotesTabTableView
+.NotesTabTableView
 {
   border: solid 2px #D5D8E2;
   margin-left: 20px;
@@ -186,7 +203,7 @@ br.Wt-tabs-clear
 {
 }
 
-.WtCustomEventTab_buttonDiv
+.CustomEventTab_buttonDiv
 {
   text-align: center;
 }

@@ -3,10 +3,11 @@
 #include <map>
 #include <string>
 #include <vector>
-#include "boost/date_time/posix_time/posix_time.hpp"
+#include <boost/date_time/posix_time/posix_time.hpp>
 #include <boost/thread/recursive_mutex.hpp>
 #include <boost/thread/mutex.hpp>
 #include <boost/shared_ptr.hpp>
+#include <boost/foreach.hpp>
 #include <boost/thread.hpp>
 
 
@@ -43,19 +44,19 @@ class WtTimeRangeVecModel;
 class ConsentrationGraph;
 
 class ClarkErrorGridGraph;
-class WtModelSettingsGui;
+class ModelSettingsTab;
 class MemVariableSpinBox;
 class MemGuiTimeDate;
 class OverlayCanvas;
 
-class WtNotesTab;
+class NotesTab;
 class NLSimplePtr;
 class WtCreateNLSimple;
 class WChartWithLegend;
 class WtNotesVectorModel;
 class WtGeneralArrayModel;
 class NLSimpleDisplayModel;
-class WtExcludeTimeRangesTab;
+class ExcludeTimeRangesTab;
 
 namespace Wt
 {
@@ -268,15 +269,15 @@ public:
     Wt::WPushButton            *m_nextTimePeriodButton;
     Wt::WPushButton            *m_previousTimePeriodButton;
 
-    WtNotesTab                 *m_notesTab;
-    WtExcludeTimeRangesTab     *m_excludeTimeRangeTab;
+    NotesTab                 *m_notesTab;
+    ExcludeTimeRangesTab     *m_excludeTimeRangeTab;
 
     std::vector<WtConsGraphModel*> m_inputModels;
 
 
     friend class NLSimplePtr;
     //friend class DubEventEntry;
-    //friend class WtGeneticallyOptimize;
+    //friend class GeneticallyOptimizeTab;
 };//class WtGui
 
 
@@ -330,7 +331,7 @@ private:
 
 
 
-class WtModelSettingsGui: public Wt::WContainerWidget
+class ModelSettingsTab: public Wt::WContainerWidget
 {
   //This class hooks the ModelSettings object (that is a member of NLSimple)
   //  up to a gui so a user can edit the settings of the ModelSettings object.
@@ -340,9 +341,9 @@ private:
   typedef std::vector<MemVariableSpinBox *> SpinBoxes;
 
 public:
-  WtModelSettingsGui( ModelSettings *modelSettings,
+  ModelSettingsTab( ModelSettings *modelSettings,
                       Wt::WContainerWidget *parent = NULL  );
-  virtual ~WtModelSettingsGui();
+  virtual ~ModelSettingsTab();
 
   Wt::Signal<> &changed();
   Wt::Signal<> &predictionChanged();
@@ -356,11 +357,11 @@ private:
   void init();
   void emitChanged();
   void emitPredictionChanged();
-};//class WtModelSettingsGui
+};//class ModelSettingsTab
 
 
 
-class WtGeneticallyOptimize: public Wt::WContainerWidget
+class GeneticallyOptimizeTab : public Wt::WContainerWidget
 {
   WtGui *m_parentWtGui;
 
@@ -388,9 +389,9 @@ class WtGeneticallyOptimize: public Wt::WContainerWidget
   MemGuiTimeDate *m_startTrainingTimeSelect;
 
 public:
-  WtGeneticallyOptimize( WtGui *wtGuiParent,
+  GeneticallyOptimizeTab( WtGui *wtGuiParent,
                          Wt::WContainerWidget *parent = NULL  );
-  virtual ~WtGeneticallyOptimize();
+  virtual ~GeneticallyOptimizeTab();
 
 
   //below is meant to be called after each new generation of potential models
@@ -405,10 +406,10 @@ public:
   void startMinuit2Optimization();
   void syncGraphDataToNLSimple();
   void updateDateSelectLimits();
-};//class WtGeneticallyOptimize
+};//class GeneticallyOptimizeTab
 
 
-class WtCustomEventTab: public Wt::WContainerWidget
+class CustomEventTab: public Wt::WContainerWidget
 {
 protected:
   WtGui                          *m_parentWtGui;
@@ -422,9 +423,9 @@ protected:
   Wt::WStandardItemModel         *m_eventTypesModel;
 
 public:
-  WtCustomEventTab( WtGui *wtGuiParent,
+  CustomEventTab( WtGui *wtGuiParent,
                     Wt::WContainerWidget *parent = NULL );
-  virtual ~WtCustomEventTab();
+  virtual ~CustomEventTab();
 
   int selectedEventType() const;
 
@@ -445,10 +446,10 @@ public:
 
   bool undefineCustomEvent( int index );
   void confirmUndefineCustomEventDialog(); //currently selected event type
-};//class WtCustomEventTab:
+};//class CustomEventTab:
 
 
-class WtNotesTab : public Wt::WContainerWidget
+class NotesTab : public Wt::WContainerWidget
 {
 protected:
   WtGui                      *m_parentWtGui;
@@ -468,8 +469,8 @@ protected:
 
 
 public:
-  WtNotesTab( WtGui *wtGuiParent, Wt::WContainerWidget *parent = NULL );
-  virtual ~WtNotesTab(){}
+  NotesTab( WtGui *wtGuiParent, Wt::WContainerWidget *parent = NULL );
+  virtual ~NotesTab(){}
 
   void newEntry();
   void cancelEdit();
@@ -478,21 +479,21 @@ public:
   void handleSelectionChange();
 
   void updateViewTable();
-};//class WtNotesTab : public Wt::WContainerWidget
+};//class NotesTab : public Wt::WContainerWidget
 
 
-class WtExcludeTimeRangesTab : public Wt::WContainerWidget
+class ExcludeTimeRangesTab : public Wt::WContainerWidget
 {
   class ExcludedRangesChart : public WChartWithLegend
   {
   public:
-    ExcludedRangesChart( WtExcludeTimeRangesTab *parentTab, Wt::WContainerWidget *parent = NULL  );
+    ExcludedRangesChart( ExcludeTimeRangesTab *parentTab, Wt::WContainerWidget *parent = NULL  );
     virtual ~ExcludedRangesChart();
 
     virtual void paint( Wt::WPainter& painter, const Wt::WRectF& rectangle = Wt::WRectF() ) const;
     virtual void paintEvent( Wt::WPaintDevice *paintDevice );
 
-    WtExcludeTimeRangesTab *m_parentTab;
+    ExcludeTimeRangesTab *m_parentTab;
   };//class ExcludedRangesChart
 
   friend class ExcludedRangesChart;
@@ -518,8 +519,8 @@ protected:
   Wt::WText                  *m_description;
 
 public:
-  WtExcludeTimeRangesTab( WtGui *parentWtGui, Wt::WContainerWidget *parent = NULL );
-  virtual ~WtExcludeTimeRangesTab(){}
+  ExcludeTimeRangesTab( WtGui *parentWtGui, Wt::WContainerWidget *parent = NULL );
+  virtual ~ExcludeTimeRangesTab(){}
 
   void hideChartOverlay();
   void showChartOverlay();
@@ -536,7 +537,7 @@ public:
   void updateDataRangeDates();
   void setAddingNewRange();
   void setShowingExistingRange();  //shows the currently highlighted range.  If none are highlighted
-};//class WtExcludeTimeRangesTab : public Wt::WContainerWidget
+};//class ExcludeTimeRangesTab : public Wt::WContainerWidget
 
 
 

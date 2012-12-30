@@ -1,32 +1,32 @@
 #include <algorithm>
 
-#include "boost/any.hpp"
-#include "boost/foreach.hpp"
-#include "boost/date_time.hpp"
+#include <boost/any.hpp>
+#include <boost/foreach.hpp>
+#include <boost/date_time.hpp>
+#include <boost/algorithm/string.hpp>
 
-#include <Wt/WPainter>
 #include <Wt/WRectF>
-#include <Wt/WDateTime>
-#include <Wt/Chart/WCartesianChart>
-#include <Wt/Chart/WChart2DRenderer>
-#include <Wt/WAbstractItemModel>
-#include <Wt/WApplication>
 #include <Wt/WPointF>
 #include <Wt/WString>
-#include <Wt/Chart/WChartPalette>
-#include <Wt/Chart/WAxis>
+#include <Wt/WPainter>
+#include <Wt/WDateTime>
 #include <Wt/WRectArea>
+#include <Wt/Chart/WAxis>
+#include <Wt/WApplication>
+#include <Wt/WAbstractItemModel>
+#include <Wt/Chart/WChartPalette>
+#include <Wt/Chart/WCartesianChart>
+#include <Wt/Chart/WChart2DRenderer>
 
 #include "TMath.h"
 
 #include "WtGui.hh"
-#include "WtChartClasses.hh"
-#include "ConsentrationGraph.hh"
 #include "ResponseModel.hh"
 #include "CgmsDataImport.hh"
+#include "WtChartClasses.hh"
+#include "ConsentrationGraph.hh"
 #include "ArtificialPancrease.hh"
 
-#include "boost/algorithm/string.hpp"
 
 using namespace Wt;
 using namespace std;

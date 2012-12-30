@@ -48,6 +48,58 @@ function( thisID, parentID )
 }
 );
 
+WT_DECLARE_WT_MEMBER
+(EncodeOverlayEvent, Wt::JavaScriptFunction, "EncodeOverlayEvent",
+function( x0, x1, y0, y1, e )
+{
+   //var n = Wt.WT.EncodeOverlayEvent(x0,x1,y0,y1,event).split('&');
+   //  x0 = n[0];  //in pixels
+   //  x1 = n[1];
+   //  y0 = n[2];
+   //  y1 = n[3];
+   //  button   = n[4];  //'0' for no mouse button
+   //  keycode  = n[5];  //'0' for no key pressed
+   //  altkey   = n[6];
+   //  ctrlkey  = n[7];
+   //  metakey  = n[8];
+   //  shiftkey = n[9];
+   //  mouseWheelDelta = n[10];
+
+  var result = '' + x0 + '&' + x1 + '&' + y0 + '&' + y1;
+  var button = this.button(e);
+  if(!button)
+  {
+    if (this.buttons & 1)
+      button = 1;
+    else if (this.buttons & 2)
+      button = 2;
+    else if (this.buttons & 4)
+      button = 4;
+    else
+      button = 0;
+  }//if(!button)
+  result += '&' + button;
+  if (typeof e.keyCode !== 'undefined')
+    result += '&' + e.keyCode;
+  else result += '&0';
+  if (typeof e.charCode !== 'undefined')
+    result += '&' + e.charCode;
+  else result += '&0';
+  if (e.altKey)   result += '&1';
+  else            result += '&0';
+  if (e.ctrlKey)  result += '&1';
+  else            result += '&0';
+  if (e.metaKey)  result += '&1';
+  else            result += '&0';
+  if (e.shiftKey) result += '&1';
+  else            result += '&0';
+  var delta = this.wheelDelta(e);
+  result += '&' + delta;
+
+  return result;
+}//function( x0, x1, y0, y1, event )
+);
+
 
 WT_DECLARE_WT_MEMBER
 (OverlayOnMouseUp, Wt::JavaScriptFunction, "OverlayOnMouseUp",
@@ -69,45 +121,15 @@ function( sender, e )
   var y0 = can.data('startDragY');
   var x1 = e.pageX - can.offset().left;
   var y1 = e.pageY - can.offset().top;
-//  console.log( 'OverlayOnMouseUp: id=' + id + ', x0=' + x0 + ', y0=' + y0 + ', x1=' + x1 + ', y1=' + y1 + ' mouseWasDragged=' + can.data('mouseWasDrugged') );
 
   if( x0!==null && y0!==null && can.data('mouseWasDrugged') )
     Wt.emit( id, {name: 'userDragged', event: e, eventObject: sender}, Math.round(x0), Math.round(y0) );
   can.data('startDragX',null);
   can.data('startDragY',null);
 
-  var result = '' + x0 + '&' + x1 + '&' + y0 + '&' + y1;
-  var button = this.button(e);
-  if(!button)
-  {
-    if (this.buttons & 1)
-      button = 1;
-    else if (this.buttons & 2)
-      button = 2;
-    else if (this.buttons & 4)
-      button = 4;
-    else
-      button = -1;
-  }
-  result += '&' + button;
-  if (typeof e.keyCode !== 'undefined')
-    result += '&' + e.keyCode;
-  else result += '&0';
-  if (typeof e.charCode !== 'undefined')
-    result += '&' + e.charCode;
-  else result += '&0';
-  if (e.altKey)   result += '&1';
-  else            result += '&0';
-  if (e.ctrlKey)  result += '&1';
-  else            result += '&0';
-  if (e.metaKey)  result += '&1';
-  else            result += '&0';
-  if (e.shiftKey) result += '&1';
-  else            result += '&0';
-  var delta = this.wheelDelta(e);
-  result += '&' + delta;
+  var result = this.EncodeOverlayEvent( x0, x1, y0, y1, e );
   Wt.emit( id, {name: 'OverlayDragEvent'}, result );
-  }
+}//function( sender, e )
 );
 
 
@@ -240,7 +262,7 @@ function(sender,event)
   var id = sender.id;
   var can = $('#c'+id);
   var canElement = this.getElement('c'+id);
-  if( !can || !canElement )
+  if( can.length===0 || !canElement )
   {
     if( console && console.log )
       console.log('OverlayOnMouseMove Error');

@@ -1,96 +1,97 @@
-#include <cstdlib>
-#include <iostream>
-#include <iomanip>
+#include <math.h>
 #include <vector>
 #include <string>
+#include <cstdlib>
+#include <iomanip>
 #include <stdio.h>
-#include <math.h>
+#include <iostream>
 #include <stdlib.h>
 #include <limits.h>
 
-#include "boost/foreach.hpp"
-#include "boost/lexical_cast.hpp"
-#include "boost/date_time/posix_time/posix_time.hpp"
-#include "boost/algorithm/string.hpp"
-#include <boost/thread/thread.hpp>
-#include <boost/thread/mutex.hpp>
 #include <boost/thread.hpp>
+#include <boost/foreach.hpp>
+#include <boost/lexical_cast.hpp>
+#include <boost/thread/mutex.hpp>
+#include <boost/thread/thread.hpp>
+#include <boost/algorithm/string.hpp>
+#include <boost/date_time/posix_time/posix_time.hpp>
 
-#include <Wt/Dbo/backend/Sqlite3>
-#include <Wt/WApplication>
-#include <Wt/WEnvironment>
-#include <Wt/WContainerWidget>
-#include <Wt/Chart/WCartesianChart>
-#include <Wt/WBorderLayout>
-#include <Wt/WTabWidget>
-#include <Wt/WStandardItemModel>
-#include <Wt/WTableView>
-#include <Wt/WDatePicker>
-#include <Wt/WLabel>
-#include <Wt/WSpinBox>
-#include <Wt/WDatePicker>
-#include <Wt/WPopupMenu>
-#include <Wt/WPushButton>
+
+#include <Wt/WPen>
 #include <Wt/WText>
-#include <Wt/WTable>
-#include <Wt/WPainter>
-#include <Wt/Chart/WDataSeries>
 #include <Wt/WTime>
 #include <Wt/WDate>
 #include <Wt/WLink>
-#include <Wt/WAnchor>
-#include <Wt/WDateTime>
-#include <Wt/WComboBox>
-#include <Wt/WIntValidator>
-#include <Wt/WDoubleValidator>
-#include <Wt/WDialog>
-#include <Wt/WLengthValidator>
-#include <Wt/Dbo/QueryModel>
-#include <Wt/WTableView>
-#include <Wt/WItemDelegate>
 #include <Wt/WLineF>
-#include <Wt/WPen>
-#include <Wt/WHBoxLayout>
-#include <Wt/Chart/WChartPalette>
-#include <Wt/WFileUpload>
-#include <Wt/WRadioButton>
-#include <Wt/WButtonGroup>
-#include <Wt/WGroupBox>
-#include <Wt/WSortFilterProxyModel>
-#include <Wt/WLineEdit>
-#include <Wt/WSpinBox>
-#include <Wt/WPushButton>
 #include <Wt/WPanel>
-#include <Wt/WHBoxLayout>
+#include <Wt/WLabel>
+#include <Wt/WTable>
+#include <Wt/WDialog>
+#include <Wt/WAnchor>
+#include <Wt/WPainter>
+#include <Wt/WSpinBox>
+#include <Wt/WSpinBox>
+#include <Wt/WGroupBox>
+#include <Wt/WLineEdit>
 #include <Wt/WTextArea>
 #include <Wt/WMenuItem>
-#include <Wt/Dbo/QueryModel>
+#include <Wt/WDateTime>
+#include <Wt/WComboBox>
 #include <Wt/WAnimation>
+#include <Wt/WTabWidget>
+#include <Wt/WTableView>
+#include <Wt/WTableView>
+#include <Wt/WPopupMenu>
+#include <Wt/WHBoxLayout>
+#include <Wt/WDatePicker>
+#include <Wt/WPushButton>
+#include <Wt/WPushButton>
+#include <Wt/WHBoxLayout>
+#include <Wt/WFileUpload>
+#include <Wt/WDatePicker>
+#include <Wt/WApplication>
+#include <Wt/WEnvironment>
+#include <Wt/WRadioButton>
+#include <Wt/WButtonGroup>
+#include <Wt/WItemDelegate>
+#include <Wt/WBorderLayout>
+#include <Wt/WIntValidator>
+#include <Wt/Dbo/QueryModel>
+#include <Wt/Dbo/QueryModel>
 #include <Wt/Auth/AuthWidget>
+#include <Wt/WContainerWidget>
+#include <Wt/WDoubleValidator>
+#include <Wt/WLengthValidator>
+#include <Wt/Chart/WDataSeries>
+#include <Wt/WStandardItemModel>
+#include <Wt/Dbo/backend/Sqlite3>
+#include <Wt/Chart/WChartPalette>
 #include <Wt/Auth/PasswordService>
+#include <Wt/WSortFilterProxyModel>
+#include <Wt/Chart/WCartesianChart>
 
 
-#include "TH1.h"
-#include "TH1F.h"
 #include "TH2.h"
+#include "TH1.h"
 #include "TH2F.h"
 #include "TMD5.h"
-#include "TRandom3.h"
+#include "TH1F.h"
 #include "TSystem.h"
+#include "TRandom3.h"
 
-#include "WtGui.hh"
-#include "WtUtils.hh"
-#include "WtUserManagment.hh"
-#include "WtCreateNLSimple.hh"
-#include "ResponseModel.hh"
-#include "ProgramOptions.hh"
-#include "CgmsDataImport.hh"
-#include "WtChartClasses.hh"
-#include "ConsentrationGraph.hh"
+#include "dubs/WtGui.hh"
+#include "dubs/WtUtils.hh"
 #include "dubs/DubUser.hh"
 #include "dubs/DubsSession.hh"
+#include "dubs/ResponseModel.hh"
 #include "dubs/OverlayCanvas.hh"
+#include "dubs/ProgramOptions.hh"
+#include "dubs/CgmsDataImport.hh"
+#include "dubs/WtChartClasses.hh"
 #include "dubs/DubsApplication.hh"
+#include "dubs/WtUserManagment.hh"
+#include "dubs/WtCreateNLSimple.hh"
+#include "dubs/ConsentrationGraph.hh"
 
 
 using namespace Wt;
@@ -126,7 +127,7 @@ NLSimplePtr::NLSimplePtr( WtGui *gui, const bool waite, const std::string &failu
                        + failureMessage;
     cerr << msg << endl;
     if( gui && (failureMessage!="") )
-      gui->doJavaScript( "alert( \"" + msg + "\" )" );
+      gui->doJavaScript( "alert( '" + msg + "' );" );
     (*static_cast<NLSimpleShrdPtr *>(this)) = NLSimpleShrdPtr();
     return;
   }//if( couldn't get the lock )
@@ -163,7 +164,8 @@ int NLSimplePtr::count( WtGui *gui )
 
 void NLSimplePtr::resetCount( WtGui *gui )
 {
-  cerr << SRC_LOCATION << endl << "  we really should check to see if we are currently under a thread lock before reseting the count!" << endl;
+  cerr << SRC_LOCATION << endl
+       << "  we really should check to see if we are currently under a thread lock before reseting the count!" << endl;
   RecursiveScopedLock lock( sm_nLockMapMutex );
   sm_nLocksMap.erase( gui );
 }//resetCount
@@ -210,7 +212,7 @@ void WtGui::resetGui()
   {
     const string msg = "Another operation (thread) is currently working, sorry I cant do this operation of resetGui()"
                        + string(SRC_LOCATION);
-    wApp->doJavaScript( "alert( \"" + msg + "\" )", true );
+    wApp->doJavaScript( "alert( '" + msg + "' );", true );
     cerr << msg << endl;
     return;
   }//if( couldn't get the lock )
@@ -247,8 +249,10 @@ void WtGui::deleteModel( const string &modelname )
 void WtGui::enableOpenModelDialogOkayButton( WPushButton *button, WTableView *view )
 {
   std::set<WModelIndex> selected = view->selectedIndexes();
-  if( selected.empty() ) button->disable();
-  else button->enable();
+  if( selected.empty() )
+    button->disable();
+  else
+    button->enable();
 }//void enableOpenModelDialogOkayButton( WPushButton *button, WTableView *view )
 
 
@@ -372,9 +376,9 @@ void WtGui::init()
   {
     openModelDialog();
     return;
-  }else if( !m_userDbPtr->currentFileName.empty() )
+  }else if( !m_userDbPtr->currentFileName.empty() && !m_model )
   {
-    assert( !m_model );
+//    assert( !m_model );
     setModel( m_userDbPtr->currentFileName );
   }
 
@@ -506,10 +510,9 @@ void WtGui::init()
 
   updateClarkAnalysis();
 
+  DubsApplication *app = dynamic_cast<DubsApplication *>( m_app );
 
-  const WEnvironment &env = app()->environment();
-  const bool isMobile = (env.agentIsMobileWebKit() || env.agentIsIEMobile());
-
+  const bool isMobile = (app && app->isMobile());
   DubEventEntry *dataEntry = new DubEventEntry( isMobile, this );
   dataEntry->entered().connect( boost::bind(&WtGui::addData, this, _1) );
 
@@ -571,14 +574,15 @@ void WtGui::init()
     Dbo::Transaction transaction( *(m_userDbPtr.session()) );
     const DubUser::UsersModels &models = m_userDbPtr->models;
     Dbo::ptr<UsersModel> model = models.find().where( "fileName = ?" ).bind( m_userDbPtr->currentFileName );
-    if( model )
+    if( model && model->displayOptions.size() )
     {
-      if( model->displayBegin > model->displayEnd )
-        std::swap( model.modify()->displayBegin, model.modify()->displayEnd );
+      Dbo::ptr<ModelDisplayOptions> displayOptions = model->displayOptions.front();
 
-      cerr << endl << endl << "Setting to " << model->displayBegin.toString() << " and " << model->displayEnd.toString() << endl << endl;
-      m_bsBeginTimePicker->set( model->displayBegin );
-      m_bsEndTimePicker->set( model->displayEnd );
+      if( displayOptions->displayBegin > displayOptions->displayEnd )
+        std::swap( displayOptions.modify()->displayBegin, displayOptions.modify()->displayEnd );
+
+      m_bsBeginTimePicker->set( displayOptions->displayBegin );
+      m_bsEndTimePicker->set( displayOptions->displayEnd );
     }//if( model )
     transaction.commit();
   }//if( m_userDbPtr )
@@ -595,13 +599,13 @@ void WtGui::init()
   m_overviewTab->setLayout( bsTabLayout );
   bsTabLayout->addWidget( m_bsGraph, WBorderLayout::Center );
   bsTabLayout->addWidget( datePickingDiv, WBorderLayout::South );
-  m_tabs->addTab( m_overviewTab, "Display", WTabWidget::PreLoading );
+  m_tabs->addTab( m_overviewTab, "Display" );
 
   /*Div *optionsTabDiv = new Div( "optionsTabDiv" );
   m_tabs->addTab( optionsTabDiv, "Options" );*/
 
-  WtGeneticallyOptimize *optimizationTab = new WtGeneticallyOptimize( this );
-  m_tabs->addTab( optimizationTab, "Optimize", WTabWidget::PreLoading );
+  GeneticallyOptimizeTab *optimizationTab = new GeneticallyOptimizeTab( this );
+  m_tabs->addTab( optimizationTab, "Optimize" );
 
   Div *errorGridTabDiv = new Div( "errorGridTabDiv" );
   WBorderLayout *errorGridTabLayout = new WBorderLayout();
@@ -611,11 +615,11 @@ void WtGui::init()
   errorGridTabLayout->addWidget( m_errorGridLegend, WBorderLayout::West );
   errorGridTabLayout->addWidget( m_errorGridGraph, WBorderLayout::Center );
   m_errorGridGraph->setMinimumSize( 150, 150 );
-  m_tabs->addTab( errorGridTabDiv, "Error Grid", WTabWidget::PreLoading );
+  m_tabs->addTab( errorGridTabDiv, "Error Grid" );
 
 
-  WtModelSettingsGui *settings = new WtModelSettingsGui( &(modelPtr->m_settings) );
-  m_tabs->addTab( settings, "Settings", WTabWidget::PreLoading );
+  ModelSettingsTab *settings = new ModelSettingsTab( &(modelPtr->m_settings) );
+  m_tabs->addTab( settings, "Settings" );
 
   Div *cgmsDataTableDiv = new Div( "cgmsDataTableDiv" );
   WGridLayout *cgmsDataTableLayout = new WGridLayout();
@@ -704,18 +708,18 @@ void WtGui::init()
   WPushButton *addDataButton = new WPushButton( "Add Data", bottomRawDataDiv );
   addDataButton->clicked().connect( this, &WtGui::addDataDialog );
 
-  m_tabs->addTab( cgmsDataTableDiv, "Raw Data", WTabWidget::PreLoading );
+  m_tabs->addTab( cgmsDataTableDiv, "Raw Data" );
 
-  WtCustomEventTab *customEventTab = new WtCustomEventTab( this );
-  m_tabs->addTab( customEventTab, "Custom Events", WTabWidget::PreLoading );
+  CustomEventTab *customEventTab = new CustomEventTab( this );
+  m_tabs->addTab( customEventTab, "Custom Events" );
 
 
   //Create 'Notes' Tabs
-  m_notesTab = new WtNotesTab( this );
-  /*WMenuItem *tabItem = */m_tabs->addTab( m_notesTab, "Notes", WTabWidget::PreLoading );
+  m_notesTab = new NotesTab( this );
+  /*WMenuItem *tabItem = */m_tabs->addTab( m_notesTab, "Notes" );
 
-  m_excludeTimeRangeTab = new WtExcludeTimeRangesTab( this );
-  m_tabs->addTab( m_excludeTimeRangeTab, "Excluded Data", WTabWidget::PreLoading  );
+  m_excludeTimeRangeTab = new ExcludeTimeRangesTab( this );
+  m_tabs->addTab( m_excludeTimeRangeTab, "Excluded Data"  );
 
 
   m_tabs->currentChanged().connect( boost::bind( &WtGui::tabClickedCallback, this, _1 ) );
@@ -914,7 +918,8 @@ void WtGui::saveModelAsDialog()
   dialog->exec();
 
   const string newFileName = edit->text().narrow();
-  if( dialog->result() == WDialog::Accepted ) saveModel( newFileName );
+  if( dialog->result() == WDialog::Accepted )
+    saveModel( newFileName );
 
   //delete dialog;  //crashes for some reason even when non modal
 }//void saveModelAsDialog()
@@ -1069,10 +1074,11 @@ void WtGui::updateDisplayedDateRange()
 
   Dbo::ptr<UsersModel> model = models.find().where( "fileName = ?" ).bind( m_userDbPtr->currentFileName );
 
-  if( model )
+  if( model && model->displayOptions.size() )
   {
-    model.modify()->displayBegin = WDateTime::fromPosixTime( start );
-    model.modify()->displayEnd = WDateTime::fromPosixTime( end );
+    Dbo::ptr<ModelDisplayOptions> displayOptions = model->displayOptions.front();
+    displayOptions.modify()->displayBegin = WDateTime::fromPosixTime( start );
+    displayOptions.modify()->displayEnd = WDateTime::fromPosixTime( end );
   }else
   {
     cerr << "Failed to find a model with the filename '" << m_userDbPtr->currentFileName
@@ -1175,7 +1181,7 @@ void WtGui::addData( WtGui::EntryType type, Wt::WFileUpload *fileUpload )
     msg += e.what();
     msg += "\nFile name=" + clientFileName;
     msg += "\nEntryType=" + boost::lexical_cast<string>( int(type) );
-    wApp->doJavaScript( "alert( \"" + msg + "\" )", false );
+    wApp->doJavaScript( "alert( '" + msg + "' );", false );
     cerr << msg << endl;
     return;
   }catch(...)
@@ -1184,7 +1190,7 @@ void WtGui::addData( WtGui::EntryType type, Wt::WFileUpload *fileUpload )
                  "( EntryType, WFileUpload * )";
     msg += "\nFile name=" + clientFileName;
     msg += "\nEntryType=" + boost::lexical_cast<string>( int(type) );
-    wApp->doJavaScript( "alert( \"" + msg + "\" )", false );
+    wApp->doJavaScript( "alert( '" + msg + "' );", false );
     cerr << msg << endl;
     return;
   }//try / catch
@@ -1439,9 +1445,9 @@ void WtGui::createNLSimpleDialogFinished( WtCreateNLSimple *creator,  WDialog *d
   {
     m_nlSimleDisplayModel->aboutToSetNewModel();
     m_model = creator->model();
+    saveModel( creator->modelName() );
     m_nlSimleDisplayModel->doneSettingNewModel();
 
-    setModelFileName( "" );
     init();
   }//if( code == WDialog::Accepted )
 
@@ -1449,11 +1455,11 @@ void WtGui::createNLSimpleDialogFinished( WtCreateNLSimple *creator,  WDialog *d
 }//void CreateNLSimpleDialogFinished( WDialog::DialogCode code )
 
 
-
 void WtGui::saveCurrentModel()
 {
   saveModel( m_userDbPtr->currentFileName );
 }//void WtGui::saveCurrentModel()
+
 
 const std::string &WtGui::currentFileName()
 {
@@ -1482,7 +1488,7 @@ void WtGui::saveModel( const std::string &fileName )
     boost::archive::text_oarchive oa( serializedModelStream );
     oa << *modelPtr;
 
-    modelPtr->saveToFile( formFileSystemName(fileName) );
+//    modelPtr->saveToFile( formFileSystemName(fileName) );
     NLSimplePtr::resetCount( this );
   }
 
@@ -1495,38 +1501,52 @@ void WtGui::saveModel( const std::string &fileName )
     if( model )
     {
       model.modify()->modified = WDateTime::fromPosixTime( boost::posix_time::second_clock::local_time() );
-#if(USE_SerializedModel)
-      model.modify()->serializedModel.modify()->data = serializedModelStream.str();
-#else
       model.modify()->serializedData = serializedModelStream.str();
-#endif
       transaction.commit();
       return;
     }
     transaction.commit();
   }
 
+  //If we have made it here, this model has not been saved before, so lets do
+  //  this
   Dbo::Transaction transaction( *(m_userDbPtr.session()) );
-  UsersModel *newModel = new UsersModel();
-  newModel->user     = m_userDbPtr;
-  newModel->fileName = fileName;
-  newModel->created  = WDateTime::fromPosixTime( boost::posix_time::second_clock::local_time() );
-  newModel->modified = newModel->created;
-#if(USE_SerializedModel)
-  Dbo::ptr<SerializedModel> serializedModel = user.session()->add( new SerializedModel() );
-  serializedModel.modify()->data = serializedModelStream.str();
-  serializedModel.modify()->usermodel = newModel;
-//  newModel.modify()->serializedModel = serializedModel;
-#else
-  newModel->serializedData = serializedModelStream.str();
-#endif
 
-  Dbo::ptr<UsersModel> newModelPtr = m_userDbPtr.session()->add( newModel );
+  Dbo::ptr<UsersModel> newModelPtr = m_userDbPtr.session()->add( new UsersModel() );
+  newModelPtr.modify()->user     = m_userDbPtr;
+  newModelPtr.modify()->fileName = fileName;
+  newModelPtr.modify()->created  = WDateTime::fromPosixTime( boost::posix_time::second_clock::local_time() );
+  newModelPtr.modify()->modified = newModelPtr->created;
+  newModelPtr.modify()->serializedData = serializedModelStream.str();
+
+  Dbo::ptr<ModelDisplayOptions> displayOptions = m_userDbPtr.session()->add( new ModelDisplayOptions() );
+  displayOptions.modify()->usermodel = newModelPtr;
+
+  if( m_bsBeginTimePicker && m_bsEndTimePicker )
+  {
+    displayOptions.modify()->displayBegin = m_bsBeginTimePicker->dateTime();
+    displayOptions.modify()->displayEnd = m_bsEndTimePicker->dateTime();
+  }//if( m_bsBeginTimePicker && m_bsEndTimePicker )
+
+  if( !displayOptions->displayBegin.isValid()
+      || !displayOptions->displayEnd.isValid()
+      || (displayOptions->displayBegin == displayOptions->displayEnd) )
+  {
+    NLSimplePtr modelPtr( this, false, SRC_LOCATION );
+    if( modelPtr )
+    {
+      displayOptions.modify()->displayBegin = WDateTime::fromPosixTime( modelPtr->dataGraph(NLSimple::kCgmsData).getStartTime() );
+      displayOptions.modify()->displayEnd = WDateTime::fromPosixTime( modelPtr->dataGraph(NLSimple::kCgmsData).getEndTime() );
+    }//if( modelPtr )
+  }//if( we dont have valid times )
+
+
   if( newModelPtr )
     cerr << "Added new model:\n  "
-         << "newModel->user->name='" << newModel->user->name
-         << "', newModel->fileName='" << newModel->fileName
-         << "', newModel->created='" << newModel->created.toPosixTime() << endl;
+         << "newModel->user->name='" << newModelPtr->user->name
+         << "', newModel->fileName='" << newModelPtr->fileName
+         << "', newModel->created='" << newModelPtr->created.toPosixTime() << "'"
+         << endl;
 
   transaction.commit();
 
@@ -1570,7 +1590,7 @@ void WtGui::setModel( const std::string &fileName )
   {
     const string msg = "Another operation (thread) is currently working, sorry I cant do this operation of setModel( string ): "
                        + string( SRC_LOCATION );
-    wApp->doJavaScript( "alert( \"" + msg + "\" )", true );
+    wApp->doJavaScript( "alert( '" + msg + "' );", true );
     cerr << msg << endl;
     return;
   }//if( couldn't get the lock )
@@ -1585,20 +1605,12 @@ void WtGui::setModel( const std::string &fileName )
     transaction.commit();
   }
 
-#if(USE_SerializedModel)
-  if( usrmodel && usrmodel->serializedModel && !usrmodel->serializedModel->data.empty() )
-#else
   if( usrmodel && !usrmodel->serializedData.empty() )
-#endif
   {
     try
     {
       m_model = NLSimpleShrdPtr( new NLSimple( "description", 0.0, ProgramOptions::kBasalGlucConc, kGenericT0 ) );
-#if(USE_SerializedModel)
-      stringstream inputstream( usrmodel->serializedModel->data );
-#else
       stringstream inputstream( usrmodel->serializedData );
-#endif
       boost::archive::text_iarchive ia( inputstream );
       ia >> (*m_model);
       setModelFileName( fileName );
@@ -1608,11 +1620,11 @@ void WtGui::setModel( const std::string &fileName )
       return;
     }catch(...)
     {
-      wApp->doJavaScript( "alert( \"Failed to open NLSimple named " + fileName + " from the database\")", true );
+      wApp->doJavaScript( "alert( 'Failed to open NLSimple named " + fileName + " from the database' );", true );
+      return;
 //      deleteModelFile( fileName );
     }
   }//if( usrmodel && !usrmodel->serializedData.empty() )
-
 
   try
   {
@@ -1620,7 +1632,7 @@ void WtGui::setModel( const std::string &fileName )
     setModelFileName( fileName );
   }catch(...){
     cerr << "Failed to open NLSimple named " << fileName << endl;
-    wApp->doJavaScript( "alert( \"Failed to open NLSimple named " + fileName + "\" )", true );
+    wApp->doJavaScript( "alert( \"Failed to open NLSimple named " + fileName + "\" );", true );
     deleteModelFile( fileName );
   }//try/catch
 
@@ -1682,7 +1694,11 @@ DubEventEntry::DubEventEntry( const bool isMobile, WtGui *wtguiparent, WContaine
   m_saveModel( new WCheckBox( "Save Model&nbsp;" ) ),
   m_wtgui( wtguiparent )
 {
-  setStyleClass( "DubEventEntry" );
+  if( isMobile )
+    setStyleClass( "DubEventEntryMobile" );
+  else
+    setStyleClass( "DubEventEntry" );
+
   setInline(false);
 
   Div *timeSelectDiv = new Div( "DubEventEntry_timeSelectDiv" );
@@ -1698,6 +1714,7 @@ DubEventEntry::DubEventEntry( const bool isMobile, WtGui *wtguiparent, WContaine
   lastTimeB->clicked().connect( this, &DubEventEntry::setTimeToLastData );
 
   m_saveModel->setCheckState( Checked );
+  m_saveModel->hide();
 
 
   for( WtGui::EntryType et = WtGui::EntryType(0);
@@ -1978,22 +1995,22 @@ void ClarkErrorGridGraph::paint( WPainter &painter,
 }//void paintEvent(Wt::WPaintDevice *paintDevice)
 
 
-WtModelSettingsGui::WtModelSettingsGui( ModelSettings *modelSettings,
+ModelSettingsTab::ModelSettingsTab( ModelSettings *modelSettings,
                                         WContainerWidget *parent )
   : WContainerWidget( parent ),
     m_settings( modelSettings )
 {
-  setStyleClass( "WtModelSettingsGui" );
+  setStyleClass( "ModelSettingsTab" );
   init();
 }
 
-WtModelSettingsGui::~WtModelSettingsGui() {}
-Signal<> &WtModelSettingsGui::changed() { return m_changed; }
-Signal<> &WtModelSettingsGui::predictionChanged() { return m_predictionChanged; }
-void WtModelSettingsGui::emitChanged() { m_changed.emit(); }
-void WtModelSettingsGui::emitPredictionChanged() { m_predictionChanged.emit(); }
+ModelSettingsTab::~ModelSettingsTab() {}
+Signal<> &ModelSettingsTab::changed() { return m_changed; }
+Signal<> &ModelSettingsTab::predictionChanged() { return m_predictionChanged; }
+void ModelSettingsTab::emitChanged() { m_changed.emit(); }
+void ModelSettingsTab::emitPredictionChanged() { m_predictionChanged.emit(); }
 
-void WtModelSettingsGui::init()
+void ModelSettingsTab::init()
 {
   clear();
   if( !m_settings ) return;
@@ -2008,8 +2025,8 @@ void WtModelSettingsGui::init()
   layout->addWidget( new WText("Your Weight"), row, column, 1, 1, AlignRight );
   layout->addWidget( sb, row, column+1, 1, 1, AlignLeft );
   m_memVarSpinBox.push_back( sb );
-  sb->valueChanged().connect( this, &WtModelSettingsGui::emitChanged );
-  sb->valueChanged().connect( this, &WtModelSettingsGui::emitPredictionChanged );
+  sb->valueChanged().connect( this, &ModelSettingsTab::emitChanged );
+  sb->valueChanged().connect( this, &ModelSettingsTab::emitPredictionChanged );
   row    = (row<maxRows) ? row + 1 : 0;
   column = (row==0) ? column + 2: column;
 
@@ -2017,8 +2034,8 @@ void WtModelSettingsGui::init()
   layout->addWidget( new WText("Ind. CGMS Uncert."), row, column, 1, 1, AlignRight );
   layout->addWidget( sb, row, column+1, 1, 1, AlignLeft );
   m_memVarSpinBox.push_back( sb );
-  sb->valueChanged().connect( this, &WtModelSettingsGui::emitChanged );
-  //sb->valueChanged().connect( this, &WtModelSettingsGui::emitPredictionChanged );
+  sb->valueChanged().connect( this, &ModelSettingsTab::emitChanged );
+  //sb->valueChanged().connect( this, &ModelSettingsTab::emitPredictionChanged );
   row    = (row<maxRows) ? row + 1 : 0;
   column = (row==0) ? column + 2: column;
 
@@ -2026,8 +2043,8 @@ void WtModelSettingsGui::init()
   layout->addWidget( new WText("Default CGMS Delay"), row, column, 1, 1, AlignRight );
   layout->addWidget( sb, row, column+1, 1, 1, AlignLeft );
   m_memVarSpinBox.push_back( sb );
-  sb->valueChanged().connect( this, &WtModelSettingsGui::emitChanged );
-  //sb->valueChanged().connect( this, &WtModelSettingsGui::emitPredictionChanged );
+  sb->valueChanged().connect( this, &ModelSettingsTab::emitChanged );
+  //sb->valueChanged().connect( this, &ModelSettingsTab::emitPredictionChanged );
   row    = (row<maxRows) ? row + 1 : 0;
   column = (row==0) ? column + 2: column;
 
@@ -2035,8 +2052,8 @@ void WtModelSettingsGui::init()
   layout->addWidget( new WText("Actual CGMS Delay"), row, column, 1, 1, AlignRight );
   layout->addWidget( sb, row, column+1, 1, 1, AlignLeft );
   m_memVarSpinBox.push_back( sb );
-  sb->valueChanged().connect( this, &WtModelSettingsGui::emitChanged );
-  sb->valueChanged().connect( this, &WtModelSettingsGui::emitPredictionChanged );
+  sb->valueChanged().connect( this, &ModelSettingsTab::emitChanged );
+  sb->valueChanged().connect( this, &ModelSettingsTab::emitPredictionChanged );
   row    = (row<maxRows) ? row + 1 : 0;
   column = (row==0) ? column + 2: column;
 
@@ -2044,8 +2061,8 @@ void WtModelSettingsGui::init()
   layout->addWidget( new WText("Amount to Predict Ahead"), row, column, 1, 1, AlignRight );
   layout->addWidget( sb, row, column+1, 1, 1, AlignLeft );
   m_memVarSpinBox.push_back( sb );
-  sb->valueChanged().connect( this, &WtModelSettingsGui::emitChanged );
-  sb->valueChanged().connect( this, &WtModelSettingsGui::emitPredictionChanged );
+  sb->valueChanged().connect( this, &ModelSettingsTab::emitChanged );
+  sb->valueChanged().connect( this, &ModelSettingsTab::emitPredictionChanged );
   row    = (row<maxRows) ? row + 1 : 0;
   column = (row==0) ? column + 2: column;
 
@@ -2053,8 +2070,8 @@ void WtModelSettingsGui::init()
   layout->addWidget( new WText("Integration delta"), row, column, 1, 1, AlignRight );
   layout->addWidget( sb, row, column+1, 1, 1, AlignLeft );
   m_memVarSpinBox.push_back( sb );
-  sb->valueChanged().connect( this, &WtModelSettingsGui::emitChanged );
-  sb->valueChanged().connect( this, &WtModelSettingsGui::emitPredictionChanged );
+  sb->valueChanged().connect( this, &ModelSettingsTab::emitChanged );
+  sb->valueChanged().connect( this, &ModelSettingsTab::emitPredictionChanged );
   row    = (row<maxRows) ? row + 1 : 0;
   column = (row==0) ? column + 2: column;
 
@@ -2062,8 +2079,8 @@ void WtModelSettingsGui::init()
   layout->addWidget( new WText("Last Prediction Weight"), row, column, 1, 1, AlignRight );
   layout->addWidget( sb, row, column+1, 1, 1, AlignLeft );
   m_memVarSpinBox.push_back( sb );
-  sb->valueChanged().connect( this, &WtModelSettingsGui::emitChanged );
-  sb->valueChanged().connect( this, &WtModelSettingsGui::emitPredictionChanged );
+  sb->valueChanged().connect( this, &ModelSettingsTab::emitChanged );
+  sb->valueChanged().connect( this, &ModelSettingsTab::emitPredictionChanged );
   row    = (row<maxRows) ? row + 1 : 0;
   column = (row==0) ? column + 2: column;
 
@@ -2071,8 +2088,8 @@ void WtModelSettingsGui::init()
   layout->addWidget( new WText("Target Blood Glucose"), row, column, 1, 1, AlignRight );
   layout->addWidget( sb, row, column+1, 1, 1, AlignLeft );
   m_memVarSpinBox.push_back( sb );
-  sb->valueChanged().connect( this, &WtModelSettingsGui::emitChanged );
-  //sb->valueChanged().connect( this, &WtModelSettingsGui::emitPredictionChanged );
+  sb->valueChanged().connect( this, &ModelSettingsTab::emitChanged );
+  //sb->valueChanged().connect( this, &ModelSettingsTab::emitPredictionChanged );
   row    = (row<maxRows) ? row + 1 : 0;
   column = (row==0) ? column + 2: column;
 
@@ -2080,8 +2097,8 @@ void WtModelSettingsGui::init()
   layout->addWidget( new WText("Low BG 1&sigma; Tolerance", XHTMLUnsafeText), row, column, 1, 1, AlignRight );
   layout->addWidget( sb, row, column+1, 1, 1, AlignLeft );
   m_memVarSpinBox.push_back( sb );
-  sb->valueChanged().connect( this, &WtModelSettingsGui::emitChanged );
-  //sb->valueChanged().connect( this, &WtModelSettingsGui::emitPredictionChanged );
+  sb->valueChanged().connect( this, &ModelSettingsTab::emitChanged );
+  //sb->valueChanged().connect( this, &ModelSettingsTab::emitPredictionChanged );
   row    = (row<maxRows) ? row + 1 : 0;
   column = (row==0) ? column + 2: column;
 
@@ -2089,8 +2106,8 @@ void WtModelSettingsGui::init()
   layout->addWidget( new WText("High BG 1&sigma; Tolerance", XHTMLUnsafeText), row, column, 1, 1, AlignRight );
   layout->addWidget( sb, row, column+1, 1, 1, AlignLeft );
   m_memVarSpinBox.push_back( sb );
-  sb->valueChanged().connect( this, &WtModelSettingsGui::emitChanged );
-  //sb->valueChanged().connect( this, &WtModelSettingsGui::emitPredictionChanged );
+  sb->valueChanged().connect( this, &ModelSettingsTab::emitChanged );
+  //sb->valueChanged().connect( this, &ModelSettingsTab::emitPredictionChanged );
   row    = (row<maxRows) ? row + 1 : 0;
   column = (row==0) ? column + 2: column;
 
@@ -2098,8 +2115,8 @@ void WtModelSettingsGui::init()
   layout->addWidget( new WText("Gen. Pop. Size"), row, column, 1, 1, AlignRight );
   layout->addWidget( sb, row, column+1, 1, 1, AlignLeft );
   m_memVarSpinBox.push_back( sb );
-  sb->valueChanged().connect( this, &WtModelSettingsGui::emitChanged );
-  //sb->valueChanged().connect( this, &WtModelSettingsGui::emitPredictionChanged );
+  sb->valueChanged().connect( this, &ModelSettingsTab::emitChanged );
+  //sb->valueChanged().connect( this, &ModelSettingsTab::emitPredictionChanged );
   row    = (row<maxRows) ? row + 1 : 0;
   column = (row==0) ? column + 2: column;
 
@@ -2107,8 +2124,8 @@ void WtModelSettingsGui::init()
   layout->addWidget( new WText("Gen. Conv. N-steps"), row, column, 1, 1, AlignRight );
   layout->addWidget( sb, row, column+1, 1, 1, AlignLeft );
   m_memVarSpinBox.push_back( sb );
-  sb->valueChanged().connect( this, &WtModelSettingsGui::emitChanged );
-  //sb->valueChanged().connect( this, &WtModelSettingsGui::emitPredictionChanged );
+  sb->valueChanged().connect( this, &ModelSettingsTab::emitChanged );
+  //sb->valueChanged().connect( this, &ModelSettingsTab::emitPredictionChanged );
   row    = (row<maxRows) ? row + 1 : 0;
   column = (row==0) ? column + 2: column;
 
@@ -2116,8 +2133,8 @@ void WtModelSettingsGui::init()
   layout->addWidget( new WText("Gen. N-step Mutate"), row, column, 1, 1, AlignRight );
   layout->addWidget( sb, row, column+1, 1, 1, AlignLeft );
   m_memVarSpinBox.push_back( sb );
-  sb->valueChanged().connect( this, &WtModelSettingsGui::emitChanged );
-  //sb->valueChanged().connect( this, &WtModelSettingsGui::emitPredictionChanged );
+  sb->valueChanged().connect( this, &ModelSettingsTab::emitChanged );
+  //sb->valueChanged().connect( this, &ModelSettingsTab::emitPredictionChanged );
   row    = (row<maxRows) ? row + 1 : 0;
   column = (row==0) ? column + 2: column;
 
@@ -2125,8 +2142,8 @@ void WtModelSettingsGui::init()
   layout->addWidget( new WText("Gen. N-step Improve"), row, column, 1, 1, AlignRight );
   layout->addWidget( sb, row, column+1, 1, 1, AlignLeft );
   m_memVarSpinBox.push_back( sb );
-  sb->valueChanged().connect( this, &WtModelSettingsGui::emitChanged );
-  //sb->valueChanged().connect( this, &WtModelSettingsGui::emitPredictionChanged );
+  sb->valueChanged().connect( this, &ModelSettingsTab::emitChanged );
+  //sb->valueChanged().connect( this, &ModelSettingsTab::emitPredictionChanged );
   row    = (row<maxRows) ? row + 1 : 0;
   column = (row==0) ? column + 2: column;
 
@@ -2135,8 +2152,8 @@ void WtModelSettingsGui::init()
   layout->addWidget( new WText("Gen. Mutate Sigma"), row, column, 1, 1, AlignRight );
   layout->addWidget( sb, row, column+1, 1, 1, AlignLeft );
   m_memVarSpinBox.push_back( sb );
-  sb->valueChanged().connect( this, &WtModelSettingsGui::emitChanged );
-  //sb->valueChanged().connect( this, &WtModelSettingsGui::emitPredictionChanged );
+  sb->valueChanged().connect( this, &ModelSettingsTab::emitChanged );
+  //sb->valueChanged().connect( this, &ModelSettingsTab::emitPredictionChanged );
   row    = (row<maxRows) ? row + 1 : 0;
   column = (row==0) ? column + 2: column;
 
@@ -2145,8 +2162,8 @@ void WtModelSettingsGui::init()
   layout->addWidget( new WText("Gen. Conv. Criteria"), row, column, 1, 1, AlignRight );
   layout->addWidget( sb, row, column+1, 1, 1, AlignLeft );
   m_memVarSpinBox.push_back( sb );
-  sb->valueChanged().connect( this, &WtModelSettingsGui::emitChanged );
-  //sb->valueChanged().connect( this, &WtModelSettingsGui::emitPredictionChanged );
+  sb->valueChanged().connect( this, &ModelSettingsTab::emitChanged );
+  //sb->valueChanged().connect( this, &ModelSettingsTab::emitPredictionChanged );
   row    = (row<maxRows) ? row + 1 : 0;
   column = (row==0) ? column + 2: column;
 
@@ -2155,8 +2172,8 @@ void WtModelSettingsGui::init()
   layout->addWidget( new WText("Min FS 4 CGMS Charac"), row, column, 1, 1, AlignRight );
   layout->addWidget( sb, row, column+1, 1, 1, AlignLeft );
   m_memVarSpinBox.push_back( sb );
-  sb->valueChanged().connect( this, &WtModelSettingsGui::emitChanged );
-  //sb->valueChanged().connect( this, &WtModelSettingsGui::emitPredictionChanged );
+  sb->valueChanged().connect( this, &ModelSettingsTab::emitChanged );
+  //sb->valueChanged().connect( this, &ModelSettingsTab::emitPredictionChanged );
   row    = (row<maxRows) ? row + 1 : 0;
   column = (row==0) ? column + 2: column;
 
@@ -2167,11 +2184,11 @@ void WtModelSettingsGui::init()
 }//void init()
 
 
-WtGeneticallyOptimize::WtGeneticallyOptimize( WtGui *wtGuiParent, Wt::WContainerWidget *parent )
+GeneticallyOptimizeTab::GeneticallyOptimizeTab( WtGui *wtGuiParent, Wt::WContainerWidget *parent )
   : WContainerWidget( parent ), m_parentWtGui( wtGuiParent )
 {
   setInline(false);
-  setStyleClass( "WtGeneticallyOptimize" );
+  setStyleClass( "GeneticallyOptimizeTab" );
 
   m_layout = new WBorderLayout();
   setLayout( m_layout );
@@ -2305,10 +2322,10 @@ WtGeneticallyOptimize::WtGeneticallyOptimize( WtGui *wtGuiParent, Wt::WContainer
                                                 bottom.toPosixTime(),
                                                 top.toPosixTime(),
                                                 timeSelectDiv );
-  m_parentWtGui->getBeginTimePicker()->topBottomUpdated().connect( this, &WtGeneticallyOptimize::updateDateSelectLimits );
+  m_parentWtGui->getBeginTimePicker()->topBottomUpdated().connect( this, &GeneticallyOptimizeTab::updateDateSelectLimits );
 
-  m_startTrainingTimeSelect->changed().connect( this, &WtGeneticallyOptimize::syncGraphDataToNLSimple );
-  m_endTrainingTimeSelect->changed().connect( this, &WtGeneticallyOptimize::syncGraphDataToNLSimple );
+  m_startTrainingTimeSelect->changed().connect( this, &GeneticallyOptimizeTab::syncGraphDataToNLSimple );
+  m_endTrainingTimeSelect->changed().connect( this, &GeneticallyOptimizeTab::syncGraphDataToNLSimple );
 
   new WText( "&nbsp;&nbsp;&nbsp;&nbsp;", timeSelectDiv );
   m_saveAfterEachGeneration = new WCheckBox( "Save model after each generation", timeSelectDiv );
@@ -2323,23 +2340,23 @@ WtGeneticallyOptimize::WtGeneticallyOptimize( WtGui *wtGuiParent, Wt::WContainer
 
   Div *buttonDiv = new Div( "buttonDivCentered", southernDiv );
   m_startOptimization = new WPushButton( "Start Genetic Optimization", buttonDiv );
-  m_startOptimization->clicked().connect( this, &WtGeneticallyOptimize::startOptimization );
+  m_startOptimization->clicked().connect( this, &GeneticallyOptimizeTab::startOptimization );
 
   m_stopOptimization = new WPushButton( "Stop Genetic Optimization", buttonDiv );
   m_stopOptimization->hide();
-  m_stopOptimization->clicked().connect( boost::bind( &WtGeneticallyOptimize::setContinueOptimizing, this, false ) );
+  m_stopOptimization->clicked().connect( boost::bind( &GeneticallyOptimizeTab::setContinueOptimizing, this, false ) );
 
   m_minuit2Optimization = new WPushButton( "Minuit2 Fine Tune", buttonDiv );
-  m_minuit2Optimization->clicked().connect( this, &WtGeneticallyOptimize::startMinuit2Optimization );
+  m_minuit2Optimization->clicked().connect( this, &GeneticallyOptimizeTab::startMinuit2Optimization );
 
   syncGraphDataToNLSimple();
-}//WtGeneticallyOptimize
+}//GeneticallyOptimizeTab
 
 
-WtGeneticallyOptimize::~WtGeneticallyOptimize() {};
+GeneticallyOptimizeTab::~GeneticallyOptimizeTab() {};
 
 
-void WtGeneticallyOptimize::updateDateSelectLimits()
+void GeneticallyOptimizeTab::updateDateSelectLimits()
 {
   const WDateTime &top = m_parentWtGui->getBeginTimePicker()->top();
   const WDateTime &bottom = m_parentWtGui->getBeginTimePicker()->bottom();
@@ -2350,13 +2367,13 @@ void WtGeneticallyOptimize::updateDateSelectLimits()
   m_endTrainingTimeSelect->setBottom( bottom );
 }//void updateDateSelectLimits()
 
-void WtGeneticallyOptimize::startMinuit2Optimization()
+void GeneticallyOptimizeTab::startMinuit2Optimization()
 {
-  new boost::thread( boost::bind( &WtGeneticallyOptimize::doMinuit2Optimization, this ) );
-}//void WtGeneticallyOptimize::startMinuit2Optimization()
+  new boost::thread( boost::bind( &GeneticallyOptimizeTab::doMinuit2Optimization, this ) );
+}//void GeneticallyOptimizeTab::startMinuit2Optimization()
 
 
-void WtGeneticallyOptimize::doMinuit2Optimization()
+void GeneticallyOptimizeTab::doMinuit2Optimization()
 {
   //m_parentWtGui->attachThread();
 
@@ -2391,16 +2408,16 @@ void WtGeneticallyOptimize::doMinuit2Optimization()
       m_parentWtGui->app()->triggerUpdate();
   }//
 
-}//void WtGeneticallyOptimize::doMinuit2Optimization()
+}//void GeneticallyOptimizeTab::doMinuit2Optimization()
 
 
-void WtGeneticallyOptimize::startOptimization()
+void GeneticallyOptimizeTab::startOptimization()
 {
-  new boost::thread( boost::bind( &WtGeneticallyOptimize::doGeneticOptimization, this ) );
-}//void WtGeneticallyOptimize::startOptimization()
+  new boost::thread( boost::bind( &GeneticallyOptimizeTab::doGeneticOptimization, this ) );
+}//void GeneticallyOptimizeTab::startOptimization()
 
 
-void WtGeneticallyOptimize::doGeneticOptimization()
+void GeneticallyOptimizeTab::doGeneticOptimization()
 {
   //std::vector<Wt::WWidget *> m_disableWhenBusyItems;
   //foreach( WWidget *w, m_disableWhenBusyItems ) w->setDisabled(true);
@@ -2443,7 +2460,8 @@ void WtGeneticallyOptimize::doGeneticOptimization()
       {
         typedef Wt::Dbo::collection<Wt::Dbo::ptr<OptimizationChi2> > Chi2s;
         Chi2s chi2s = usermodel->chi2s;
-        for( Chi2s::iterator iter = chi2s.begin(); iter != chi2s.end(); ++iter ) iter->remove();
+        for( Chi2s::iterator iter = chi2s.begin(); iter != chi2s.end(); ++iter )
+          iter->remove();
       }
       if( !transaction.commit() )
         cerr << "\nDid not commit adding to the chi2 of the optimization\n" << endl;
@@ -2452,8 +2470,8 @@ void WtGeneticallyOptimize::doGeneticOptimization()
 
 
 
-  NLSimple::Chi2CalbackFcn chi2Calback = boost::bind( &WtGeneticallyOptimize::optimizationUpdateFcn, this, _1);
-  NLSimple::ContinueFcn continueFcn = boost::bind( &WtGeneticallyOptimize::continueOptimizing, this);
+  NLSimple::Chi2CalbackFcn chi2Calback = boost::bind( &GeneticallyOptimizeTab::optimizationUpdateFcn, this, _1);
+  NLSimple::ContinueFcn continueFcn = boost::bind( &GeneticallyOptimizeTab::continueOptimizing, this);
 
 
   cerr << "about to do the workptr" << endl;
@@ -2465,12 +2483,12 @@ void WtGeneticallyOptimize::doGeneticOptimization()
   {
     string msg = "Warning: Optimization failed:\n";
     msg += e.what();
-    m_parentWtGui->app()->doJavaScript( "alert( \"" + msg + "\" )", false );
+    m_parentWtGui->app()->doJavaScript( "alert( \"" + msg + "\" );", false );
     cerr << msg << endl;
   }catch(...)
   {
     string msg = "Warning: Optimization failed";
-    m_parentWtGui->app()->doJavaScript( "alert( \"" + msg + "\" )", false );
+    m_parentWtGui->app()->doJavaScript( "alert( '" + msg + "' );", false );
     cerr << msg << endl;
   }//try / catch
 
@@ -2494,27 +2512,27 @@ void WtGeneticallyOptimize::doGeneticOptimization()
 }//void doGeneticOptimization()
 
 
-void WtGeneticallyOptimize::setContinueOptimizing( const bool doContinue )
+void GeneticallyOptimizeTab::setContinueOptimizing( const bool doContinue )
 {
   boost::mutex::scoped_lock lock( m_continueMutex );
   m_continueOptimizing = doContinue;
 }//void setContinueOptimizing( const bool doContinue )
 
 
-bool WtGeneticallyOptimize::continueOptimizing()
+bool GeneticallyOptimizeTab::continueOptimizing()
 {
   boost::mutex::scoped_lock lock( m_continueMutex );
   return m_continueOptimizing;
 }//bool continueOptimizing()
 
 
-void WtGeneticallyOptimize::optimizationUpdateFcn( double chi2 )
+void GeneticallyOptimizeTab::optimizationUpdateFcn( double chi2 )
 {
   WApplication::UpdateLock lock( m_parentWtGui->app() );
   if( !lock )
   {
     cerr << "Couldn't get WApplication lock!!!" << endl;
-    m_parentWtGui->doJavaScript( "alert( \"Failed to get WApplication lock in WtGeneticallyOptimize::optimizationUpdateFcn(double)\" )" );
+    m_parentWtGui->doJavaScript( "alert( 'Failed to get WApplication lock in GeneticallyOptimizeTab::optimizationUpdateFcn(double)' );" );
     return;
   }//if( !lock )
 
@@ -2533,7 +2551,8 @@ void WtGeneticallyOptimize::optimizationUpdateFcn( double chi2 )
       newChi2.modify()->generation  = static_cast<int>(usermodel->chi2s.size());
       newChi2.modify()->chi2        = chi2;
       newChi2.modify()->usermodel   = usermodel;
-      if( !transaction.commit() ) cerr << "\nDid not commit adding to the chi2 of the optimization\n" << endl;
+      if( !transaction.commit() )
+        cerr << "\nDid not commit adding to the chi2 of the optimization\n" << endl;
     }//if( user && user.session() )
   }
 
@@ -2551,7 +2570,7 @@ void WtGeneticallyOptimize::optimizationUpdateFcn( double chi2 )
 
 
 
-void WtGeneticallyOptimize::syncGraphDataToNLSimple()
+void GeneticallyOptimizeTab::syncGraphDataToNLSimple()
 {
   typedef ConsentrationGraph::value_type cg_type;
   WApplication::UpdateLock appLock( m_parentWtGui->app() );
@@ -2682,7 +2701,7 @@ void WtGeneticallyOptimize::syncGraphDataToNLSimple()
 
 
 
-WtCustomEventTab::WtCustomEventTab( WtGui *wtGuiParent,
+CustomEventTab::CustomEventTab( WtGui *wtGuiParent,
                                     Wt::WContainerWidget *parent )
   : WContainerWidget( parent ), m_parentWtGui( wtGuiParent ),
   m_layout( new WBorderLayout(this) ),
@@ -2704,7 +2723,7 @@ WtCustomEventTab::WtCustomEventTab( WtGui *wtGuiParent,
   m_eventTypesView->setColumnWidth( 0, WLength(5, WLength::FontEx) );
   m_eventTypesView->setColumnWidth( 1, WLength(24, WLength::FontEx) );
   m_eventTypesView->setModel( m_eventTypesModel );
-  m_eventTypesView->selectionChanged().connect( this, &WtCustomEventTab::displaySelectedModel );
+  m_eventTypesView->selectionChanged().connect( this, &CustomEventTab::displaySelectedModel );
   WPanel *panel = new WPanel();
   panel->setTitle( "Defined Custom Events:" );
   panel->setCentralWidget( m_eventTypesView );
@@ -2712,15 +2731,15 @@ WtCustomEventTab::WtCustomEventTab( WtGui *wtGuiParent,
 
   Div *eastDiv = new Div();
   eastDiv->addWidget( panel );
-  Div *buttonDiv = new Div( "WtCustomEventTab_buttonDiv", eastDiv );
+  Div *buttonDiv = new Div( "CustomEventTab_buttonDiv", eastDiv );
   WPushButton *addModelButton = new WPushButton( "Add Event Type", buttonDiv );
   WPushButton *delModelButton = new WPushButton( "Delete Event Type", buttonDiv );
   new WBreak( buttonDiv );
   WPushButton *defDexButton = new WPushButton( "Add Default Dexcom Events", buttonDiv );
 
-  addModelButton->clicked().connect( this, &WtCustomEventTab::addCustomEventDialog );
-  delModelButton->clicked().connect( boost::bind( &WtCustomEventTab::confirmUndefineCustomEventDialog, this ) );
-  defDexButton->clicked().connect( boost::bind( &WtCustomEventTab::defineDefaultDexcomEvents, this ) );
+  addModelButton->clicked().connect( this, &CustomEventTab::addCustomEventDialog );
+  delModelButton->clicked().connect( boost::bind( &CustomEventTab::confirmUndefineCustomEventDialog, this ) );
+  defDexButton->clicked().connect( boost::bind( &CustomEventTab::defineDefaultDexcomEvents, this ) );
 
   WText *headerText = new WText( "Response Functions of Defined Events" );
 
@@ -2751,11 +2770,11 @@ WtCustomEventTab::WtCustomEventTab( WtGui *wtGuiParent,
   updateAvailableEventTypes();
 
   displaySelectedModel();
-}//WtCustomEventTab constructor
+}//CustomEventTab constructor
 
-WtCustomEventTab::~WtCustomEventTab(){};
+CustomEventTab::~CustomEventTab(){};
 
-void WtCustomEventTab::updateAvailableEventTypes()
+void CustomEventTab::updateAvailableEventTypes()
 {
   NLSimplePtr nlsimpleptr( m_parentWtGui );
   const NLSimple::EventDefMap &eventDefMap = nlsimpleptr->m_customEventDefs;
@@ -2774,17 +2793,17 @@ void WtCustomEventTab::updateAvailableEventTypes()
 
 
 
-void WtCustomEventTab::defineDefaultDexcomEvents()
+void CustomEventTab::defineDefaultDexcomEvents()
 {
   NLSimplePtr nlsimpleptr( m_parentWtGui );
   nlsimpleptr->defineDefautDexcomEvents();
   updateAvailableEventTypes();
-}//void WtCustomEventTab::defineDefaultDexcomEvents()
+}//void CustomEventTab::defineDefaultDexcomEvents()
 
 
 
 
-int WtCustomEventTab::selectedEventType() const
+int CustomEventTab::selectedEventType() const
 {
   const set<WModelIndex> selected = m_eventTypesView->selectedIndexes();
 
@@ -2804,7 +2823,7 @@ int WtCustomEventTab::selectedEventType() const
 }//int selectedEventType() const
 
 
-void WtCustomEventTab::displaySelectedModel()
+void CustomEventTab::displaySelectedModel()
 {
   m_currentCEModel->setArrayAddresses( 0, NULL, NULL );
   if( !m_eventTypesModel->rowCount() ) return;
@@ -2818,7 +2837,7 @@ void WtCustomEventTab::displaySelectedModel()
 
   if( eventDef == eventDefs.end() )
   {
-    cerr << "WtCustomEventTab::displaySelectedModel(): Couldn't find an"
+    cerr << "CustomEventTab::displaySelectedModel(): Couldn't find an"
          << " event of type " << eventType << "\nThis shouldn't happen"
          << endl;
     return;
@@ -2834,7 +2853,7 @@ void WtCustomEventTab::displaySelectedModel()
 }//void displaySelectedModel()
 
 
-void WtCustomEventTab::addCustomEventDialog()
+void CustomEventTab::addCustomEventDialog()
 {
   WDialog dialog( "Define a new Custom Event Type:" );
 
@@ -2879,10 +2898,10 @@ void WtCustomEventTab::addCustomEventDialog()
   cancel->clicked().connect( &dialog, &WDialog::reject );
 
   id->valueChanged().connect(
-                 boost::bind( &WtCustomEventTab::validateCustomEventNameAndID,
+                 boost::bind( &CustomEventTab::validateCustomEventNameAndID,
                               this, name, (WAbstractSpinBox *)id->spinBox(), ok ) );
   name->changed().connect(
-                 boost::bind( &WtCustomEventTab::validateCustomEventNameAndID,
+                 boost::bind( &CustomEventTab::validateCustomEventNameAndID,
                               this, name, (WAbstractSpinBox *)id->spinBox(), ok ) );
 
   const WDialog::DialogCode code = dialog.exec();
@@ -2901,7 +2920,7 @@ void WtCustomEventTab::addCustomEventDialog()
 }//void addCustomEventDialog();
 
 
-void WtCustomEventTab::validateCustomEventNameAndID( WLineEdit *name,
+void CustomEventTab::validateCustomEventNameAndID( WLineEdit *name,
                                                       WAbstractSpinBox *id,
                                                      WPushButton *button )
 {
@@ -2946,7 +2965,7 @@ void WtCustomEventTab::validateCustomEventNameAndID( WLineEdit *name,
 }//validateCustomEventNameAndID
 
 
-void WtCustomEventTab::defineCustomEvent( const int recordType,
+void CustomEventTab::defineCustomEvent( const int recordType,
                                           const string name,
                                           const TimeDuration eventDuration,
                                           const int eventDefType, //of type EventDefType, see ResponseModel.hh
@@ -2957,10 +2976,10 @@ void WtCustomEventTab::defineCustomEvent( const int recordType,
                                   EventDefType(eventDefType), nPoints );
   updateAvailableEventTypes();
   displaySelectedModel();
-}//void WtCustomEventTab::defineCustomEvent( ... )
+}//void CustomEventTab::defineCustomEvent( ... )
 
 
-void WtCustomEventTab::confirmUndefineCustomEventDialog()
+void CustomEventTab::confirmUndefineCustomEventDialog()
 {
   const int eventType = selectedEventType();
 
@@ -2973,7 +2992,7 @@ void WtCustomEventTab::confirmUndefineCustomEventDialog()
 
     if( eventDef == eventDefs.end() )
     {
-      cerr << "WtCustomEventTab::confirmUndefineCustomEventDialog(): WTF?"
+      cerr << "CustomEventTab::confirmUndefineCustomEventDialog(): WTF?"
           << endl;
       return;
     }//if( eventDef == eventDefs.end() )
@@ -2998,7 +3017,7 @@ void WtCustomEventTab::confirmUndefineCustomEventDialog()
 }//void confirmUndefineCustomEventDialog( int index );
 
 
-bool WtCustomEventTab::undefineCustomEvent( int recordType )
+bool CustomEventTab::undefineCustomEvent( int recordType )
 {
   NLSimplePtr nlsimpleptr( m_parentWtGui );
   const bool status = nlsimpleptr->undefineCustomEvent( recordType );
@@ -3012,7 +3031,7 @@ bool WtCustomEventTab::undefineCustomEvent( int recordType )
 
 
 
-WtNotesTab::WtNotesTab( WtGui *wtGuiParent, Wt::WContainerWidget *parent )
+NotesTab::NotesTab( WtGui *wtGuiParent, Wt::WContainerWidget *parent )
   : WContainerWidget( parent ),
     m_parentWtGui( wtGuiParent ),
     m_dateSelect( new DateTimeSelect( "Note Date/Time:" ) ),
@@ -3039,7 +3058,7 @@ WtNotesTab::WtNotesTab( WtGui *wtGuiParent, Wt::WContainerWidget *parent )
   layout->setRowStretch( 0, 0 );
 
   m_tableView->setModel( m_model );
-  m_tableView->setStyleClass( m_tableView->styleClass() + " WtNotesTabTableView" );
+  m_tableView->setStyleClass( m_tableView->styleClass() + " NotesTabTableView" );
   m_tableView->setSelectable(true);
   m_tableView->setSelectionBehavior( SelectRows );
   m_tableView->setSelectionMode( SingleSelection );
@@ -3047,14 +3066,14 @@ WtNotesTab::WtNotesTab( WtGui *wtGuiParent, Wt::WContainerWidget *parent )
   m_tableView->setColumnResizeEnabled(true);
   m_tableView->setColumnWidth( 1, WLength( 30, WLength::FontEx ) );
   m_tableView->setSortingEnabled( false );
-  m_tableView->selectionChanged().connect( this, &WtNotesTab::handleSelectionChange );
+  m_tableView->selectionChanged().connect( this, &NotesTab::handleSelectionChange );
   layout->addWidget( m_tableView, 1, 0, 1, 1  );
   layout->setRowStretch( 1, 5 );
 
 
   //m_deleteButton->setFloatSide( Right );
   m_deleteButton->setHiddenKeepsGeometry(true);
-  m_deleteButton->clicked().connect( this, &WtNotesTab::removeCurrentEntry );
+  m_deleteButton->clicked().connect( this, &NotesTab::removeCurrentEntry );
   layout->addWidget( m_deleteButton, 2, 0, 1, 1, AlignTop | AlignLeft );
   layout->setRowStretch( 2, 0 );
 
@@ -3071,9 +3090,9 @@ WtNotesTab::WtNotesTab( WtGui *wtGuiParent, Wt::WContainerWidget *parent )
   layout->setRowStretch( 4, 10 );
 
   Div *buttonDiv = new Div();
-  m_newNoteButton->clicked().connect( this, &WtNotesTab::newEntry );
-  m_saveButton->clicked().connect( boost::bind( &WtNotesTab::saveCurrent, this, false ) );
-  m_cancelButton->clicked().connect( this, &WtNotesTab::cancelEdit );
+  m_newNoteButton->clicked().connect( this, &NotesTab::newEntry );
+  m_saveButton->clicked().connect( boost::bind( &NotesTab::saveCurrent, this, false ) );
+  m_cancelButton->clicked().connect( this, &NotesTab::cancelEdit );
   buttonDiv->addWidget( m_newNoteButton );
   buttonDiv->addWidget( m_saveButton );
   buttonDiv->addWidget( m_cancelButton );
@@ -3082,9 +3101,9 @@ WtNotesTab::WtNotesTab( WtGui *wtGuiParent, Wt::WContainerWidget *parent )
 
   layout->addWidget( buttonDiv, 5, 0, 1, 1, AlignTop | AlignLeft );
   layout->setRowStretch( 5, 0 );
-}//WtNotesTab constructor
+}//NotesTab constructor
 
-void WtNotesTab::newEntry()
+void NotesTab::newEntry()
 {
   saveCurrent();
   m_beingEdited = NULL;
@@ -3104,10 +3123,10 @@ void WtNotesTab::newEntry()
   m_textArea->setText( "" );
   m_dateSelect->setToCurrentTime();
   m_tableView->setSelectedIndexes( WModelIndexSet() );
-}//void WtNotesTab::newEntry()
+}//void NotesTab::newEntry()
 
 
-void WtNotesTab::cancelEdit()
+void NotesTab::cancelEdit()
 {
   if( !m_beingEdited )
   {
@@ -3118,10 +3137,10 @@ void WtNotesTab::cancelEdit()
 
   m_dateSelect->set( WDateTime::fromPosixTime(m_beingEdited->time) );
   m_textArea->setText( m_beingEdited->text );
-}//void WtNotesTab::cancelEdit()
+}//void NotesTab::cancelEdit()
 
 
-void WtNotesTab::saveCurrent( const bool askUserFirst )
+void NotesTab::saveCurrent( const bool askUserFirst )
 {
   const PosixTime time = m_dateSelect->dateTime().toPosixTime();
   const string text = m_textArea->text().narrow();
@@ -3177,10 +3196,10 @@ void WtNotesTab::saveCurrent( const bool askUserFirst )
   indset.insert( m_model->index( pos ) );
   m_tableView->setSelectedIndexes( indset );
   if( m_saveCheckBox->isChecked() ) m_parentWtGui->saveCurrentModel();
-}//void WtNotesTab::saveCurrent()
+}//void NotesTab::saveCurrent()
 
 
-void WtNotesTab::removeCurrentEntry()
+void NotesTab::removeCurrentEntry()
 {
   const WModelIndexSet selected = m_tableView->selectedIndexes();
   if( selected.empty() ) assert( !m_beingEdited );
@@ -3218,10 +3237,10 @@ void WtNotesTab::removeCurrentEntry()
 
   m_deleteButton->disable();
   m_deleteButton->setHidden( true );
-}//void WtNotesTab::removeCurrentEntry()
+}//void NotesTab::removeCurrentEntry()
 
 
-void WtNotesTab::handleSelectionChange()
+void NotesTab::handleSelectionChange()
 {
   //problem: at the end of this function we re-select the row of m_tableView
   //         the user intended, incase we inserted a row  when we call
@@ -3274,29 +3293,29 @@ void WtNotesTab::handleSelectionChange()
 
   m_deleteButton->enable();
   m_deleteButton->setHidden( false );
-}//void WtNotesTab::handleSelectionChange()
+}//void NotesTab::handleSelectionChange()
 
-void WtNotesTab::updateViewTable()
+void NotesTab::updateViewTable()
 {
   //What did I want this function to do?
   m_model->refresh();
-}//void WtNotesTab::updateViewTable()
+}//void NotesTab::updateViewTable()
 
 
 
 
-WtExcludeTimeRangesTab::ExcludedRangesChart::ExcludedRangesChart(
-              WtExcludeTimeRangesTab *parentTab, Wt::WContainerWidget *parent )
+ExcludeTimeRangesTab::ExcludedRangesChart::ExcludedRangesChart(
+              ExcludeTimeRangesTab *parentTab, Wt::WContainerWidget *parent )
   : WChartWithLegend( parentTab->m_parentWtGui, parent ),
     m_parentTab( parentTab )
 {
 }//
 
-WtExcludeTimeRangesTab::ExcludedRangesChart::~ExcludedRangesChart()
+ExcludeTimeRangesTab::ExcludedRangesChart::~ExcludedRangesChart()
 {
 }
 
-void WtExcludeTimeRangesTab::ExcludedRangesChart::paint( Wt::WPainter& painter, const Wt::WRectF& rectangle ) const
+void ExcludeTimeRangesTab::ExcludedRangesChart::paint( Wt::WPainter& painter, const Wt::WRectF& rectangle ) const
 {
   WChartWithLegend::paint( painter, rectangle );
 
@@ -3349,14 +3368,14 @@ void WtExcludeTimeRangesTab::ExcludedRangesChart::paint( Wt::WPainter& painter, 
 
 }//paint(...)
 
-void WtExcludeTimeRangesTab::ExcludedRangesChart::paintEvent( Wt::WPaintDevice *paintDevice )
+void ExcludeTimeRangesTab::ExcludedRangesChart::paintEvent( Wt::WPaintDevice *paintDevice )
 {
   WChartWithLegend::paintEvent( paintDevice );
 }
 
 
 
-WtExcludeTimeRangesTab::WtExcludeTimeRangesTab( WtGui *parentWtGui,
+ExcludeTimeRangesTab::ExcludeTimeRangesTab( WtGui *parentWtGui,
                                                 Wt::WContainerWidget *parent )
   : WContainerWidget( parent ), m_parentWtGui( parentWtGui ),
     m_chart( new ExcludedRangesChart( this ) ),
@@ -3376,18 +3395,18 @@ WtExcludeTimeRangesTab::WtExcludeTimeRangesTab( WtGui *parentWtGui,
   WContainerWidget::setLayout( layout );
 
   //hook the widgets up to the functions interacting with them should call
-  m_view->selectionChanged().connect( this, &WtExcludeTimeRangesTab::displaySelected );
-  m_addRangeButton->clicked().connect( this, &WtExcludeTimeRangesTab::addEnteredRangeToModel );
-  m_deleteButton->clicked().connect( this, &WtExcludeTimeRangesTab::deleteSelectedRange );
+  m_view->selectionChanged().connect( this, &ExcludeTimeRangesTab::displaySelected );
+  m_addRangeButton->clicked().connect( this, &ExcludeTimeRangesTab::addEnteredRangeToModel );
+  m_deleteButton->clicked().connect( this, &ExcludeTimeRangesTab::deleteSelectedRange );
   m_endExcludeSelect->changed().connect( boost::bind( &ExcludedRangesChart::update, m_chart, WFlags<PaintFlag>() ) );
   m_startExcludeSelect->changed().connect( boost::bind( &ExcludedRangesChart::update, m_chart, WFlags<PaintFlag>() ) );
 
-//  m_endExcludeSelect->changed().connect( this, &WtExcludeTimeRangesTab::updateGraphWithUserRange );
-//  m_startExcludeSelect->changed().connect( this, &WtExcludeTimeRangesTab::updateGraphWithUserRange );
+//  m_endExcludeSelect->changed().connect( this, &ExcludeTimeRangesTab::updateGraphWithUserRange );
+//  m_startExcludeSelect->changed().connect( this, &ExcludeTimeRangesTab::updateGraphWithUserRange );
 
   //Set up the view for the list of excluded time ranges
   m_view->setModel( m_listModel );
-  m_view->setStyleClass( m_view->styleClass() + " WtExcludeTimeRangesTabTableView" );
+  m_view->setStyleClass( m_view->styleClass() + " ExcludeTimeRangesTabTableView" );
   m_view->setSelectable( true );
   m_view->setSelectionBehavior( SelectRows );
   m_view->setSelectionMode( SingleSelection );
@@ -3425,9 +3444,9 @@ WtExcludeTimeRangesTab::WtExcludeTimeRangesTab( WtGui *parentWtGui,
 
   m_chartOverlay = new OverlayCanvas( m_chart, true, true );
 //  m_chartOverlay->jsException()->connect( boost::bind( printexp, _1 ) );
-  m_chartOverlay->userDragged().connect( boost::bind( &WtExcludeTimeRangesTab::userDraggedCallback, this, _1, _2, _3 ) );
+  m_chartOverlay->userDragged().connect( boost::bind( &ExcludeTimeRangesTab::userDraggedCallback, this, _1, _2, _3 ) );
 
-  m_newRangeButton->clicked().connect( boost::bind( &WtExcludeTimeRangesTab::allowUserToEnterNewRange, this ) );
+  m_newRangeButton->clicked().connect( boost::bind( &ExcludeTimeRangesTab::allowUserToEnterNewRange, this ) );
 
   //Now put all the widgets into the gui
   layout->addWidget( m_view, 0, 0, 1, 2  );
@@ -3442,6 +3461,7 @@ WtExcludeTimeRangesTab::WtExcludeTimeRangesTab( WtGui *parentWtGui,
   newTimePeriodDiv->addWidget( m_addRangeButton );
   newTimePeriodDiv->addWidget( m_saveModel );
   m_saveModel->setChecked();
+  m_saveModel->hide();
   layout->addWidget( newTimePeriodDiv, 2, 0, 1, 3 );
 
   layout->setColumnStretch( 0, 2 );
@@ -3458,24 +3478,24 @@ WtExcludeTimeRangesTab::WtExcludeTimeRangesTab( WtGui *parentWtGui,
   m_startExcludeSelect->setHiddenKeepsGeometry( true );
 
   setShowingExistingRange();
-}//WtExcludeTimeRangesTab constructor
+}//ExcludeTimeRangesTab constructor
 
 
-void WtExcludeTimeRangesTab::hideChartOverlay()
+void ExcludeTimeRangesTab::hideChartOverlay()
 {
   if( m_chartOverlay )
     m_chartOverlay->hide();
 }//void hideChartOverlay()
 
 
-void WtExcludeTimeRangesTab::showChartOverlay()
+void ExcludeTimeRangesTab::showChartOverlay()
 {
   m_chartOverlay->show();
 //  m_chartOverlay->alignWithParent();
 }//void showChartOverlay()
 
 
-void WtExcludeTimeRangesTab::userDraggedCallback( int x0, int y0, Wt::WMouseEvent event )
+void ExcludeTimeRangesTab::userDraggedCallback( int x0, int y0, Wt::WMouseEvent event )
 {
   if( fabs(event.document().x - double(x0)) < 5 )
     return;
@@ -3525,7 +3545,7 @@ void WtExcludeTimeRangesTab::userDraggedCallback( int x0, int y0, Wt::WMouseEven
   {
     if( m_view->selectedIndexes().size() > 0 )
     {
-      cerr << "WtExcludeTimeRangesTab::userDraggedCallback(...): "
+      cerr << "ExcludeTimeRangesTab::userDraggedCallback(...): "
               "You cant zoom in when anything is selected" << endl;
       return;
     }//if( m_view->selectedIndexes().size() > 0 )
@@ -3542,7 +3562,7 @@ void WtExcludeTimeRangesTab::userDraggedCallback( int x0, int y0, Wt::WMouseEven
 
 
 
-void WtExcludeTimeRangesTab::displaySelected()
+void ExcludeTimeRangesTab::displaySelected()
 {
   const WModelIndexSet selected = m_view->selectedIndexes();
 //  if( selected.empty() && m_listModel->rowCount() ) return;
@@ -3584,7 +3604,7 @@ void WtExcludeTimeRangesTab::displaySelected()
 }//displaySelected()
 
 
-void WtExcludeTimeRangesTab::setAddingNewRange()
+void ExcludeTimeRangesTab::setAddingNewRange()
 {
   m_view->setSelectedIndexes( WModelIndexSet() );
   m_deleteButton->setHidden( true );
@@ -3594,7 +3614,7 @@ void WtExcludeTimeRangesTab::setAddingNewRange()
   m_startExcludeSelect->setHidden( false );
 }//void setAddingNewRange()
 
-void WtExcludeTimeRangesTab::setShowingExistingRange()
+void ExcludeTimeRangesTab::setShowingExistingRange()
 {
   if( m_view->selectedIndexes().size() )
   {
@@ -3613,7 +3633,7 @@ void WtExcludeTimeRangesTab::setShowingExistingRange()
   }//if( m_view->selectedIndexes().size() ) / else
 }//void setShowingExistingRange()
 
-void WtExcludeTimeRangesTab::allowUserToEnterNewRange()
+void ExcludeTimeRangesTab::allowUserToEnterNewRange()
 {
   m_view->setSelectedIndexes( WModelIndexSet() );
 
@@ -3634,7 +3654,7 @@ void WtExcludeTimeRangesTab::allowUserToEnterNewRange()
 }//allowUserToEnterNewRange()
 
 
-void WtExcludeTimeRangesTab::addEnteredRangeToModel()
+void ExcludeTimeRangesTab::addEnteredRangeToModel()
 {
   const WDateTime end = m_endExcludeSelect->dateTime();
   const WDateTime start = m_startExcludeSelect->dateTime();
@@ -3678,7 +3698,7 @@ void WtExcludeTimeRangesTab::addEnteredRangeToModel()
   displaySelected();
 }//void addEnteredRangeToModel()
 
-void WtExcludeTimeRangesTab::finishDeleteSelectedDialog( WDialog *dialog,
+void ExcludeTimeRangesTab::finishDeleteSelectedDialog( WDialog *dialog,
                                                          const WModelIndex selected,
                                                          WCheckBox *save)
 {
@@ -3710,7 +3730,7 @@ void WtExcludeTimeRangesTab::finishDeleteSelectedDialog( WDialog *dialog,
   delete dialog;
 }//finishDeleteSelectedDialog(...)
 
-void WtExcludeTimeRangesTab::deleteSelectedRange()
+void ExcludeTimeRangesTab::deleteSelectedRange()
 {
   const WModelIndexSet selected = m_view->selectedIndexes();
   if( selected.empty() ) return;
@@ -3741,20 +3761,21 @@ void WtExcludeTimeRangesTab::deleteSelectedRange()
   WPushButton *no = new WPushButton(  "No", dialog->contents() );
   WCheckBox *save = new WCheckBox( "Save Model" );
   save->setChecked();
+  save->hide();
   yes->clicked().connect( dialog, &WDialog::accept );
   no->clicked().connect( dialog, &WDialog::reject );
 
-  dialog->finished().connect( boost::bind( &WtExcludeTimeRangesTab::finishDeleteSelectedDialog, this, dialog, beginDateIndex, save) );
+  dialog->finished().connect( boost::bind( &ExcludeTimeRangesTab::finishDeleteSelectedDialog, this, dialog, beginDateIndex, save) );
 
   dialog->show();
 }//void deleteSelectedRange()
 
 
-void WtExcludeTimeRangesTab::zoomGraph( const WDateTime start, const WDateTime end )
+void ExcludeTimeRangesTab::zoomGraph( const WDateTime start, const WDateTime end )
 {
   if( !start.isValid() || !end.isValid() )
   {
-    cerr << "Warning: WtExcludeTimeRangesTab::zoomGraph(...): and invalid date" << endl;
+    cerr << "Warning: ExcludeTimeRangesTab::zoomGraph(...): and invalid date" << endl;
     return;
   }//if( !start.isValid() || !end.isValid() )
 
@@ -3770,7 +3791,7 @@ void WtExcludeTimeRangesTab::zoomGraph( const WDateTime start, const WDateTime e
 }//void zoomGraph( const WDateTime start, const WDateTime end )
 
 
-void WtExcludeTimeRangesTab::updateDataRangeDates()
+void ExcludeTimeRangesTab::updateDataRangeDates()
 {
   const PosixTime pBeginTime = m_parentWtGui->getSimpleSimDisplayModel()->earliestData();
   const PosixTime pEndTime   = m_parentWtGui->getSimpleSimDisplayModel()->latestData();
@@ -3784,7 +3805,7 @@ void WtExcludeTimeRangesTab::updateDataRangeDates()
   m_endExcludeSelect->setTop( endTime );
   m_endExcludeSelect->setBottom( beginTime );
   m_endExcludeSelect->set( endTime );
-}//void WtExcludeTimeRangesTab::updateDataRangeDates()
+}//void ExcludeTimeRangesTab::updateDataRangeDates()
 
 
 

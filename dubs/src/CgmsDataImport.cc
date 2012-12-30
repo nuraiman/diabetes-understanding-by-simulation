@@ -9,23 +9,30 @@
 #include <math.h>
 #include <stdlib.h>
 
-#include "boost/range.hpp"
-#include "boost/foreach.hpp"
-#include "boost/date_time/gregorian/gregorian.hpp"
-#include "boost/date_time/posix_time/posix_time.hpp"
-#include "boost/algorithm/string/trim.hpp"
-#include "boost/algorithm/string/split.hpp"
-#include "boost/lexical_cast.hpp"
-#include "boost/exception/exception.hpp"
-#include "boost/format.hpp"
 
-#include "CgmsDataImport.hh"
-#include "RungeKuttaIntegrater.hh" //for toNMinutes()
+#include <boost/range.hpp>
+#include <boost/format.hpp>
+#include <boost/foreach.hpp>
+#include <boost/lexical_cast.hpp>
+#include <boost/exception/exception.hpp>
+#include <boost/algorithm/string/trim.hpp>
+#include <boost/algorithm/string/split.hpp>
+#include <boost/date_time/gregorian/gregorian.hpp>
+#include <boost/date_time/posix_time/posix_time.hpp>
+
+
+#include "dubs/CgmsDataImport.hh"
+#include "dubs/RungeKuttaIntegrater.hh" //for toNMinutes()
 
 using namespace std;
 using namespace boost;
 using namespace boost::posix_time;
 using namespace CgmsDataImport;
+
+
+//To make the code prettier
+#define foreach         BOOST_FOREACH
+#define reverse_foreach BOOST_REVERSE_FOREACH
 
 
 

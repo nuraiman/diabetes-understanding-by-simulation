@@ -6,7 +6,6 @@
 #include <vector>
 #include <exception>
 #include <boost/date_time/posix_time/posix_time.hpp>
-#include <boost/foreach.hpp>
 #include <boost/function.hpp>
 #include "TString.h"  //for the Form in SRC_Location macro
 
@@ -15,9 +14,6 @@ const double kFailValue = -9999.9;
 class TApplication;
 extern TApplication *gTheApp; //I think I could get rid of this and just us gApplication
 
-//To make the code prettier
-#define foreach         BOOST_FOREACH
-#define reverse_foreach BOOST_REVERSE_FOREACH
 
 typedef std::vector<double>               DVec;
 typedef boost::posix_time::ptime          PosixTime;

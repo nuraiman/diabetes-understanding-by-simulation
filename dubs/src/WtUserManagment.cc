@@ -1,64 +1,64 @@
 #include <set>
-#include <cstdlib>
-#include <iostream>
-#include <iomanip>
+#include <cmath>
+#include <math.h>
 #include <vector>
 #include <string>
-#include <stdio.h>
-#include <math.h>
-#include <stdlib.h>
 #include <fstream>
-#include <cmath>
+#include <iomanip>
+#include <stdio.h>
+#include <cstdlib>
+#include <iostream>
+#include <stdlib.h>
 
-#include "boost/foreach.hpp"
-#include "boost/lexical_cast.hpp"
-#include "boost/date_time/posix_time/posix_time.hpp"
-#include "boost/algorithm/string.hpp"
+#include <boost/foreach.hpp>
+#include <boost/lexical_cast.hpp>
+#include <boost/algorithm/string.hpp>
+#include <boost/date_time/posix_time/posix_time.hpp>
 
-#include <Wt/Dbo/backend/Sqlite3>
-#include <Wt/WApplication>
-#include <Wt/WContainerWidget>
-#include <Wt/WBorderLayout>
-#include <Wt/WTabWidget>
-#include <Wt/WStandardItemModel>
-#include <Wt/WTableView>
-#include <Wt/WDatePicker>
-#include <Wt/WLabel>
-#include <Wt/WDialog>
-#include <Wt/WLengthValidator>
-#include <Wt/Dbo/QueryModel>
-#include <Wt/WLineEdit>
 #include <Wt/WText>
 #include <Wt/WTable>
+#include <Wt/WLabel>
+#include <Wt/WDialog>
+#include <Wt/SyncLock>
+#include <Wt/WLineEdit>
+#include <Wt/WTabWidget>
+#include <Wt/WTableView>
+#include <Wt/WDatePicker>
 #include <Wt/WPushButton>
 #include <Wt/WEnvironment>
-#include <Wt/WRegExpValidator>
-#include <Wt/SyncLock>
+#include <Wt/WApplication>
+#include <Wt/WBorderLayout>
+#include <Wt/Dbo/QueryModel>
 #include <Wt/Auth/AuthWidget>
+#include <Wt/WContainerWidget>
+#include <Wt/WRegExpValidator>
+#include <Wt/WLengthValidator>
+#include <Wt/WStandardItemModel>
+#include <Wt/Dbo/backend/Sqlite3>
 #include <Wt/Auth/PasswordService>
 
-
 #include "TH1.h"
-#include "TH1F.h"
 #include "TH2.h"
 #include "TH2F.h"
 #include "TMD5.h"
-#include "TRandom3.h"
+#include "TH1F.h"
 #include "TSystem.h"
+#include "TRandom3.h"
 
-
-#include "WtUserManagment.hh"
-#include "ArtificialPancrease.hh"
 #include "dubs/DubUser.hh"
+#include "dubs/WtUserManagment.hh"
+#include "dubs/ArtificialPancrease.hh"
 
 using namespace Wt;
 using namespace std;
 
+#define foreach         BOOST_FOREACH
+#define reverse_foreach BOOST_REVERSE_FOREACH
 
 
 DBO_INSTANTIATE_TEMPLATES(UsersModel);
-DBO_INSTANTIATE_TEMPLATES(SerializedModel);
 DBO_INSTANTIATE_TEMPLATES(OptimizationChi2);
+DBO_INSTANTIATE_TEMPLATES(ModelDisplayOptions);
 
 
 DubUserServer::DubUserServer()
