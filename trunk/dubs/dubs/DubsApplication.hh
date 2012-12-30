@@ -1,6 +1,8 @@
 #ifndef DubsApplication_h
 #define DubsApplication_h
 
+#include "DubsConfig.hh"
+
 #include <string>
 
 #include <Wt/WApplication>

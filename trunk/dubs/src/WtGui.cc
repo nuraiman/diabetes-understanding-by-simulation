@@ -1,3 +1,5 @@
+#include "DubsConfig.hh"
+
 #include <math.h>
 #include <vector>
 #include <string>
@@ -70,7 +72,7 @@
 #include <Wt/WSortFilterProxyModel>
 #include <Wt/Chart/WCartesianChart>
 
-
+#if(USE_CERNS_ROOT)
 #include "TH2.h"
 #include "TH1.h"
 #include "TH2F.h"
@@ -78,6 +80,7 @@
 #include "TH1F.h"
 #include "TSystem.h"
 #include "TRandom3.h"
+#endif
 
 #include "dubs/WtGui.hh"
 #include "dubs/WtUtils.hh"
@@ -741,8 +744,8 @@ void WtGui::delRawData( WTableView *view )
   view->setSelectedIndexes( WModelIndexSet() );
 
   WDialog dialog( "Confirmation" );
-  const string msg = Form( "Are you sure you would like to delete these %u "
-                           "data points?" , static_cast<unsigned int>(selected.size()) );
+  const string msg = "Are you sure you would like to delete these %u "
+                     "data points?" + boost::lexical_cast<string>(selected.size());
   new WText( msg, dialog.contents() );
   new WBreak( dialog.contents() );
   WPushButton *ok = new WPushButton( "Yes", dialog.contents() );

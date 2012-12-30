@@ -1,21 +1,22 @@
 #ifndef WTCHARTCLASSES_HH
 #define WTCHARTCLASSES_HH
 
+#include "DubsConfig.hh"
+
 #include <algorithm>
 
 #include <boost/any.hpp>
 #include <boost/date_time/posix_time/ptime.hpp>
 
+#include <Wt/WRectF>
+#include <Wt/WPainter>
+#include <Wt/WModelIndex>
 #include <Wt/Chart/WCartesianChart>
 #include <Wt/Chart/WChart2DRenderer>
-#include <Wt/WPainter>
-#include <Wt/WRectF>
-#include <Wt/WModelIndex>
 
-
-#include "ConsentrationGraph.hh"
-#include "CgmsDataImport.hh" //for the CgmsDataImport::InfoType enum
-#include "ResponseModel.hh"
+#include "dubs/ResponseModel.hh"
+#include "dubs/CgmsDataImport.hh" //for the CgmsDataImport::InfoType enum
+#include "dubs/ConsentrationGraph.hh"
 
 class WtGui;
 

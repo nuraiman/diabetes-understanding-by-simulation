@@ -1,3 +1,5 @@
+#include "DubsConfig.hh"
+
 //
 #include <cmath>
 #include <vector>
@@ -12,6 +14,8 @@
 #include <algorithm>
 
 
+#include "TVirtualFFT.h"
+#if(USE_CERNS_ROOT)
 //ROOT includes (using root 5.14)
 #include "TSystem.h"
 #include "TStyle.h"
@@ -24,9 +28,8 @@
 #include "TROOT.h"
 #include "TMath.h"
 #include "TPaveText.h"
-#include "TVirtualFFT.h"
 #include "TDecompLU.h"
-
+#endif //#if(USE_CERNS_ROOT)
 
 //GSL includes
 //You may comment out these includes and code will still
@@ -63,12 +66,13 @@ using namespace boost::posix_time;
 
 
 
-GraphElement::GraphElement() : m_time(kGenericT0), m_value(-999.9)
+GraphElement::GraphElement()
+    : m_time(kGenericT0), m_value(-999.9)
 {}
 
 
-GraphElement::GraphElement( const PosixTime &time, double value ) :
-     m_time(time), m_value(value)
+GraphElement::GraphElement( const PosixTime &time, double value )
+    : m_time(time), m_value(value)
 {}
 
 
@@ -174,7 +178,10 @@ double ConsentrationGraph::getDt( const ptime &t0, const ptime &t1 )
 }//static double getDt( ptime t0, ptime t1 ) const
 
 
-GraphType ConsentrationGraph::getGraphType() const { return m_graphType; }
+GraphType ConsentrationGraph::getGraphType() const
+{
+  return m_graphType;
+}
 
 std::string ConsentrationGraph::getGraphTypeStr() const
 {
@@ -788,7 +795,8 @@ bool ConsentrationGraph::hasValueNear( const double &value, const double &epsilo
 {
   for( ConstGraphIter iter = begin(); iter != end(); ++iter )
   {
-    if( TMath::AreEqualAbs( iter->m_value, value, epsilon ) ) return true;
+    if( fabs(iter->m_value-value) < epsilon )
+        return true;
   }//foreach( const GraphElement &e, m_customEvents )
 
   return false;
@@ -1101,15 +1109,164 @@ ConsentrationGraph::bSplineSmoothOrDeriv(  bool takeDeriv,
 }//bSplineDerivative
 
 
+/*
+#include <stdio.h>
+     #include <math.h>
+     #include <gsl/gsl_errno.h>
+     #include <gsl/gsl_fft_real.h>
+     #include <gsl/gsl_fft_halfcomplex.h>
+
+     int
+     main (void)
+     {
+       int i, n = 100;
+       double data[n];
+
+       gsl_fft_real_wavetable * real;
+       gsl_fft_halfcomplex_wavetable * hc;
+       gsl_fft_real_workspace * work;
+
+       for (i = 0; i < n; i++)
+         {
+           data[i] = 0.0;
+         }
+
+       for (i = n / 3; i < 2 * n / 3; i++)
+         {
+           data[i] = 1.0;
+         }
+
+       for (i = 0; i < n; i++)
+         {
+           printf ("%d: %e\n", i, data[i]);
+         }
+       printf ("\n");
+
+       work = gsl_fft_real_workspace_alloc (n);
+       real = gsl_fft_real_wavetable_alloc (n);
+
+       gsl_fft_real_transform (data, 1, n,
+                               real, work);
+
+       gsl_fft_real_wavetable_free (real);
+
+       for (i = 11; i < n; i++)
+         {
+           data[i] = 0;
+         }
+
+       hc = gsl_fft_halfcomplex_wavetable_alloc (n);
+
+       gsl_fft_halfcomplex_inverse (data, 1, n,
+                                    hc, work);
+       gsl_fft_halfcomplex_wavetable_free (hc);
+
+       for (i = 0; i < n; i++)
+         {
+           printf ("%d: %e\n", i, data[i]);
+         }
+
+       gsl_fft_real_workspace_free (work);
+       return 0;
+     }
+*/
 
 
+//#if( !USE_CERNS_ROOT )
+#include "fftw3.h"
+//#endif
+
+
+void ff_xform_r2c( const vector<double> &input,
+                   vector<double> &xformed_real,
+                   vector<double> &xformed_imag )
+{
+#if( USE_CERNS_ROOT )
+  int len = static_cast<int>( input.size() );
+  xformed_real.resize( len );
+  xformed_imag.resize( len );
+  TVirtualFFT *fft_own = TVirtualFFT::FFT(1, &len, "R2C");
+  fft_own->SetPoints( &input[0] );
+  fft_own->Transform();
+  fft_own->GetPointsComplex( &xformed_real[0], &xformed_imag[0] );
+#else
+  // XXX - currently this function is ineffiecient!
+  //       The fftw_plan shouldnt be destoyed, untill all current xforms are
+  //       finished, because FFTW3 uses some constant data to speed things up
+  //       in creating the plan, as long as the previous plan still exists, see:
+  //       http://www.fftw.org/fftw3_doc/Real_002ddata-DFTs.html#Real_002ddata-DFTs
+
+  int inLen = static_cast<int>( input.size() );
+  int outLen = inLen/2 + 1;
+  xformed_real.resize( outLen );
+  xformed_imag.resize( outLen );
+
+  double *data = (double *)fftw_malloc(sizeof(double)*inLen);
+  fftw_complex *out = (fftw_complex *)fftw_malloc(sizeof(fftw_complex)*outLen);
+  for( int i = 0; i < inLen; ++i )
+     data[i] = input[i];
+
+  fftw_plan plan = fftw_plan_dft_r2c_1d( inLen, data, out, FFTW_ESTIMATE );
+  fftw_execute( plan );
+
+  for( int i = 0; i < outLen; ++i)
+  {
+    xformed_real[i] = out[i][0];
+    xformed_imag[i] = out[i][1];
+  }//for( int i = 0; i < sizeout; ++i)
+
+  fftw_destroy_plan( plan );
+  fftw_free( data );
+  fftw_free( out );
+#endif //#if( USE_CERNS_ROOT )
+}//ff_xform(...)
+
+
+void ff_xform_c2r( const vector<double> &in_real,
+                   const vector<double> &in_img,
+                   vector<double> &output )
+{
+  if( in_real.size() != in_img.size() )
+    throw runtime_error( "ff_xform_c2r(...): incompatible input" );
+
+#if( USE_CERNS_ROOT )
+  int len = static_cast<int>( in_img.size() );
+  output.resize( len );
+  TVirtualFFT *fft_back = TVirtualFFT::FFT(1, &len, "C2R");
+  fft_back->SetPointsComplex( &in_real[0], &in_img[0] );
+  fft_back->Transform();
+  fft_back->GetPoints( &output[0] );
+#else
+  // XXX - currently this function is ineffiecient!
+  //       The fftw_plan shouldnt be destoyed, untill all current xforms are
+  //       finished, because FFTW3 uses some constant data to speed things up
+  //       in creating the plan, as long as the previous plan still exists, see:
+  //       http://www.fftw.org/fftw3_doc/Real_002ddata-DFTs.html#Real_002ddata-DFTs
+
+  int inputLen = static_cast<int>( in_img.size() );
+  int outputLen = static_cast<int>( 2*(in_img.size()-1) );
+  output.resize( outputLen );
+
+  fftw_complex *input = (fftw_complex *)fftw_malloc(sizeof(fftw_complex)*inputLen);
+  for( int i = 0; i < inputLen; ++i )
+  {
+    input[i][0] = in_real[i];
+    input[i][1] = in_img[i];
+  }//for( int i = 0; i < len; ++i )
+  fftw_plan plan = fftw_plan_dft_c2r_1d( outputLen, input, &output[0], FFTW_ESTIMATE );
+  fftw_execute( plan );  //fftw_destroy_plan( plan )
+  fftw_destroy_plan( plan );
+  fftw_free( input );
+#endif  //#if( USE_CERNS_ROOT )
+}//ff_xform_c2r(...)
 
 
 void ConsentrationGraph::fastFourierSmooth( double lambda_min, bool doMinCoeffInstead )
 {
   removeNonInfoAddingPoints();
 
-  if( empty() ) return;
+  if( GraphElementSet::empty() )
+    return;
 
   if( doMinCoeffInstead ) assert( lambda_min>=0.0 && lambda_min<=1.0 );
 
@@ -1127,11 +1284,10 @@ void ConsentrationGraph::fastFourierSmooth( double lambda_min, bool doMinCoeffIn
   int pointsPerWindow = floor( time_window / dt );
   const int nWindows = nPoints / pointsPerWindow;
 
-  double *xAxis = new double[pointsPerWindow];
-  double *input = new double[pointsPerWindow];
-  double *xformed_real = new double [pointsPerWindow];
-  double *xformed_imag = new double [pointsPerWindow];
-
+  vector<double> xAxis( pointsPerWindow );
+  vector<double> input( pointsPerWindow );
+  vector<double> xformed_real( pointsPerWindow );
+  vector<double> xformed_imag( pointsPerWindow );
 
   for( int window=0; window < nWindows; ++window )
   {
@@ -1143,10 +1299,8 @@ void ConsentrationGraph::fastFourierSmooth( double lambda_min, bool doMinCoeffIn
       input[point] = value( startTime + toTimeDuration(t) );
     }//for
 
-    TVirtualFFT *fft_own = TVirtualFFT::FFT(1, &pointsPerWindow, "R2C");
-    fft_own->SetPoints(input);
-    fft_own->Transform();
-    fft_own->GetPointsComplex(xformed_real, xformed_imag);
+    ff_xform_r2c( input, xformed_real, xformed_imag );
+
 
     if( !doMinCoeffInstead )
     {
@@ -1159,22 +1313,22 @@ void ConsentrationGraph::fastFourierSmooth( double lambda_min, bool doMinCoeffIn
         xformed_imag[point] = xformed_real[point] = 0.0;
     }else
     {
-      int *index_array = new int[pointsPerWindow];
-      for( int i = 0; i < pointsPerWindow; ++i ) index_array[i] = i;
-      TMath::Sort( pointsPerWindow, xformed_real, index_array  );
-      const int min_coef_ind = TMath::Nint( lambda_min * pointsPerWindow );
+      vector<int> index_array( pointsPerWindow );
+      for( int i = 0; i < pointsPerWindow; ++i )
+          index_array[i] = i;
+
+//      TMath::Sort( pointsPerWindow, &xformed_real[0], &index_array[0] );
+      std::sort( index_array.begin(), index_array.end(), index_compare_descend<vector<double>&>(xformed_real) );
+
+      const int min_coef_ind = static_cast<int>( floor(lambda_min*pointsPerWindow + 0.5) );
       for( int point = min_coef_ind; point < pointsPerWindow; ++point )
       {
         const int index = index_array[point];
         xformed_imag[index] = xformed_real[index] = 0.0;
       }//for(...)
-      delete index_array;
-    }
+    }//if( !doMinCoeffInstead ) / else
 
-    TVirtualFFT *fft_back = TVirtualFFT::FFT(1, &pointsPerWindow, "C2R");
-    fft_back->SetPointsComplex(xformed_real, xformed_imag);
-    fft_back->Transform();
-    fft_back->GetPoints(input);
+    ff_xform_c2r( xformed_real, xformed_imag, input );
 
     for( int point = 0; point < pointsPerWindow; ++point )
     {
@@ -1186,10 +1340,6 @@ void ConsentrationGraph::fastFourierSmooth( double lambda_min, bool doMinCoeffIn
 
   // delete fft_own;
   // delete fft_back;
-  delete [] xAxis;
-  delete [] input;
-  delete [] xformed_real;
-  delete [] xformed_imag;
 
   GraphElementSet::clear();
   GraphElementSet::insert( begin(), xFormResult.begin(), xFormResult.end() );
@@ -1360,7 +1510,7 @@ ConsentrationGraph::getSavitzyGolaySmoothedGraph( int num_left, int num_right, i
   const PosixTime startTime = begin()->m_time;
   const double dt = toNMinutes( getMostCommonDt() );
   const double totalTime = toNMinutes(endTime - startTime);
-  const int nPoints = TMath::Nint( totalTime / dt );
+  const int nPoints = static_cast<int>( floor(0.5+totalTime/dt) );
 
   vector<double> xAxis(nPoints);
   vector<double> input(nPoints);
@@ -1373,14 +1523,14 @@ ConsentrationGraph::getSavitzyGolaySmoothedGraph( int num_left, int num_right, i
   }//for
 
   ConsentrationGraph results(startTime, dt, getGraphType() );
-  const Int_t nCoeffs = static_cast<Int_t>( coeffs.size() );
+  const int nCoeffs = static_cast<int>( coeffs.size() );
 
-  for( Int_t pos = 0; pos < nPoints; ++pos )
+  for( int pos = 0; pos < nPoints; ++pos )
   {
-    Double_t sum = 0.0;
-    for( Int_t coeff = 0; coeff < nCoeffs; ++coeff )
+    double sum = 0.0;
+    for( int coeff = 0; coeff < nCoeffs; ++coeff )
     {
-      Int_t                         dataInd = pos - num_left + coeff;
+      int                         dataInd = pos - num_left + coeff;
       if( dataInd < 0 )             dataInd += nPoints;
       else if( dataInd >= nPoints ) dataInd -= nPoints;
 
@@ -1398,6 +1548,10 @@ ConsentrationGraph::getSavitzyGolaySmoothedGraph( int num_left, int num_right, i
 }//getSavitzyGolaySmoothedGraph(...)
 
 
+#include <boost/numeric/ublas/lu.hpp>
+#include <boost/numeric/ublas/matrix.hpp>
+#include <boost/numeric/ublas/triangular.hpp>
+
 
 vector<double> ConsentrationGraph::getSavitzyGolayCoeffs(
     int nl, //number of coef. to left of current point
@@ -1407,37 +1561,62 @@ vector<double> ConsentrationGraph::getSavitzyGolayCoeffs(
     int ld //has to do with what derivative you want
     )
 {
+  using namespace boost::numeric::ublas;
+
   //Savitzy-Golay filter: smoothes data while preserving up to the m'th moment
   //20100315: implemented loosely based on section 14.9 of Numerical Recipes
   //Coefficients stored in order: [lnl, -nl+1, ..., 0, 1, ..., nr]
   assert( !(nl<0 || nr<0 || ld>m || (nl+nr)<m ) );
 
-  TMatrixD  a(m+1, m+1);
+//  cerr << "\n\n\n" << SRC_LOCATION
+//       << "\n\tWarning: boost LU decomposition untested!!!" << endl << endl;
+
+  //  TMatrixD  a(m+1, m+1);
+  matrix<double> a(m+1, m+1);
+
   vector<double> b(m+1, 0.0);
   vector<double> coeff(nl+nr+1);
 
-  for( Int_t ipj=0; ipj <= (m<<1); ++ipj )
+  for( int ipj=0; ipj <= (m<<1); ++ipj )
   {
-    Double_t sum = ( ipj ? 0.0 : 1.0 );
-    for( Int_t k=1; k<=nr; ++k ) sum += pow( Double_t(k), Double_t(ipj) );
-    for( Int_t k=1; k<=nl; ++k ) sum += pow( Double_t(-k), Double_t(ipj) );
+    double sum = ( ipj ? 0.0 : 1.0 );
+    for( int k=1; k<=nr; ++k )
+      sum += pow( double(k), double(ipj) );
+    for( int k=1; k<=nl; ++k )
+      sum += pow( double(-k), double(ipj) );
     const int mm = min(ipj, 2*m-ipj);
-    for( int imj = -mm; imj<=mm; imj+=2 ) a[(ipj+imj)/2][(ipj-imj)/2] = sum;
+    for( int imj = -mm; imj<=mm; imj+=2 )
+      a((ipj+imj)/2,(ipj-imj)/2) = sum;
   }//for( loop over ipj )
 
   //Invert the matrix a
-  TDecompLU alud( a );
-  if( !alud.Invert(a) ) exit(-1);  //should be an assert or warning message
+//  TDecompLU alud( a );
+//  if( !alud.Invert(a) )
+//    exit(-1);  //should be an assert or warning message
+
+  permutation_matrix<std::size_t> pm( a.size1() );
+  const int res = lu_factorize(a,pm);
+  if( res != 0 )
+  {
+    cerr << SRC_LOCATION << "\n\tFailed to invert Matrix" << endl;
+    throw std::runtime_error( "Failed to invert Matrix" );
+  }//if( res != 0 )
+
+  matrix<double> inverse( a.size1(), a.size1() );
+  inverse.assign( identity_matrix<double>(a.size1()) );
+
+  lu_substitute( a, pm, inverse );
 
   //we need only the n^th row of the inverse matrix
   //  meaning this function is computationally inefficient
-  for( Int_t i = 0; i <= m; ++i ) b[i] = a[ld][i];
+  for( int i = 0; i <= m; ++i )
+    b[i] = inverse(ld,i);
 
-  for( Int_t k=-nl; k<=nr; ++k )
+  for( int k=-nl; k<=nr; ++k )
   {
-    Double_t sum = b[0];
-    Double_t fac = 1.0;
-    for( Int_t mm=1; mm <=m; ++mm ) sum += b[mm]*(fac *= k);
+    double sum = b[0], fac = 1.0;
+    for( int mm=1; mm <=m; ++mm )
+      sum += b[mm]*(fac *= k);
 
     coeff[ k + nl ] = sum;
   }//for( loop over kk )
@@ -1447,7 +1626,7 @@ vector<double> ConsentrationGraph::getSavitzyGolayCoeffs(
 
 
 
-
+#if(USE_CERNS_ROOT)
 TGraph *ConsentrationGraph::getTGraph( boost::posix_time::ptime t_start,
                                        boost::posix_time::ptime t_end  ) const
 {
@@ -1628,7 +1807,7 @@ TGraph *ConsentrationGraph::getTGraph( boost::posix_time::ptime t_start,
 
   return graph;
 }//getTGraph
-
+#endif //#if(USE_CERNS_ROOT)
 
 
 
@@ -1637,6 +1816,7 @@ void ConsentrationGraph::setYOffset( double yOffset )
   m_yOffsetForDrawing = yOffset;
 }//setYOffsetForDrawing
 
+#if(USE_CERNS_ROOT)
 double ConsentrationGraph::getYOffset() const {return m_yOffsetForDrawing;}
 
 
@@ -1654,10 +1834,11 @@ TGraph* ConsentrationGraph::draw( string options,
 
 
   assert(gTheApp);
-  // Int_t dummy_arg = 0;
+  // int dummy_arg = 0;
   // if( !gTheApp ) gTheApp = new TApplication("App", &dummy_arg, (char **)NULL);
 
-  if( !gPad ) new TCanvas();
+  if( !gPad )
+      new TCanvas();
 
   gPad->SetTitle( title.c_str() );
 
@@ -1712,7 +1893,7 @@ TGraph* ConsentrationGraph::draw( string options,
 
   return graph;
 }//draw(...)
-
+#endif  //#if(USE_CERNS_ROOT)
 
 
 

@@ -1,9 +1,9 @@
 #ifndef WTCREATENLSIMPLE_HH
 #define WTCREATENLSIMPLE_HH
 
+#include "DubsConfig.hh"
+
 #include <Wt/WContainerWidget>
-
-
 
 class NLSimple;
 class Div;
@@ -32,8 +32,6 @@ namespace Wt
     class WCartesianChart;
   }//namespace Chart
 }//namespace Wt
-
-
 
 
 

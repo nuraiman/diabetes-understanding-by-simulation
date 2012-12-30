@@ -4,15 +4,18 @@
 //Started April 29, 2009,
 //This namespace is designed to help readin data from spreadsheets to 
 //  a useful format for analysis
+#include "DubsConfig.hh"
+
 #include <map>
 #include <vector>
 #include <utility>
 #include <iostream>
 #include <stdexcept>
-#include "boost/date_time/posix_time/posix_time.hpp"
 
-#include "ArtificialPancrease.hh"
-#include "ConsentrationGraph.hh"
+#include <boost/date_time/posix_time/posix_time.hpp>
+
+#include "dubs/ArtificialPancrease.hh"
+#include "dubs/ConsentrationGraph.hh"
 
 
 

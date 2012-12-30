@@ -1,9 +1,13 @@
 #ifndef WTUTILS_HH
 #define WTUTILS_HH
+
+#include "DubsConfig.hh"
+
 #include <string>
 #include <vector>
-#include "boost/date_time/posix_time/posix_time.hpp"
+
 #include <boost/thread/recursive_mutex.hpp>
+#include <boost/date_time/posix_time/posix_time.hpp>
 
 #include <Wt/WSpinBox>
 #include <Wt/WDateTime>
@@ -12,7 +16,7 @@
 #include <Wt/WDoubleSpinBox>
 #include <Wt/WContainerWidget>
 
-#include "ArtificialPancrease.hh"
+#include "dubs/ArtificialPancrease.hh"
 
 
 namespace Wt

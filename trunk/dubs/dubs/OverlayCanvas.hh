@@ -1,6 +1,8 @@
 #ifndef OverlayCanvas_h
 #define OverlayCanvas_h
 
+#include "DubsConfig.hh"
+
 #include <boost/filesystem/path.hpp>
 
 #include <Wt/WEvent>

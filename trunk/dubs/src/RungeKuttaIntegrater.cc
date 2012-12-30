@@ -1,3 +1,4 @@
+#include "DubsConfig.hh"
 
 #include <boost/bind.hpp>
 #include <boost/function.hpp>

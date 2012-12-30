@@ -1,3 +1,5 @@
+#include "DubsConfig.hh"
+
 #include <vector>
 #include <string>
 #include <math.h>
@@ -10,6 +12,7 @@
 
 
 //ROOT includes (using root 5.14)
+#if(USE_CERNS_ROOT)
 #include "TF1.h"
 #include "TH1.h"
 #include "TH2.h"
@@ -25,7 +28,7 @@
 #include "TPaveText.h"
 #include "TClonesArray.h"
 #include "TApplication.h"
-
+#endif //#if(USE_CERNS_ROOT)
 
 //Boost includes (developing with boost 1.38)
 #include <boost/bind.hpp>
@@ -49,8 +52,9 @@
 #define foreach         BOOST_FOREACH
 #define reverse_foreach BOOST_REVERSE_FOREACH
 
-
+#if(USE_CERNS_ROOT)
 TApplication *gTheApp = (TApplication *)NULL;
+#endif
 
 using namespace std;
 
@@ -63,7 +67,7 @@ void testSmoothing();
 void testKineticModels();
 void saveMar31ThorughApr7GraphsToDisk();
 
-
+#if(USE_CERNS_ROOT)
 int _main( int /*argc*/, char** /*argv*/ )
 {
     return 1;
@@ -78,9 +82,9 @@ int _main( int /*argc*/, char** /*argv*/ )
   if( ProgramOptions::ns_defaultModelFileName.size() ) modelCreateTest = new NLSimple( ProgramOptions::ns_defaultModelFileName );
   //else new ConstructNLSimple( modelCreateTest, gClient->GetRoot(), gClient->GetDefaultRoot() );
 
-  if( !modelCreateTest ) return 0;
-  modelCreateTest->runGui();
-  return 0;
+//  if( !modelCreateTest ) return 0;
+//  modelCreateTest->runGui();
+//  return 0;
   // ConsentrationGraph mmData( "../data/mmCgmsData_march31_April7.dub" );
 
   // TCanvas *can = new TCanvas();
@@ -140,9 +144,10 @@ int _main( int /*argc*/, char** /*argv*/ )
   thirtyMinPred.draw("l", "", true, 6);
 
 }//main(...)
+#endif  //#if(USE_CERNS_ROOT)
 
 
-
+#if(USE_CERNS_ROOT)
 NLSimple createMar31Model()
 {
   using namespace boost;
@@ -191,7 +196,7 @@ NLSimple createMar31Model()
 
   return model;
 }//NLSimple createMar31Model();
-
+#endif  //#if(USE_CERNS_ROOT)
 
 
 void saveMar31ThorughApr7GraphsToDisk()
@@ -243,7 +248,7 @@ void saveMar31ThorughApr7GraphsToDisk()
 }//saveMar31ThorughApr7GraphsToDisk
 
 
-
+#if(USE_CERNS_ROOT)
 void testSmoothing()
 {
   ConsentrationGraph mmData( "../data/mmCgmsData_march31_April7.dub" );
@@ -282,8 +287,10 @@ void testSmoothing()
   mmSmoothedData.draw("l", "smoothed", false, 2);
   mmSmoothedFFT.draw("l", "smoothed", true, 3);
 }//void testSmoothing()
+#endif  //#if(USE_CERNS_ROOT)
 
 
+#if(USE_CERNS_ROOT)
 void testFFT()
 {
   ConsentrationGraph fftTest( kGenericT0, 5, GlucoseConsentrationGraph );
@@ -328,7 +335,7 @@ void testFFT()
   new TCanvas("35", "35");
   smoothed35.draw("", "", true, 4);
 }//void testFFT()
-
+#endif //#if(USE_CERNS_ROOT)
 
 
 void testKineticModels()

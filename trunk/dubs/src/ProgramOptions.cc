@@ -1,8 +1,10 @@
+#include "DubsConfig.hh"
+
 #include <cstdlib>
 #include <iostream>
 #include <iomanip>
 
-#include "TGLabel.h"
+//#include "TGLabel.h"
 
 #include "ResponseModel.hh"
 #include "ProgramOptions.hh"

@@ -1,11 +1,14 @@
 //adapted from http://www.dreamincode.net/code/snippet1441.htm
 
-#include <vector>
-#include "boost/function.hpp"
-#include "boost/date_time/posix_time/posix_time.hpp"
+#include "DubsConfig.hh"
 
-#include "ConsentrationGraph.hh"
-#include "ArtificialPancrease.hh" //contains useful typedefs and constants
+#include <vector>
+
+#include <boost/function.hpp>
+#include <boost/date_time/posix_time/posix_time.hpp>
+
+#include "dubs/ConsentrationGraph.hh"
+#include "dubs/ArtificialPancrease.hh" //contains useful typedefs and constants
 
 
 //A note for the future: Try implementing a 'symplectic integrator' to

@@ -10,26 +10,53 @@
 //  Storage format may be upgraded to a continues function in the future      //
 ////////////////////////////////////////////////////////////////////////////////
 
+#include "DubsConfig.hh"
+
 #include <set>
 #include <vector>
-#include "boost/date_time/posix_time/posix_time.hpp"
+
+#include <boost/date_time/posix_time/posix_time.hpp>
 
 // include headers that implement a archive in simple text format
-#include <boost/archive/text_oarchive.hpp>
-#include <boost/archive/text_iarchive.hpp>
-#include <boost/serialization/string.hpp>
 #include <boost/serialization/set.hpp>
+#include <boost/serialization/string.hpp>
 #include <boost/serialization/vector.hpp>
 #include <boost/serialization/version.hpp>
-#include "boost/date_time/posix_time/time_serialize.hpp"
-#include "boost/date_time/gregorian/greg_serialize.hpp"
+#include <boost/archive/text_oarchive.hpp>
+#include <boost/archive/text_iarchive.hpp>
+#include <boost/date_time/gregorian/greg_serialize.hpp>
+#include <boost/date_time/posix_time/time_serialize.hpp>
 
 #include "ArtificialPancrease.hh" //contains useful typedefs and constants
 
 
 //forward declaration
+#if(USE_CERNS_ROOT)
 class TGraph;
+#endif
 
+//a struct so that we can sort by index
+template<class T> struct index_compare_descend
+{
+  index_compare_descend(const T arr) : arr(arr) {} //pass the actual values you want sorted into here
+  bool operator()(const size_t a, const size_t b) const
+  {
+    return arr[a] > arr[b];
+  }
+  const T arr;
+};//struct index_compare
+
+
+//a struct so that we can sort by index
+template<class T> struct index_compare_assend
+{
+  index_compare_assend(const T arr) : arr(arr) {} //pass the actual values you want sorted into here
+  bool operator()(const size_t a, const size_t b) const
+  {
+    return arr[a] < arr[b];
+  }
+  const T arr;
+};//struct index_compare
 
 
 //Some defines
@@ -109,6 +136,14 @@ typedef GraphElementSet::iterator GraphIter; //
 typedef GraphElementSet::const_iterator ConstGraphIter; //set iterators const always
 
 typedef double(*AbsFuncPointer)( double, double );
+
+
+void ff_xform_r2c( const std::vector<double> &input,
+                   std::vector<double> &xformed_real,
+                   std::vector<double> &xformed_imag );
+void ff_xform_c2r( const std::vector<double> &in_real,
+                   const std::vector<double> &in_img,
+                   std::vector<double> &output );
 
 //In retrospec, I should have just made ConsentrationGraph to
 // be based off of a map<ptime, double> object
@@ -258,6 +293,7 @@ class ConsentrationGraph : public GraphElementSet
     void setYOffset( double yOffset );
     double getYOffset() const;
 
+#if(USE_CERNS_ROOT)
     //Forms a TGraph and draws on current active TPad (gPad)
     //  if pause is true, then gPad will be deleted upon File->exit
     TGraph* draw( std::string options = "",
@@ -267,7 +303,7 @@ class ConsentrationGraph : public GraphElementSet
     //The x-axis will be number of minutes since 'kTGraphStartTime'
     TGraph *getTGraph( PosixTime t_start = kGenericT0,
                                            PosixTime t_end = kGenericT0  ) const;
-
+#endif  //#if(USE_CERNS_ROOT)
     void guiDisplay( bool pause = false );
 
     //Some funcitons to aid in drawing the graph

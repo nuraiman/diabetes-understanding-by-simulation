@@ -1,3 +1,5 @@
+#include "DubsConfig.hh"
+
 #include <iostream>
 
 #include <boost/bind.hpp>

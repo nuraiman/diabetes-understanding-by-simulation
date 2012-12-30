@@ -1,4 +1,6 @@
 #include <fstream>
+#include "DubsConfig.hh"
+
 #include <iostream>
 #include <iterator>
 

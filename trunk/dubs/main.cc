@@ -1,3 +1,5 @@
+#include "DubsConfig.hh"
+
 #include <vector>
 #include <math.h>
 #include <string>
@@ -10,6 +12,7 @@
 
 #include <Wt/WApplication>
 
+#if(USE_CERNS_ROOT)
 //ROOT includes
 #include "TF1.h"
 #include "TH1.h"
@@ -26,6 +29,7 @@
 #include "TPaveText.h"
 #include "TApplication.h"
 #include "TClonesArray.h"
+#endif  //#if(USE_CERNS_ROOT)
 
 #include "dubs/WtGui.hh"
 #include "dubs/WtUtils.hh"
@@ -45,8 +49,10 @@ using namespace Wt;
 using namespace std;
 
 //Forward Declarations
+#if(USE_CERNS_ROOT)
 void setStyle();
 void cgmFilterStudy();
+#endif  //#if(USE_CERNS_ROOT)
 
 DubUserServer gDubUserServer;  //the single instance of the DubUserServer
 
@@ -60,8 +66,12 @@ WApplication *createApplication(const WEnvironment& env)
 
 int main( int argc, char *argv[] )
 {
+#if(USE_CERNS_ROOT)
   setStyle();
 //  cgmFilterStudy();
+//  return 1;
+#endif  //#if(USE_CERNS_ROOT)
+
   ProgramOptions::declareOptions();
   //ProgramOptions::decodeOptions( argc, argv );
   ProgramOptions::decodeOptions( 0, NULL );
@@ -71,6 +81,7 @@ int main( int argc, char *argv[] )
 }//int main(int argc, char *argv[])
 
 
+#if(USE_CERNS_ROOT)
 void setStyle()
 {
   TStyle *myStyle = gROOT->GetStyle("Plain"); //base style on Plain
@@ -91,6 +102,7 @@ void setStyle()
   gROOT->SetStyle("Plain");
   gROOT->ForceStyle();
 }//void setStyle()
+#endif  //#if(USE_CERNS_ROOT)
 
 
 #include "boost/date_time/gregorian/gregorian.hpp"
@@ -98,12 +110,18 @@ void setStyle()
 
 #include "boost/bind.hpp"
 #include "boost/function.hpp"
-void testFiltering();
+
+
+#if(USE_CERNS_ROOT)
 void testFFTAA();
+void testFiltering();
 extern TApplication *gTheApp;
+#endif  //#if(USE_CERNS_ROOT)
+
+
+#if(USE_CERNS_ROOT)
 void cgmFilterStudy()
 {
-
   Int_t dummy_arg = 0;
   gTheApp = gApplication = (TApplication *)new TApplication( "App", &dummy_arg, (char **)NULL );
 
@@ -115,10 +133,14 @@ void cgmFilterStudy()
 //  string endDate = "2009-04-01 19:30:00.000";
 //  ConsentrationGraph mmData = CgmsDataImport::importSpreadsheet( "../data/MM_march1-Apr7.csv", CgmsDataImport::CgmsReading, time_from_string(startDate), time_from_string(endDate) );
 
-  string startDate = "2011-02-13 00:00:00.000";
-  string endDate = "2011-02-14 00:00:00.000";
-  ConsentrationGraph mmData = CgmsDataImport::importSpreadsheet( "../data/dex_data_through_20110216.Export.Export.txt", CgmsDataImport::CgmsReading, time_from_string(startDate), time_from_string(endDate) );
+//  string startDate = "2011-02-13 00:00:00.000";
+//  string endDate = "2011-02-14 00:00:00.000";
+  string startDate = "2009-02-08 22:48:44.410";
+  string endDate = "2009-02-16 23:38:22.410";
+  ConsentrationGraph mmData = CgmsDataImport::importSpreadsheet( "../data/dex_csv_export_20100625.Export.txt", CgmsDataImport::CgmsReading, time_from_string(startDate), time_from_string(endDate) );
 
+//  cerr << "Imported Spreadsheet with " << mmData.size() << " points" << endl;
+//  return;
 
   ConsentrationGraph fft120 = mmData.getSmoothedGraph( 75, FourierSmoothing );
   ConsentrationGraph fftMatt = mmData;
@@ -147,31 +169,31 @@ void cgmFilterStudy()
 
   TLegend *leg = new TLegend( 0.7, 0.7, 0.9, 1.0 );
   TGraph *original = mmData.draw("", "", false, 1 );
-  TGraph *fft120G = fft120.draw("SAME", "", false, 11 );
-  TGraph *fftMattG = fftMatt.draw("SAME", "", false, 4 );
+//  TGraph *fft120G = fft120.draw("SAME", "", false, 11 );
+//  TGraph *fftMattG = fftMatt.draw("SAME", "", false, 4 );
 
 //  TGraph *butterG = butter.draw("SAME", "", false, 4 );
 //  TGraph *bsplineG = bspline.draw("SAME", "", false, 6 );
 //  TGraph *sgG = sgSmoothed.draw("SAME", "", false, 46 );
 
 //  TGraph *sgG220 = sgSmoothed220.draw("SAME", "", false, 2 );
-//  TGraph *sgG320 = sgSmoothed320.draw("SAME", "", false, 3 );
-//  TGraph *sgG420 = sgSmoothed420.draw("SAME", "", false, 4 );
-//  TGraph *sgG520 = sgSmoothed520.draw("SAME", "", false, 28 );
-//  TGraph *sgG620 = sgSmoothed620.draw("SAME", "", false, 6 );
+  TGraph *sgG320 = sgSmoothed320.draw("SAME", "", false, 3 );
+  TGraph *sgG420 = sgSmoothed420.draw("SAME", "", false, 4 );
+  TGraph *sgG520 = sgSmoothed520.draw("SAME", "", false, 28 );
+  TGraph *sgG620 = sgSmoothed620.draw("SAME", "", false, 6 );
 
 
   leg->AddEntry( original, "Original Dexcom data", "l" );
-  leg->AddEntry( fft120G,  "FFT Strict Low Pass #lambda=75 min", "l" );
-  leg->AddEntry( fftMattG,  "FFT 10% largest contributing frequ", "l" );
+//  leg->AddEntry( fft120G,  "FFT Strict Low Pass #lambda=75 min", "l" );
+//  leg->AddEntry( fftMattG,  "FFT 10% largest contributing frequ", "l" );
 //  leg->AddEntry( butterG,  "4^{th} order Butterworth, #lambda_{crit}=240 min", "l" );
 //  leg->AddEntry( bsplineG,  "6^{th} order B-Spline, knot distance 240/2 min", "l" );
 //  leg->AddEntry( sgG,  "Savitzy-Golay N_{left}=35, N_{right}=35, 5^{th} Order", "l" );
 //  leg->AddEntry( sgG220,  "Savitzy-Golay N_{left}=20, N_{right}=20, 2^{th} Order", "l" );
-//  leg->AddEntry( sgG320,  "Savitzy-Golay N_{left}=20, N_{right}=20, 3^{th} Order", "l" );
-//  leg->AddEntry( sgG420,  "Savitzy-Golay N_{left}=20, N_{right}=20, 4^{th} Order", "l" );
-//  leg->AddEntry( sgG520,  "Savitzy-Golay N_{left}=20, N_{right}=20, 5^{th} Order", "l" );
-//  leg->AddEntry( sgG620,  "Savitzy-Golay N_{left}=20, N_{right}=20, 6^{th} Order", "l" );
+  leg->AddEntry( sgG320,  "Savitzy-Golay N_{left}=20, N_{right}=20, 3^{th} Order", "l" );
+  leg->AddEntry( sgG420,  "Savitzy-Golay N_{left}=20, N_{right}=20, 4^{th} Order", "l" );
+  leg->AddEntry( sgG520,  "Savitzy-Golay N_{left}=20, N_{right}=20, 5^{th} Order", "l" );
+  leg->AddEntry( sgG620,  "Savitzy-Golay N_{left}=20, N_{right}=20, 6^{th} Order", "l" );
 
   leg->SetBorderSize( 0 );
   leg->Draw();
@@ -187,7 +209,10 @@ void cgmFilterStudy()
   NoSmoothing,
   */
 }
+#endif  //#if(USE_CERNS_ROOT)
 
+
+#if(USE_CERNS_ROOT)
 void testFiltering()
 {
   ConsentrationGraph mmData( "../data/mmCgmsData_march31_April7.dub" );
@@ -226,8 +251,11 @@ void testFiltering()
   mmSmoothedData.draw("l", "smoothed", false, 2);
   mmSmoothedFFT.draw("l", "smoothed", true, 3);
 }//void void testFiltering()()
+#endif  //#if(USE_CERNS_ROOT)
 
 
+
+#if(USE_CERNS_ROOT)
 void testFFTAA()
 {
   ConsentrationGraph fftTest( kGenericT0, 5, GlucoseConsentrationGraph );
@@ -272,4 +300,4 @@ void testFFTAA()
   new TCanvas("35", "35");
   smoothed35.draw("", "", true, 4);
 }//void testFFT()
-
+#endif  //#if(USE_CERNS_ROOT)
