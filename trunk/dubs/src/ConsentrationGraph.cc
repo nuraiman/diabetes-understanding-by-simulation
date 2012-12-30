@@ -1,15 +1,16 @@
 //
-#include <cstdlib>
-#include <iostream>
-#include <iomanip>
+#include <cmath>
 #include <vector>
 #include <string>
-#include <stdio.h>
 #include <math.h>  //contains M_PI
-#include <stdlib.h>
+#include <cstdlib>
+#include <iomanip>
+#include <stdio.h>
 #include <fstream>
+#include <stdlib.h>
+#include <iostream>
 #include <algorithm>
-#include <cmath>
+
 
 //ROOT includes (using root 5.14)
 #include "TSystem.h"
@@ -30,27 +31,27 @@
 //GSL includes
 //You may comment out these includes and code will still
 //  compile (edit Makefile too though), you just can't call spline interpolation
+#include <gsl/gsl_rng.h>
 #include <gsl/gsl_bspline.h>
 #include <gsl/gsl_multifit.h>
-#include <gsl/gsl_rng.h>
+
 
 //Boost includes (using boost 1.3)
-#include "boost/range.hpp"
-#include "boost/algorithm/string/trim.hpp"
-#include "boost/date_time/gregorian/gregorian.hpp"
-#include "boost/date_time/posix_time/posix_time.hpp"
+#include <boost/range.hpp>
+#include <boost/foreach.hpp>
+#include <boost/lexical_cast.hpp>
+#include <boost/assign/list_of.hpp> //for 'list_of()'
+#include <boost/assign/list_inserter.hpp>
+#include <boost/algorithm/string/trim.hpp>
+#include <boost/date_time/gregorian/gregorian.hpp>
+#include <boost/date_time/posix_time/posix_time.hpp>
 
 
-#include "boost/foreach.hpp"
-#include "boost/assign/list_of.hpp" //for 'list_of()'
-#include "boost/assign/list_inserter.hpp"
-#include "boost/lexical_cast.hpp"
-
-#include "ConsentrationGraph.hh"
-#include "KineticModels.hh"
-#include "CgmsDataImport.hh"
-#include "ProgramOptions.hh"
-#include "RungeKuttaIntegrater.hh"
+#include "dubs/KineticModels.hh"
+#include "dubs/CgmsDataImport.hh"
+#include "dubs/ProgramOptions.hh"
+#include "dubs/ConsentrationGraph.hh"
+#include "dubs/RungeKuttaIntegrater.hh"
 
 using namespace std;
 using namespace boost;

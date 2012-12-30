@@ -30,8 +30,8 @@ namespace Wt
   namespace Chart
   {
     class WCartesianChart;
-  };//namespace Chart
-};//namespace Wt
+  }//namespace Chart
+}//namespace Wt
 
 
 
@@ -47,6 +47,7 @@ public:
   Wt::Signal<> &canceled();
   boost::shared_ptr<NLSimple> model();
 
+  std::string modelName() const;
 
 protected:
     void init();
@@ -66,6 +67,7 @@ protected:
 
 private:
     boost::shared_ptr<NLSimple>        m_model;
+    std::string m_modelName;
 
     bool m_userSetTime;
     std::vector<ConsentrationGraph *>  m_datas;
@@ -79,6 +81,7 @@ private:
     Wt::Chart::WCartesianChart        *m_graph;
     std::vector<Wt::WFileUpload *>     m_fileUploads;
     std::vector<Wt::WText *>           m_sourceDescripts;
+    Wt::WLineEdit                     *m_modelNameEdit;
 
     Wt::Signal<> m_created;
     Wt::Signal<> m_canceled;

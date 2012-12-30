@@ -31,6 +31,8 @@ public:
   void setupAfterLoginStatusChange();
   void checkLogout( const std::string &username );
 
+  bool isMobile() const;
+
 protected:
   WtGui *m_gui;
   DubsSession m_dubsSession;

@@ -3,20 +3,26 @@ This file is based almost enttirely off of Session.C file/class of 'auth1' examp
 which is Copyright (C) 2008 Emweb bvba, Kessel-Lo, Belgium.
 */
 
+#include <boost/foreach.hpp>
+#include <boost/thread/mutex.hpp>
+
+#include <Wt/Auth/AuthService>
+#include <Wt/Auth/HashFunction>
+#include <Wt/Auth/Dbo/AuthInfo>
+#include <Wt/Auth/GoogleService>
+#include <Wt/Auth/FacebookService>
+#include <Wt/Auth/PasswordService>
+#include <Wt/Auth/PasswordVerifier>
+#include <Wt/Auth/Dbo/UserDatabase>
+#include <Wt/Auth/PasswordStrengthValidator>
+
 #include "dubs/DubsSession.hh"
 #include "dubs/WtUserManagment.hh"
 
-#include <boost/thread/mutex.hpp>
+//To make the code prettier
+#define foreach         BOOST_FOREACH
+#define reverse_foreach BOOST_REVERSE_FOREACH
 
-#include "Wt/Auth/AuthService"
-#include "Wt/Auth/HashFunction"
-#include "Wt/Auth/PasswordService"
-#include "Wt/Auth/PasswordStrengthValidator"
-#include "Wt/Auth/PasswordVerifier"
-#include "Wt/Auth/GoogleService"
-#include "Wt/Auth/FacebookService"
-#include "Wt/Auth/Dbo/AuthInfo"
-#include "Wt/Auth/Dbo/UserDatabase"
 
 namespace {
 
@@ -81,6 +87,7 @@ DubsSession::DubsSession(const std::string& sqliteDb)
   mapClass<DubUser>("DubUser");
   mapClass<UsersModel>("UsersModel");
   mapClass<OptimizationChi2>("OptimizationChi2");
+  mapClass<ModelDisplayOptions>("ModelDisplayOptions");
 
   users_ = new UserDatabase( *this );
 

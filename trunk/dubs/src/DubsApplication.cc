@@ -9,8 +9,8 @@
 #include <Wt/Auth/AuthWidget>
 #include <Wt/Auth/PasswordService>
 
-
 #include <boost/thread.hpp>
+#include <boost/foreach.hpp>
 #include <boost/algorithm/string.hpp>
 #include <boost/signals/connection.hpp>
 
@@ -22,6 +22,11 @@
 
 using namespace Wt;
 using namespace std;
+
+//To make the code prettier
+#define foreach         BOOST_FOREACH
+#define reverse_foreach BOOST_REVERSE_FOREACH
+
 
 
 DubsApplication::DubsApplication( const Wt::WEnvironment& env,
@@ -51,11 +56,19 @@ DubsApplication::DubsApplication( const Wt::WEnvironment& env,
   //If we have deployed this app as a fastcgi, then we need to modify URL
   //  of the local_resource
   string urlStr = "local_resources/dubs_style.css";
-  if( boost::algorithm::contains( url(), "dubs.app" )
-      || boost::algorithm::contains( url(), "dubs.wt" ) )
+  if( (boost::algorithm::contains( url(), "dubs.app" )
+      || boost::algorithm::contains( url(), "dubs.wt" ))
+      && env.hostName().find( "localhost" )==string::npos )
     urlStr = "dubs/exec/" + urlStr;
 
   useStyleSheet( urlStr );
+
+  if( isMobile() )
+  {
+    styleSheet().addRule( "input[type=\"text\"]", "font-size:0.95em;" );
+    styleSheet().addRule( "button[type=\"button\"]", "font-size:0.9em;" );
+  }//if( isMobile() )
+
 
   DubsSession::configureAuth();
   m_dubsSession.login().changed().connect( this, &DubsApplication::setupAfterLoginStatusChange );
@@ -253,4 +266,14 @@ void DubsApplication::checkLogout( const std::string &username )
 
 }//void checkLogout( Wt::WString username )
 
+
+bool DubsApplication::isMobile() const
+{
+  const WEnvironment &env = environment();
+  const bool isMob = (env.agentIsMobileWebKit()
+                         || env.agentIsIEMobile()
+                         || env.userAgent().find("Opera Mobi") != std::string::npos
+                        );
+  return isMob;
+}//bool isMobile() const
 

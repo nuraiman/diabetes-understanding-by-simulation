@@ -1,45 +1,43 @@
+#include <vector>
+#include <math.h>
+#include <string>
+#include <fstream>
+#include <cstdlib>
+#include <stdio.h>
+#include <iomanip>
+#include <iostream>
+#include <stdlib.h>
+
 #include <Wt/WApplication>
 
-#include <cstdlib>
-#include <iostream>
-#include <iomanip>
-#include <vector>
-#include <string>
-#include <stdio.h>
-#include <math.h>
-#include <stdlib.h>
-#include <fstream>
-
 //ROOT includes
-#include "TSystem.h"
-#include "TStyle.h"
 #include "TF1.h"
-#include "TClonesArray.h"
-#include "TTree.h"
-#include "TGraph.h"
 #include "TH1.h"
-#include "TH1F.h"
 #include "TH2.h"
-#include "TCanvas.h"
-#include "TApplication.h"
-#include "TLegend.h"
+#include "TH1F.h"
 #include "TROOT.h"
-#include "TPaveText.h"
 #include "TMath.h"
+#include "TTree.h"
+#include "TStyle.h"
+#include "TGraph.h"
+#include "TSystem.h"
+#include "TLegend.h"
+#include "TCanvas.h"
+#include "TPaveText.h"
+#include "TApplication.h"
+#include "TClonesArray.h"
 
-
-#include "KineticModels.hh"
-#include "ResponseModel.hh"
-#include "RungeKuttaIntegrater.hh"
-#include "ConsentrationGraph.hh"
-#include "ArtificialPancrease.hh"
-#include "CgmsDataImport.hh"
-#include "ProgramOptions.hh"
-
-#include "WtGui.hh"
-#include "WtUtils.hh"
+#include "dubs/WtGui.hh"
+#include "dubs/WtUtils.hh"
 #include "dubs/DubUser.hh"
+#include "dubs/KineticModels.hh"
+#include "dubs/ResponseModel.hh"
+#include "dubs/CgmsDataImport.hh"
+#include "dubs/ProgramOptions.hh"
 #include "dubs/DubsApplication.hh"
+#include "dubs/ConsentrationGraph.hh"
+#include "dubs/ArtificialPancrease.hh"
+#include "dubs/RungeKuttaIntegrater.hh"
 
 
 

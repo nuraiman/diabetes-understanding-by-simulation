@@ -4,12 +4,18 @@
 
 #include "TGLabel.h"
 
-#include "ArtificialPancrease.hh"
-#include "ProgramOptions.hh"
-#include "RungeKuttaIntegrater.hh" //for toNMinutes()
 #include "ResponseModel.hh"
+#include "ProgramOptions.hh"
+#include "ArtificialPancrease.hh"
+#include "RungeKuttaIntegrater.hh" //for toNMinutes()
 
+
+#include <boost/foreach.hpp>
 #include <boost/program_options.hpp>
+
+//To make the code prettier
+#define foreach         BOOST_FOREACH
+#define reverse_foreach BOOST_REVERSE_FOREACH
 
 using namespace std;
 namespace po = boost::program_options;

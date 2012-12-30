@@ -1,4 +1,4 @@
-#ifndef WTUSERMANAGMENT_HH
+  #ifndef WTUSERMANAGMENT_HH
 #define WTUSERMANAGMENT_HH
 
 #include <map>
@@ -62,68 +62,139 @@ private:
 };//DubUserServer class
 
 
-
-class SerializedModel;
+class UsersModel;
 class OptimizationChi2;
+class ModelDisplayOptions;
 
-//USE_SerializedModel == true has yet to be tested
-#define USE_SerializedModel 0
 
-class UsersModel
+namespace Wt
 {
+  namespace Dbo
+  {
+/*
+    //Change the primary key of UsersModel to be a string in field name "fileName"
+    template<>
+    struct dbo_traits<UsersModel>
+        : public dbo_default_traits
+    {
+      typedef std::string IdType;
+      static IdType invalidId(){ return std::string(); }
+      static const char *surrogateIdField() { return 0; }
+    }; //struct dbo_traits<UsersModel>
+*/
+
+    //Emulate a OneToOne mapping of UsersModel to ModelDisplayOptions
+    template<>
+    struct dbo_traits<ModelDisplayOptions>
+        : public dbo_default_traits
+    {
+      typedef ptr<UsersModel> IdType;
+      static IdType invalidId(){ return ptr<UsersModel>(); }
+      static const char *surrogateIdField() { return 0; }
+    };//struct dbo_traits<ModelDisplayOptions>
+  }//namespace Dbo
+}//namespace Wt
+
+
+class ModelDisplayOptions
+{
+public:
+  Wt::WDateTime displayBegin;
+  Wt::WDateTime displayEnd;
+
+  Wt::Dbo::ptr<UsersModel> usermodel;
+
+  template<class Action>
+  void persist(Action& a)
+  {
+//    Wt::Dbo::belongsTo(a, usermodel, "usermodel");
+    Wt::Dbo::id(a,    usermodel,     "usermodel", Wt::Dbo::OnDeleteCascade );  //Emulate a OneToOne mapping
+    Wt::Dbo::field(a, displayBegin,  "displayBegin" );
+    Wt::Dbo::field(a, displayEnd,    "displayEnd" );
+  }//persist function
+};//class ModelDisplayOptions
+
+
+class UsersModel : public Wt::Dbo::Dbo<UsersModel>
+{
+  /*
+    Problem: I want a OneToOne mapping between UsersModel and ModelDisplayOptions
+             (so can modify ModelDisplayOptions w/o serializing NLSimple model),
+             but Wt::Dbo doesnt provide a OneToOne mapping.
+    Solution: Unresolved; using the dbo_traits... definition above we emulate a
+              OneToOne mapping on the database side.
+              I tried a few ways to emulate a OneToOne mapping on the c++ side,
+              but wasnt happy with any of them yet.
+
+  */
 public:
   std::string fileName;
   Wt::WDateTime created;
   Wt::WDateTime modified;
-
   Wt::Dbo::ptr<DubUser> user;
+  std::string serializedData;
   Wt::Dbo::collection< Wt::Dbo::ptr<OptimizationChi2> > chi2s;
 
-  Wt::WDateTime displayBegin;
-  Wt::WDateTime displayEnd;
+  /*
+  Wt::Dbo::ptr<ModelDisplayOptions> getDisplayOptions()
+  {
+    if( !session() )
+    {
+      if( displayOptions.size() )
+        return displayOptions.front();
+      return Wt::Dbo::ptr<ModelDisplayOptions>();
+    }
 
-#if(USE_SerializedModel)
-  Wt::Dbo::ptr<SerializedModel> serializedModel;
-#else
-  //TODO - serializedData should be stored in a seperate table, so this way
-  //       everytime 'displayBegin' or 'displayEnd' is changed, the serialized
-  //       data doesnt have to be changed
-  std::string serializedData;
-#endif
+    try
+    {
+      Wt::Dbo::ptr<ModelDisplayOptions> display_options
+                                      = session()->find<ModelDisplayOptions>()
+                                        .where("user_id = ?")
+                                        .bind( self() )
+                                        .resultValue();
+      if( !display_options )
+      {
+        display_options = session()->add( new ModelDisplayOptions() );
+        display_options->modify()->usermodel = self();
+      }//if( !display_options )
 
+      return display_options;
+    }catch( Wt::Dbo::NoUniqueResultException &e )
+    {
+      assert( 0 );  //should never ever happen
+    }
+  }
+  */
+
+  Wt::Dbo::collection< Wt::Dbo::ptr<ModelDisplayOptions> > displayOptions;
+
+public:
   template<class Action>
   void persist(Action& a)
   {
     Wt::Dbo::belongsTo(a, user,       "user");
+//    Wt::Dbo::id(a, fileName, "fileName"/*, 120*/ );
     Wt::Dbo::field(a, fileName,       "fileName" );
     Wt::Dbo::field(a, created,        "created" );
     Wt::Dbo::field(a, modified,       "modified" );
-    Wt::Dbo::field(a, displayBegin,   "displayBegin" );
-    Wt::Dbo::field(a, displayEnd,     "displayEnd" );
-
-#if(USE_SerializedModel)
-    Wt::Dbo::field(a, serializedModel,"serializedModel" );
-#else
     Wt::Dbo::field(a, serializedData, "serializedData" );
-#endif
     Wt::Dbo::hasMany(a, chi2s, Wt::Dbo::ManyToOne, "usermodel");
+
+    // In fact, displayOptions is really constrained to hasOne() ...
+    Wt::Dbo::hasMany(a, displayOptions, Wt::Dbo::ManyToOne, "usermodel");
+
+    /*
+    if( a.getsValue() )
+    {
+    }else if( a.setsValue() )
+    {
+    }
+    */
   }//persist function
 };//class UsersModel
 
 
-class SerializedModel
-{
-public:
-  Wt::Dbo::ptr<UsersModel> usermodel;
-  std::string data;
 
-  template<class Action>
-  void persist(Action& a)
-  {
-    Wt::Dbo::belongsTo(a, usermodel, "usermodel");
-    Wt::Dbo::field(a, data, "data" );
-  }//persist function
-};//class SerializedModel
 
 
 class OptimizationChi2
@@ -145,7 +216,7 @@ public:
 
 
 DBO_EXTERN_TEMPLATES(UsersModel);
-DBO_EXTERN_TEMPLATES(SerializedModel);
+DBO_EXTERN_TEMPLATES(ModelDisplayOptions);
 DBO_EXTERN_TEMPLATES(OptimizationChi2);
 
 #endif // WTUSERMANAGMENT_HH

@@ -1,44 +1,43 @@
 #include <set>
-#include <cstdlib>
-#include <iostream>
-#include <iomanip>
+#include <cmath>
 #include <vector>
 #include <string>
-#include <stdio.h>
 #include <math.h>
-#include <stdlib.h>
+#include <iomanip>
+#include <cstdlib>
+#include <stdio.h>
 #include <fstream>
-#include <cmath>
+#include <stdlib.h>
+#include <iostream>
 
-#include "boost/foreach.hpp"
-#include "boost/lexical_cast.hpp"
-#include "boost/date_time/posix_time/posix_time.hpp"
-#include "boost/algorithm/string.hpp"
+#include <boost/foreach.hpp>
+#include <boost/lexical_cast.hpp>
+#include <boost/algorithm/string.hpp>
+#include <boost/date_time/posix_time/posix_time.hpp>
 
-#include <Wt/Dbo/backend/Sqlite3>
-#include <Wt/WApplication>
-#include <Wt/WContainerWidget>
-#include <Wt/WBorderLayout>
-#include <Wt/WTabWidget>
-#include <Wt/WStandardItemModel>
-#include <Wt/WTableView>
-#include <Wt/WDatePicker>
-#include <Wt/WLabel>
-#include <Wt/WDialog>
-#include <Wt/WLengthValidator>
-#include <Wt/Dbo/QueryModel>
-#include <Wt/WLineEdit>
 #include <Wt/WText>
 #include <Wt/WTable>
-#include <Wt/WPushButton>
-#include <Wt/WEnvironment>
-#include <Wt/Chart/WCartesianChart>
-#include <Wt/WAbstractItemModel>
-#include <Wt/WGridLayout>
-#include <Wt/WSpinBox>
 #include <Wt/WLabel>
+#include <Wt/WLabel>
+#include <Wt/WDialog>
+#include <Wt/WSpinBox>
+#include <Wt/WLineEdit>
+#include <Wt/WTableView>
+#include <Wt/WTabWidget>
+#include <Wt/WPushButton>
+#include <Wt/WDatePicker>
+#include <Wt/WGridLayout>
 #include <Wt/WFileUpload>
-
+#include <Wt/WEnvironment>
+#include <Wt/WApplication>
+#include <Wt/WBorderLayout>
+#include <Wt/Dbo/QueryModel>
+#include <Wt/WLengthValidator>
+#include <Wt/WContainerWidget>
+#include <Wt/WAbstractItemModel>
+#include <Wt/WStandardItemModel>
+#include <Wt/Dbo/backend/Sqlite3>
+#include <Wt/Chart/WCartesianChart>
 
 #include "TH1.h"
 #include "TH1F.h"
@@ -48,27 +47,39 @@
 #include "TRandom3.h"
 #include "TSystem.h"
 
-#include "WtUtils.hh"
-#include "WtUserManagment.hh"
-#include "WtCreateNLSimple.hh"
+#include "dubs/WtUtils.hh"
+#include "dubs/ResponseModel.hh"
+#include "dubs/CgmsDataImport.hh"
+#include "dubs/WtUserManagment.hh"
+#include "dubs/WtCreateNLSimple.hh"
+#include "dubs/ConsentrationGraph.hh"
+#include "dubs/ArtificialPancrease.hh"
 
-#include "ResponseModel.hh"
-#include "ArtificialPancrease.hh"
-#include "CgmsDataImport.hh"
 
 using namespace Wt;
 using namespace std;
 
+#define foreach         BOOST_FOREACH
+#define reverse_foreach BOOST_REVERSE_FOREACH
+
 
 WtCreateNLSimple::WtCreateNLSimple( Wt::WContainerWidget *parent )
   : WContainerWidget( parent ),
-    m_model()
+    m_model(),
+    m_modelName( "InialModel" )
 {
   setInline(false);
   setStyleClass( "WtCreateNLSimple" );
 
   init();
 }//WtCreateNLSimple constructor
+
+
+std::string WtCreateNLSimple::modelName() const
+{
+  return m_modelName;
+}
+
 
 void WtCreateNLSimple::doEmit( Wt::Signal<> &signal )
 {
@@ -236,6 +247,11 @@ void WtCreateNLSimple::init()
   label->setBuddy( m_weightInput );
   m_weightInput->setStyleClass( "WtCreateNLSimple_m_weightInput" );
   new WLabel( " kg", basalDiv );
+
+  label = new WLabel( " Model Name: ", basalDiv );
+  m_modelNameEdit = new WLineEdit( m_modelName, basalDiv );
+  label->setBuddy( m_modelNameEdit );
+
   layout->addWidget( basalDiv, row++, 0, 1, kNUM_DataType, AlignLeft );
 
 
@@ -401,14 +417,14 @@ void WtCreateNLSimple::addData( WtCreateNLSimple::DataType type )
     string msg = "Warning: failed try/catch in WtCreateNLSimple::"
                  "addData( WtCreateNLSimple::DataType type ):\n";
     msg += e.what();
-    wApp->doJavaScript( "alert( \"" + msg + "\" )", false );
+    wApp->doJavaScript( "alert( '" + msg + "' );", false );
     cerr << msg << endl;
     return;
   }catch(...)
   {
     const string msg = "Warning: failed try/catch in WtCreateNLSimple::"
                        "addData( WtCreateNLSimple::DataType type )";
-    wApp->doJavaScript( "alert( \"" + msg + "\" )", false );
+    wApp->doJavaScript( "alert( '" + msg + "' );", false );
     cerr << msg << endl;
     return;
   }//try / catch
@@ -432,6 +448,8 @@ void WtCreateNLSimple::constructModel()
   assert( m_datas[kCARB_ENTRY] );
   // m_datas[kMETER_ENTRY];
   assert( m_datas[kBOLUS_ENTRY] );
+
+  m_modelName = m_modelNameEdit->valueText().narrow();
 
   double insPerHour = m_basalInsulin->value();
   double weight = m_weightInput->value(); //kg s

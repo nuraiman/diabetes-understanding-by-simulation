@@ -162,7 +162,12 @@ INCLUDE_DIRECTORIES(
 
 target_link_libraries (
     ${EXECNAME}
-    ${Wt_LIBRARIES}
+#    ${Wt_LIBRARIES}
+    ${Wt_LIBRARY}
+    ${Wt_HTTP_LIBRARY}
+#    ${Wt_FCGI_LIBRARY}
+    ${Wt_DBO_LIBRARY}
+    ${Wt_DBOSQLITE3_LIBRARY}
     ${Boost_LIBRARIES}
 #    ${Boost_SYSTEM_LIBRARY}
 #    ${Boost_REGEX_LIBRARY}
