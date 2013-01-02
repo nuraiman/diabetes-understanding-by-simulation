@@ -449,6 +449,11 @@ class ModelTestFCN : public ROOT::Minuit2::FCNBase, public TMVA::IFitterTarget
 
     virtual ~ModelTestFCN(){}
 
+public:
+    //XXX - temporary hack for evaluating GAUL
+    boost::function<bool (void)> m_shouldCntinueFcn;
+    boost::function<void (double bestChi2)> m_bestChi2CalbackFcn;
+
   private:
     NLSimple *m_modelPtr;
     double    m_endPredChi2Weight;
