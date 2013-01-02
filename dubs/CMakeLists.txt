@@ -20,7 +20,7 @@ set( CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DBOOST_FILESYSTEM_VERSION=3" )
 option( TRY_TO_STATIC_LINK "Try to link to static libs whenever possible" OFF )
 option( BUILD_AS_DESKTOP_APP "Build as a standalone dektop type application" OFF )
 option( USE_CERNS_ROOT "Use CERNs ROOT libraries" OFF )
-
+option( USE_GSL_FFT "Use the GSLs fast fourier routines, instead of FFTW3" ON )
 
 IF(NOT CMAKE_BUILD_TYPE)
     SET(CMAKE_BUILD_TYPE Debug CACHE STRING
@@ -147,6 +147,10 @@ if(BUILD_AS_DESKTOP_APP)
 #    TARGET_LINK_LIBRARIES(${CCT_NAME} ${QT_LIBRARIES})
 endif(BUILD_AS_DESKTOP_APP)
 
+if(USE_CERNS_ROOT)
+  set( USE_GSL_FFT OFF )
+endif(USE_CERNS_ROOT)
+
 
 INCLUDE_DIRECTORIES(
     ${Wt_INCLUDE_DIR}
@@ -156,6 +160,7 @@ INCLUDE_DIRECTORIES(
     ${GSL_INCLUDE_DIRS}
     dubs  #I should be able to get rid of this soon
     external_libs
+    external_libs/include
     .
     ..
 )
@@ -180,11 +185,18 @@ target_link_libraries (
 #    ${Boost_SERIALIZATION_LIBRARY}
 #    ${Boost_PROGRAM_OPTIONS}
     ${GSL_LIBRARIES}
-    -lfftw3
+    ${PROJECT_SOURCE_DIR}/external_libs/lib/libgaul.dylib
+    ${PROJECT_SOURCE_DIR}/external_libs/lib/libgaul_util.dylib
+    ${PROJECT_SOURCE_DIR}/external_libs/lib/libnn_util.dylib
 )
 
 
-
+IF( NOT USE_CERNS_ROOT AND NOT USE_GSL_FFT )
+target_link_libraries (
+    ${EXECNAME}
+    -lfftw3
+)
+ENDIF()
 
 #When I link statically to the Wt libraries on OSX, I also have to
 #  link to the following libraries

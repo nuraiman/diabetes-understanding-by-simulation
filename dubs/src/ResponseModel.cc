@@ -1081,6 +1081,14 @@ void NLSimple::makeGlucosePredFromLastCgms( ConsentrationGraph &predBg,
                             : simulateCgmsEndTime;
   assert( cgmsEndTime <= m_cgmsData.getEndTime() );
   assert( cgmsEndTime >= m_cgmsData.getStartTime() );
+
+  if( m_predictedInsulinX.getEndTime() < (cgmsEndTime-m_settings.m_cgmsDelay) )
+  {
+    cerr << "\n\n" << m_predictedInsulinX.getEndTime() << " < "
+         << (cgmsEndTime-m_settings.m_cgmsDelay) << "   - cgmsEndTime=" << cgmsEndTime
+         << ",  m_settings.m_cgmsDelay=" << m_settings.m_cgmsDelay << endl << endl;
+  }//if( m_predictedInsulinX.getEndTime() < (cgmsEndTime-m_settings.m_cgmsDelay) )
+
   assert( m_predictedInsulinX.getEndTime() >= (cgmsEndTime-m_settings.m_cgmsDelay) );
 
   const ptime predStartTime = cgmsEndTime - m_settings.m_cgmsDelay;
@@ -1186,7 +1194,8 @@ double NLSimple::getGraphOfMaxTimePredictions( ConsentrationGraph &predBg,
          // << " is at time " << firstCgmsTime << endl;
   }//if( firstCgmsTime == kGenericT0 )
 
-  if( lastCgmsTime == kGenericT0 ) lastCgmsTime = m_cgmsData.getEndTime();
+  if( lastCgmsTime == kGenericT0 )
+    lastCgmsTime = m_cgmsData.getEndTime();
 
   if( m_cgmsData.getEndTime() < lastCgmsTime )
   {
@@ -1206,7 +1215,8 @@ double NLSimple::getGraphOfMaxTimePredictions( ConsentrationGraph &predBg,
 
   assert( firstCgmsTime <= lastCgmsTime );
 
-  if( !predBg.empty() ) cout << "Warning, untested trimming" << endl;
+  if( !predBg.empty() )
+    cout << "Warning, untested trimming" << endl;
   predBg.trim( kGenericT0, firstCgmsTime-TimeDuration(0,0,0,1) );
 
   ConstGraphIter startIter = m_cgmsData.lower_bound(firstCgmsTime);
@@ -1215,7 +1225,9 @@ double NLSimple::getGraphOfMaxTimePredictions( ConsentrationGraph &predBg,
   for( ConstGraphIter cgmsIter = startIter; cgmsIter != endIter; ++cgmsIter )
   {
     const ptime cgmsTime = cgmsIter->m_time;
-    // cout << "On time cgmsTime=" << cgmsTime << endl;
+//     cout << "On time cgmsTime=" << cgmsTime
+//          << " (firstCgmsTime=" << firstCgmsTime
+//          << ", lastCgmsTime=" << lastCgmsTime << ")" << endl;
 
     ConsentrationGraph currPred( m_t0, toNMinutes(m_settings.m_dt), GlucoseConsentrationGraph );
 
@@ -1877,7 +1889,7 @@ double NLSimple::getDerivativeChi2( const ConsentrationGraph &modelDerivData,
 }//getDerivativeChi2
 
 
-
+/*
 double NLSimple::geneticallyOptimizeModel( double endPredChi2Weight,
                                            vector<TimeRange> timeRanges,
                                            NLSimple::Chi2CalbackFcn genBestCallBackFcn,
@@ -2008,6 +2020,370 @@ double NLSimple::geneticallyOptimizeModel( double endPredChi2Weight,
 
   return chi2;
 }//geneticallyOptimizeModel
+*/
+
+extern "C"
+{
+#include "gaul.h"
+}
+
+
+// Called at the beginning of each generation
+bool generation_start_hook( const int generation, population *pop )
+{
+  ModelTestFCN *fitFunc = (ModelTestFCN *)pop->data;
+
+  if( fitFunc->m_shouldCntinueFcn && !fitFunc->m_shouldCntinueFcn() )
+  {
+    //XXX - should set the best found parameters so far to the model.
+    cerr << "User requested minimization stoping" << endl;
+    return false;
+  }
+
+  cerr << "on generation " << generation << endl;
+
+  if( generation == 0 || !fitFunc->m_bestChi2CalbackFcn )
+    return true;
+
+  const int npop = pop->size;
+  entity **entity_iarray = pop->entity_iarray; /* The population sorted by fitness. */
+  for( int n = 0; n < npop; ++n )
+  {
+    entity *dude = entity_iarray[n];
+    cerr << "\tEntity " << n << " has fitness " << dude->fitness << endl;
+  }
+
+  entity *best = ga_get_entity_from_rank( pop, 0 );
+  cerr << "\tbest->fitness=" << best->fitness << endl;
+  cerr << endl;
+
+  fitFunc->m_bestChi2CalbackFcn( 1.0 / best->fitness );
+
+  return true;
+}//bool generation_start_hook( const int generation, population *pop )
+
+
+void mutate_ga_params( population *pop, entity *father, entity *son )
+{
+  if( !father || !son )
+    die("Null pointer to entity structure passed");
+
+  // Select mutation locus.
+  const int chromo = (int) random_int(pop->num_chromosomes);  //Index of chromosome to mutate  (will allways be 1 for us)
+  const int point = (int) random_int(pop->len_chromosomes);   //Index of allele to mutate
+
+  assert( chromo == 0 );
+
+  //Copy unchanged data.
+  for( int i = 0; i < pop->num_chromosomes; ++i )
+  {
+    memcpy(son->chromosome[i], father->chromosome[i], pop->len_chromosomes*sizeof(double));
+    if( i!=chromo )
+      ga_copy_data(pop, son, father, i);
+    else
+      ga_copy_data(pop, son, NULL, i);
+  }//for( int i = 0; i < pop->num_chromosomes; ++i )
+
+  double lowX, highX;
+  switch( point )
+  {
+    case NLSimple::BGMultiplier:
+      lowX = -0.01; highX = 0.1;
+    break;
+    case NLSimple::CarbAbsorbMultiplier:
+      lowX = 0.1; highX = 10.0;
+    break;
+    case NLSimple::XMultiplier:
+      lowX = 0.0; highX = 0.1;
+    break;
+    case NLSimple::PlasmaInsulinMultiplier:
+      lowX = 0.0; highX = 0.0015;
+    break;
+    case NLSimple::NumNLSimplePars:
+    default:
+      lowX = -5.0; highX = 5.0;
+    break;
+  };//switch( point )
+
+  //Mutate by tweaking a single allele.
+  double *chromosome = ((double *)(son->chromosome[chromo]));
+  double *fatherchromo = ((double *)(father->chromosome[chromo]));
+
+  const double equiv_sigma = (highX - lowX) / 10.0;
+  const double amount = equiv_sigma * random_unit_gaussian();
+
+  cerr << "chromosome[point]=" << chromosome[point] << ", fatherchromo[point]=" << fatherchromo[point] << endl;
+  chromosome[point] = fatherchromo[point] + amount;
+
+  if( chromosome[chromo] > highX )
+    chromosome[chromo] -= (highX - lowX);
+  if( chromosome[chromo] < lowX )
+    chromosome[chromo] += (highX - lowX);
+
+  return;
+}//void mutate_ga_params( population *pop, entity *father, entity *son )
+
+
+
+bool seed_initial_parameters( population *pop, entity *adam )
+{
+  if( !pop )
+    die("Null pointer to population structure passed.");
+  if( !adam )
+    die("Null pointer to entity structure passed.");
+
+  // Select mutation locus.
+  const int numchromo = pop->num_chromosomes;
+  const int chromolen = pop->len_chromosomes;
+
+  assert( numchromo == 1 );
+  assert( chromolen >= NLSimple::NumNLSimplePars );
+
+  double *chromosome = ((double *)(adam->chromosome[0]));
+
+  //XXX - todo, create a single function to get valid parameter ranges!
+  for( NLSimple::NLSimplePars par = NLSimple::NLSimplePars(0);
+       par < NLSimple::NumNLSimplePars;
+       par = NLSimple::NLSimplePars(par+1) )
+  {
+    switch( par )
+    {
+      case NLSimple::BGMultiplier:
+        chromosome[par] = random_double_range( -0.01, 0.1 );
+      break;
+      case NLSimple::CarbAbsorbMultiplier:
+        chromosome[par] = random_double_range( 0.1, 10.0 );
+      break;
+      case NLSimple::XMultiplier:
+        chromosome[par] = random_double_range( 0.0, 0.1 );
+      break;
+      case NLSimple::PlasmaInsulinMultiplier:
+        chromosome[par] = random_double_range( 0.0, 0.0015 );
+      break;
+      case NLSimple::NumNLSimplePars:
+        assert(0);
+    };//switch( point )
+  }//for( loop over NLSimplePars )
+
+  for( int par = int(NLSimple::NumNLSimplePars); par < chromolen; ++par )
+    chromosome[par] = random_double_range( -5.0, 5.0 );
+
+  return true;
+}//seed_initial_parameters(...)
+
+
+
+
+bool eval_ga_struggle_score( population *pop, entity *dude )
+{
+  dude->fitness = 0.0;
+
+  try
+  {
+    ModelTestFCN *fittnesFunc = (ModelTestFCN *)pop->data;
+    assert( pop->num_chromosomes == 1 );
+    const int len = pop->len_chromosomes;
+    assert( len >= NLSimple::NumNLSimplePars );
+    double *chromos = (double *)dude->chromosome[0];
+
+    vector<double> genes( chromos, chromos + len );
+
+//    cerr << "Starting an eval with: ";
+//    foreach( double s, genes )
+//      cerr << s << ", ";
+//    cerr << endl;
+
+    foreach( double s, genes )
+    {
+      if( isnan(s) || isinf(s) )
+        throw runtime_error( "INF or NaN double" );
+    }//foreach( double s, genes )
+
+    dude->fitness = fittnesFunc->operator()( genes );
+    dude->fitness = 1.0 / dude->fitness;
+
+/*
+    cerr << "Got fitness " << dude->fitness << " for genes:\n";
+
+    for( NLSimple::NLSimplePars par = NLSimple::NLSimplePars(0);
+         par < NLSimple::NumNLSimplePars;
+         par = NLSimple::NLSimplePars(par+1) )
+    {
+      switch(par)
+      {
+        case NLSimple::BGMultiplier:
+          cerr << "\tBGMultiplier=" << genes[par] << endl;
+        break;
+        case NLSimple::CarbAbsorbMultiplier:
+          cerr << "\tCarbAbsorbMultiplier=" << genes[par] << endl;
+        break;
+        case NLSimple::XMultiplier:
+          cerr << "\tXMultiplier=" << genes[par] << endl;
+        break;
+        case NLSimple::PlasmaInsulinMultiplier:
+          cerr << "\tPlasmaInsulinMultiplier=" << genes[par] << endl;
+        break;
+        case NLSimple::NumNLSimplePars: assert(0);
+      };//
+    }//for( loop over NLSimplePars )
+
+    for( int parn = int(NLSimple::NumNLSimplePars); parn < len; ++parn )
+      cerr << "\tCustomEventPar " << (parn - int(NLSimple::NumNLSimplePars))
+           << "=" << genes[parn] << endl;
+    cerr << endl << endl;
+*/
+
+    if( dude->fitness < 0.0 )
+    {
+      cerr << SRC_LOCATION << "\n\tGot negative fitness" << endl;
+      assert( 0 );
+    }
+  }catch( std::exception &e )
+  {
+    cerr << SRC_LOCATION << "\n\tCaught exception: " << e.what() << endl;
+    return false;
+  }//try/catch
+
+  return true;
+}//bool eval_ga_struggle_score(population *pop, entity *dude)
+
+double NLSimple::geneticallyOptimizeModel( double endPredChi2Weight,
+                                           vector<TimeRange> timeRanges,
+                                           NLSimple::Chi2CalbackFcn genBestCallBackFcn,
+                                           NLSimple::ContinueFcn continueFcn )
+{
+  using namespace TMVA;
+
+  cerr << "Performing genetic optiiztion" << endl;
+
+  std::vector<Double_t> gvec = m_paramaters;
+
+  m_paramaters.clear();
+  resetPredictions();
+  findSteadyStateBeginings(3);
+
+  timeRanges = getNonExcludedTimeRanges( timeRanges );
+
+  cerr << "There are " << m_startSteadyStateTimes.size() << " Steady state starting times" << endl;
+
+  Int_t fPopSize      = m_settings.m_genPopSize;
+  Int_t fNsteps       = m_settings.m_genConvergNsteps;
+  Int_t fSC_steps     = m_settings.m_genNStepMutate;
+  Int_t fSC_rate      = m_settings.m_genNStepImprove;
+  Double_t fSC_factor = m_settings.m_genSigmaMult;
+  Double_t fConvCrit  = m_settings.m_genConvergCriteria;
+  //When the number of improvments within the last fSC_steps
+  // a) smaller than fSC_rate, then divide present sigma by fSC_factor
+  // b) equal, do nothing
+  // c) larger than fSC_rate, then multiply the present sigma by fSC_factor
+  //
+  //If convergence hasn't improvedmore than fConvCrit in the last
+  //  fNsteps, then consider minimization complete
+
+  ModelTestFCN fittnesFunc( this, endPredChi2Weight, timeRanges );
+  fittnesFunc.SetErrorDef(10.0);
+
+  fittnesFunc.m_shouldCntinueFcn = continueFcn;
+  fittnesFunc.m_bestChi2CalbackFcn = genBestCallBackFcn;
+
+
+  size_t nParExp = (size_t)NumNLSimplePars;
+  foreach( const EventDefPair &et, m_customEventDefs )
+  {
+    if( m_customEvents.hasValueNear( et.first ) )
+      nParExp += et.second.getNPoints();
+  }//foreach( custom event def )
+
+  int len_chromo = int(NumNLSimplePars);
+  size_t parNum = (size_t)NumNLSimplePars;
+
+  foreach( const EventDefPair &et, m_customEventDefs )
+  {
+    if( !m_customEvents.hasValueNear( et.first ) )
+      continue;
+
+    const size_t nPoints = et.second.getNPoints();
+    for( size_t pointN = 0; pointN < nPoints; ++pointN, ++parNum )
+    {
+      cout << "Adding paramater " << pointN << " for Custom Event named "
+           << et.second.getName() << " for genetic minization" << endl;
+      ++len_chromo;
+    }//for
+  }//foreach( custom event def )
+
+
+  random_seed(2003);
+
+  const int population_size = fPopSize;
+  const int num_chromo = 1;
+  GAgeneration_hook generation_hook = generation_start_hook;
+  GAiteration_hook iteration_hook = NULL;
+  GAdata_destructor data_destructor = NULL;
+  GAdata_ref_incrementor data_ref_incrementor = NULL;
+  GAevaluate evaluate = eval_ga_struggle_score;
+  GAseed seed = seed_initial_parameters;
+  GAadapt adapt = NULL;
+  GAselect_one select_one = ga_select_one_sus; //Selects individual to mutate using Stochastic Universal Sampling selection; fitness values defined as 0.0 is bad, and large positive values are good
+  GAselect_two select_two = ga_select_two_sus; //Selects two individuals to mate using Stochastic Universal Sampling selection; fitness values defined as 0.0 is bad, and large positive values are good
+  GAmutate mutate = mutate_ga_params; //ga_mutate_double_singlepoint_drift; //ga_mutate_double_singlepoint_randomize, ga_mutate_double_multipoint, ga_mutate_double_allpoint
+  GAcrossover crossover_type = ga_crossover_double_allele_mixing;
+  GAreplace replace = NULL;
+  vpointer userdata = (void *)&fittnesFunc;
+
+  //TODO: should check if the model currently has some parameters, and if so,
+  //      replace one of the initial generations' parameters by these - so at
+  //      least we wont do any worse than what we already have
+
+  population *pop = ga_genesis_double( population_size, num_chromo, len_chromo,
+                                       generation_hook, iteration_hook,
+                                       data_destructor, data_ref_incrementor,
+                                       evaluate, seed, adapt, select_one,
+                                       select_two, mutate, crossover_type,
+                                       replace, userdata );
+
+
+  const ga_scheme_type scheme = GA_SCHEME_DARWIN;
+
+//http://gaul.sourceforge.net/tutorial/elitism.html:
+//  GA_ELITISM_PARENTS_SURVIVE      All parents that rank sufficiently highly will pass to the next generation.
+//  GA_ELITISM_ONE_PARENT_SURVIVES	The single fittest parent will pass to the next generation if it ranks sufficiently well.
+//  GA_ELITISM_PARENTS_DIE          No parents pass to next generation, regardless of their fitness.
+//  GA_ELITISM_RESCORE_PARENTS      All parents are re-evalutated, and those that subsequently rank sufficiently highly will pass to the next generation.
+  const ga_elitism_type elitism = GA_ELITISM_ONE_PARENT_SURVIVES;
+
+  const double crossover = 0.9;
+  const double mutation = 0.2;
+  const double migration = 0.0;
+  ga_population_set_parameters( pop, scheme, elitism, crossover, mutation, migration );
+
+  const int max_generations = 500;
+  ga_evolution( pop, max_generations );
+
+
+  entity *best = ga_get_entity_from_rank( pop, 0 );
+  double bestchi2 = 1.0 / best->fitness;
+  const int len = pop->len_chromosomes;
+  double *chromosomes = (double *)best->chromosome[0];
+
+  vector<double> genes( chromosomes, chromosomes + len );
+  setModelParameters( genes );
+
+  if( genBestCallBackFcn )
+    genBestCallBackFcn( bestchi2 );
+
+  cout << "Done with Genetic optimization" << endl;
+  cout << "Final paramaters are: ";
+  foreach( Double_t d, gvec )
+    cout << d << "  ";
+  cout << endl;
+
+  ga_extinction( pop );
+
+  return bestchi2;
+}//geneticallyOptimizeModel
+
+
+
 
 //returns true  if all information is updated to time
 bool NLSimple::removeInfoAfter( const PosixTime &cgmsEndTime, bool removeCgms )
@@ -2812,7 +3188,7 @@ double ModelTestFCN::testParamaters(const std::vector<double>& x, bool updateMod
    //make sure Minuit isn't passing in garbage
   foreach( double d, x )
   {
-    if( isnan(d) || isinf(d) || isinf(-d) )
+    if( isnan(d) || isinf(d) )
     {
       cout << "ModelTestFCN::operator(): Passed in garbage" << endl;
       return DBL_MAX;
@@ -2834,7 +3210,7 @@ double ModelTestFCN::testParamaters(const std::vector<double>& x, bool updateMod
     ConsentrationGraph predGluc( m_modelPtr->m_t0,
                                  m_modelPtr->m_predictedBloodGlucose.getDt(),
                                  GlucoseConsentrationGraph);
-
+    cerr << "Predicting between " << tr.begin() << " and " << tr.end() << endl;
     if( !predTime.is_negative() )
     {
       // predGluc = m_modelPtr->glucPredUsingCgms( -1, tStart, tr.second );

@@ -2,5 +2,6 @@
 #define __DubsConfig_hh
 
 #cmakedefine01 USE_CERNS_ROOT
+#cmakedefine01 USE_GSL_FFT
 
 #endif  //

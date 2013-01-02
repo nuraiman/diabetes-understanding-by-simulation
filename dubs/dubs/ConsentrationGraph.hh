@@ -265,8 +265,17 @@ class ConsentrationGraph : public GraphElementSet
     //  eg. if lambda_min==0.1, then the smallest 90% of coeficients will be
     //  zeroed out
     //TODO: Make sure lambda_min isnt off by a factor of 2
-    void fastFourierSmooth( double lambda_min, bool doMinCoeffInstead = false );
 
+    //ALLOW_FFT_SMOOTH_MIN_COEF: I dont think this is correctly implemented, and
+    //  even if it was, probably not how you want to filter, so I'm only allowing
+    //  this functionality if exploicityl changed to true bellow
+#define ALLOW_FFT_SMOOTH_MIN_COEF 0
+
+#if( !ALLOW_FFT_SMOOTH_MIN_COEF )
+    void fastFourierSmooth( double lambda_min );
+#else
+    void fastFourierSmooth( double lambda_min, bool doMinCoeffInstead = false );
+#endif
     //filterOrder gives order of the Butterworth filter (6 db/Octive, per order)
     //  max order 4 is supported
     void butterWorthFilter( double wavelength = 30, int filterOrder = 4 );

@@ -30,8 +30,8 @@
 #include <Wt/WTable>
 #include <Wt/WDialog>
 #include <Wt/WAnchor>
+#include <Wt/WServer>
 #include <Wt/WPainter>
-#include <Wt/WSpinBox>
 #include <Wt/WSpinBox>
 #include <Wt/WGroupBox>
 #include <Wt/WLineEdit>
@@ -2416,7 +2416,9 @@ void GeneticallyOptimizeTab::doMinuit2Optimization()
 
 void GeneticallyOptimizeTab::startOptimization()
 {
-  new boost::thread( boost::bind( &GeneticallyOptimizeTab::doGeneticOptimization, this ) );
+  WServer::instance()->post( m_parentWtGui->app()->sessionId(),
+                             boost::bind( &GeneticallyOptimizeTab::doGeneticOptimization, this ) );
+//  new boost::thread( boost::bind( &GeneticallyOptimizeTab::doGeneticOptimization, this ) );
 }//void GeneticallyOptimizeTab::startOptimization()
 
 
@@ -2433,13 +2435,24 @@ void GeneticallyOptimizeTab::doGeneticOptimization()
                      "Are you trying to optimize the same model twice at the "
                      "same time?"
                      + string( SRC_LOCATION ) );
-  if( !model ) return;
+  if( !model )
+    return;
 
   WText *text = NULL;
+  TimeRangeVec timeRange;
 
   {
     WApplication::UpdateLock appLock( m_parentWtGui->app() );
     //if( appLock )
+
+    PosixTime startTime = m_startTrainingTimeSelect->currentValue();
+    PosixTime endTime = m_endTrainingTimeSelect->currentValue();
+
+    startTime = std::max( startTime, model->m_cgmsData.getStartTime() );
+    endTime = std::min( endTime, model->m_cgmsData.getEndTime() );
+
+    timeRange.push_back( TimeRange(startTime, endTime) );
+
     m_stopOptimization->show();  //TODO: figure out if we didn't get appLock, will the changes be propogated to user eventually?
     m_startOptimization->hide();
     text = new WText( "<font color=\"blue\"><b>Currently Optimizing</b></font>", XHTMLUnsafeText );
@@ -2481,7 +2494,7 @@ void GeneticallyOptimizeTab::doGeneticOptimization()
   try
   {
     model->geneticallyOptimizeModel( model->m_settings.m_lastPredictionWeight,
-                                     TimeRangeVec(), chi2Calback, continueFcn );
+                                     timeRange, chi2Calback, continueFcn );
   }catch( exception &e )
   {
     string msg = "Warning: Optimization failed:\n";

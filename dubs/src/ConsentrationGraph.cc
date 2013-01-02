@@ -50,6 +50,20 @@
 #include <boost/date_time/posix_time/posix_time.hpp>
 
 
+#if( USE_GSL_FFT && !USE_CERNS_ROOT )
+#include <math.h>
+#include <gsl/gsl_errno.h>
+#include <gsl/gsl_fft_real.h>
+#include <gsl/gsl_fft_complex.h>
+#include <gsl/gsl_fft_halfcomplex.h>
+#define REAL(z,i) ((z)[2*(i)])
+#define IMAG(z,i) ((z)[2*(i)+1])
+#elif( !USE_CERNS_ROOT )
+#include "fftw3.h"
+#endif
+
+
+
 #include "dubs/KineticModels.hh"
 #include "dubs/CgmsDataImport.hh"
 #include "dubs/ProgramOptions.hh"
@@ -1109,72 +1123,7 @@ ConsentrationGraph::bSplineSmoothOrDeriv(  bool takeDeriv,
 }//bSplineDerivative
 
 
-/*
-#include <stdio.h>
-     #include <math.h>
-     #include <gsl/gsl_errno.h>
-     #include <gsl/gsl_fft_real.h>
-     #include <gsl/gsl_fft_halfcomplex.h>
 
-     int
-     main (void)
-     {
-       int i, n = 100;
-       double data[n];
-
-       gsl_fft_real_wavetable * real;
-       gsl_fft_halfcomplex_wavetable * hc;
-       gsl_fft_real_workspace * work;
-
-       for (i = 0; i < n; i++)
-         {
-           data[i] = 0.0;
-         }
-
-       for (i = n / 3; i < 2 * n / 3; i++)
-         {
-           data[i] = 1.0;
-         }
-
-       for (i = 0; i < n; i++)
-         {
-           printf ("%d: %e\n", i, data[i]);
-         }
-       printf ("\n");
-
-       work = gsl_fft_real_workspace_alloc (n);
-       real = gsl_fft_real_wavetable_alloc (n);
-
-       gsl_fft_real_transform (data, 1, n,
-                               real, work);
-
-       gsl_fft_real_wavetable_free (real);
-
-       for (i = 11; i < n; i++)
-         {
-           data[i] = 0;
-         }
-
-       hc = gsl_fft_halfcomplex_wavetable_alloc (n);
-
-       gsl_fft_halfcomplex_inverse (data, 1, n,
-                                    hc, work);
-       gsl_fft_halfcomplex_wavetable_free (hc);
-
-       for (i = 0; i < n; i++)
-         {
-           printf ("%d: %e\n", i, data[i]);
-         }
-
-       gsl_fft_real_workspace_free (work);
-       return 0;
-     }
-*/
-
-
-//#if( !USE_CERNS_ROOT )
-#include "fftw3.h"
-//#endif
 
 
 void ff_xform_r2c( const vector<double> &input,
@@ -1189,7 +1138,7 @@ void ff_xform_r2c( const vector<double> &input,
   fft_own->SetPoints( &input[0] );
   fft_own->Transform();
   fft_own->GetPointsComplex( &xformed_real[0], &xformed_imag[0] );
-#else
+#elif( !USE_GSL_FFT )
   // XXX - currently this function is ineffiecient!
   //       The fftw_plan shouldnt be destoyed, untill all current xforms are
   //       finished, because FFTW3 uses some constant data to speed things up
@@ -1218,7 +1167,43 @@ void ff_xform_r2c( const vector<double> &input,
   fftw_destroy_plan( plan );
   fftw_free( data );
   fftw_free( out );
-#endif //#if( USE_CERNS_ROOT )
+#else
+//GSL method 1 - seems to work, but filtering is not correct for case of using largest amplitude frequencies
+  //Not that the real and complex coefficients are all put in 'xformed_real'
+  //  since the GSL coefficient packing is a bit odd, see
+  //  http://www.gnu.org/software/gsl/manual/html_node/Mixed_002dradix-FFT-routines-for-real-data.html
+
+
+  xformed_real = input;
+  vector<double> &data = xformed_real;
+  const int n = static_cast<int>( data.size() );
+  gsl_fft_real_workspace *work = gsl_fft_real_workspace_alloc( n );
+  gsl_fft_real_wavetable *real = gsl_fft_real_wavetable_alloc( n );
+  gsl_fft_real_transform( &data[0], 1, n, real, work );
+  gsl_fft_real_wavetable_free( real );
+  real = (gsl_fft_real_wavetable *)0;
+  gsl_fft_real_workspace_free( work );
+  work = (gsl_fft_real_workspace *)0;
+
+/*
+//GSL Method 2 - requires n to be a power of 2, untested
+  const int n = static_cast<int>( input.size() );
+  vector<double> data( 2*n, 0.0 );
+
+  for( int i = 0; i < n; ++i )
+    REAL(data,i) = input[i];
+
+  gsl_fft_complex_radix2_forward( &data[0], 1, n );
+
+  xformed_real.resize( n );
+  xformed_imag.resize( n );
+  for( int i = 0; i < n; ++i )
+  {
+    xformed_real[i] = REAL(data,i);
+    xformed_imag[i] = IMAG(data,i);
+  }
+*/
+#endif  //USE_CERNS_ROOT else !USE_GSL_FFT else
 }//ff_xform(...)
 
 
@@ -1226,49 +1211,83 @@ void ff_xform_c2r( const vector<double> &in_real,
                    const vector<double> &in_img,
                    vector<double> &output )
 {
-  if( in_real.size() != in_img.size() )
-    throw runtime_error( "ff_xform_c2r(...): incompatible input" );
+    if( in_real.size() != in_img.size() )
+      throw runtime_error( "ff_xform_c2r(...): incompatible input" );
 
 #if( USE_CERNS_ROOT )
-  int len = static_cast<int>( in_img.size() );
-  output.resize( len );
-  TVirtualFFT *fft_back = TVirtualFFT::FFT(1, &len, "C2R");
-  fft_back->SetPointsComplex( &in_real[0], &in_img[0] );
-  fft_back->Transform();
-  fft_back->GetPoints( &output[0] );
+    int len = static_cast<int>( in_img.size() );
+    output.resize( len );
+    TVirtualFFT *fft_back = TVirtualFFT::FFT(1, &len, "C2R");
+    fft_back->SetPointsComplex( &in_real[0], &in_img[0] );
+    fft_back->Transform();
+    fft_back->GetPoints( &output[0] );
+#elif( !USE_GSL_FFT )
+    // XXX - currently this function is ineffiecient!
+    //       The fftw_plan shouldnt be destoyed, untill all current xforms are
+    //       finished, because FFTW3 uses some constant data to speed things up
+    //       in creating the plan, as long as the previous plan still exists, see:
+    //       http://www.fftw.org/fftw3_doc/Real_002ddata-DFTs.html#Real_002ddata-DFTs
+
+    int inputLen = static_cast<int>( in_img.size() );
+    int outputLen = static_cast<int>( 2*(in_img.size()-1) );
+    output.resize( outputLen );
+
+    fftw_complex *input = (fftw_complex *)fftw_malloc(sizeof(fftw_complex)*inputLen);
+    for( int i = 0; i < inputLen; ++i )
+    {
+      input[i][0] = in_real[i];
+      input[i][1] = in_img[i];
+    }//for( int i = 0; i < len; ++i )
+    fftw_plan plan = fftw_plan_dft_c2r_1d( outputLen, input, &output[0], FFTW_ESTIMATE );
+    fftw_execute( plan );  //fftw_destroy_plan( plan )
+    fftw_destroy_plan( plan );
+    fftw_free( input );
 #else
-  // XXX - currently this function is ineffiecient!
-  //       The fftw_plan shouldnt be destoyed, untill all current xforms are
-  //       finished, because FFTW3 uses some constant data to speed things up
-  //       in creating the plan, as long as the previous plan still exists, see:
-  //       http://www.fftw.org/fftw3_doc/Real_002ddata-DFTs.html#Real_002ddata-DFTs
+//GSL method 1 - seems to work, but filtering is not correct for case of using largest amplitude frequencies
+  output = in_real;
+  vector<double> &data = output;
+  const int n = static_cast<int>( data.size() );
+  gsl_fft_real_workspace *work = gsl_fft_real_workspace_alloc( n );
+  gsl_fft_halfcomplex_wavetable *hc = gsl_fft_halfcomplex_wavetable_alloc( n );
+  gsl_fft_halfcomplex_inverse( &data[0], 1, n, hc, work );
+  gsl_fft_halfcomplex_wavetable_free( hc );
+  hc = (gsl_fft_halfcomplex_wavetable *)0;
+  gsl_fft_real_workspace_free( work );
+  work = (gsl_fft_real_workspace *)0;
+  for( int i = 0; i < n; ++i )
+    data[i] *= n;  //to be compatible w/ FFTW3 xform
 
-  int inputLen = static_cast<int>( in_img.size() );
-  int outputLen = static_cast<int>( 2*(in_img.size()-1) );
-  output.resize( outputLen );
 
-  fftw_complex *input = (fftw_complex *)fftw_malloc(sizeof(fftw_complex)*inputLen);
-  for( int i = 0; i < inputLen; ++i )
+/*
+//GSL Method 2 - requires n to be a power of 2, untested
+  const int n = static_cast<int>( in_real.size() );
+  output.resize( 2*n );
+
+  for( int i = 0; i < n; ++i )
   {
-    input[i][0] = in_real[i];
-    input[i][1] = in_img[i];
-  }//for( int i = 0; i < len; ++i )
-  fftw_plan plan = fftw_plan_dft_c2r_1d( outputLen, input, &output[0], FFTW_ESTIMATE );
-  fftw_execute( plan );  //fftw_destroy_plan( plan )
-  fftw_destroy_plan( plan );
-  fftw_free( input );
-#endif  //#if( USE_CERNS_ROOT )
-}//ff_xform_c2r(...)
+    REAL(output,i) = in_real[i];
+    IMAG(output,i) = in_img[i];
+  }
+  gsl_fft_complex_radix2_backward( &output[0], 1, n );
+*/
+#endif  //USE_CERNS_ROOT else !USE_GSL_FFT else
+  }//ff_xform_c2r(...)
 
-
+#if( !ALLOW_FFT_SMOOTH_MIN_COEF )
+void ConsentrationGraph::fastFourierSmooth( double lambda_min )
+#else
 void ConsentrationGraph::fastFourierSmooth( double lambda_min, bool doMinCoeffInstead )
+#endif
 {
   removeNonInfoAddingPoints();
 
   if( GraphElementSet::empty() )
     return;
 
-  if( doMinCoeffInstead ) assert( lambda_min>=0.0 && lambda_min<=1.0 );
+#if( ALLOW_FFT_SMOOTH_MIN_COEF )
+  if( doMinCoeffInstead )
+    assert( lambda_min>=0.0 && lambda_min<=1.0 );
+#endif
 
   set<GraphElement > xFormResult;
 
@@ -1301,24 +1320,37 @@ void ConsentrationGraph::fastFourierSmooth( double lambda_min, bool doMinCoeffIn
 
     ff_xform_r2c( input, xformed_real, xformed_imag );
 
-
+#if( ALLOW_FFT_SMOOTH_MIN_COEF )
     if( !doMinCoeffInstead )
+#endif
     {
       //each bin represents a freq of 1.0/(2.0*dt), or rather a wavelenght of 2*dt
     //Below is just a guess as to how to filter off unwanted frequencies
+#if( USE_CERNS_ROOT || !USE_GSL_FFT )
       const int highestBin = dt * pointsPerWindow / (2.0 * lambda_min);
+#else
+      //The bellow extra 2 is to make up for 'xformed_real' holding both
+      //  real and imaginary coefficients right now
+      const int highestBin = 2 * dt * pointsPerWindow / (2.0 * lambda_min);
+#endif  //
 
-      cerr << "I am zeroing out bins " << highestBin << " through " << pointsPerWindow << endl;
       for( int point = highestBin; point < pointsPerWindow; ++point )
         xformed_imag[point] = xformed_real[point] = 0.0;
-    }else
+    }
+#if( ALLOW_FFT_SMOOTH_MIN_COEF )
+    else
     {
       vector<int> index_array( pointsPerWindow );
       for( int i = 0; i < pointsPerWindow; ++i )
           index_array[i] = i;
-
-//      TMath::Sort( pointsPerWindow, &xformed_real[0], &index_array[0] );
       std::sort( index_array.begin(), index_array.end(), index_compare_descend<vector<double>&>(xformed_real) );
+/*
+      const size_t nreal = xformed_real.size();
+      vector<double> xformed_real_abs( nreal );
+      for( size_t i = 0; i < nreal; ++i )
+        xformed_real_abs[i] = fabs( xformed_real[i] );
+      std::sort( index_array.begin(), index_array.end(), index_compare_descend<vector<double>&>(xformed_real_abs) );
+*/
 
       const int min_coef_ind = static_cast<int>( floor(lambda_min*pointsPerWindow + 0.5) );
       for( int point = min_coef_ind; point < pointsPerWindow; ++point )
@@ -1327,6 +1359,7 @@ void ConsentrationGraph::fastFourierSmooth( double lambda_min, bool doMinCoeffIn
         xformed_imag[index] = xformed_real[index] = 0.0;
       }//for(...)
     }//if( !doMinCoeffInstead ) / else
+#endif
 
     ff_xform_c2r( xformed_real, xformed_imag, input );
 

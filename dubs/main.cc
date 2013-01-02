@@ -143,8 +143,10 @@ void cgmFilterStudy()
 //  return;
 
   ConsentrationGraph fft120 = mmData.getSmoothedGraph( 75, FourierSmoothing );
+#if( ALLOW_FFT_SMOOTH_MIN_COEF )
   ConsentrationGraph fftMatt = mmData;
   fftMatt.fastFourierSmooth( 0.1, true );
+#endif
 
   ConsentrationGraph butter = mmData.getSmoothedGraph( 240, ButterworthSmoothing );
   ConsentrationGraph bspline = mmData.getSmoothedGraph( 240, BSplineSmoothing );
@@ -169,31 +171,35 @@ void cgmFilterStudy()
 
   TLegend *leg = new TLegend( 0.7, 0.7, 0.9, 1.0 );
   TGraph *original = mmData.draw("", "", false, 1 );
-//  TGraph *fft120G = fft120.draw("SAME", "", false, 11 );
-//  TGraph *fftMattG = fftMatt.draw("SAME", "", false, 4 );
+  TGraph *fft120G = fft120.draw("SAME", "", false, 11 );
+#if( ALLOW_FFT_SMOOTH_MIN_COEF )
+  TGraph *fftMattG = fftMatt.draw("SAME", "", false, 4 );
+#endif
 
 //  TGraph *butterG = butter.draw("SAME", "", false, 4 );
 //  TGraph *bsplineG = bspline.draw("SAME", "", false, 6 );
 //  TGraph *sgG = sgSmoothed.draw("SAME", "", false, 46 );
 
 //  TGraph *sgG220 = sgSmoothed220.draw("SAME", "", false, 2 );
-  TGraph *sgG320 = sgSmoothed320.draw("SAME", "", false, 3 );
-  TGraph *sgG420 = sgSmoothed420.draw("SAME", "", false, 4 );
-  TGraph *sgG520 = sgSmoothed520.draw("SAME", "", false, 28 );
-  TGraph *sgG620 = sgSmoothed620.draw("SAME", "", false, 6 );
+//  TGraph *sgG320 = sgSmoothed320.draw("SAME", "", false, 3 );
+//  TGraph *sgG420 = sgSmoothed420.draw("SAME", "", false, 4 );
+//  TGraph *sgG520 = sgSmoothed520.draw("SAME", "", false, 28 );
+//  TGraph *sgG620 = sgSmoothed620.draw("SAME", "", false, 6 );
 
 
   leg->AddEntry( original, "Original Dexcom data", "l" );
-//  leg->AddEntry( fft120G,  "FFT Strict Low Pass #lambda=75 min", "l" );
-//  leg->AddEntry( fftMattG,  "FFT 10% largest contributing frequ", "l" );
+  leg->AddEntry( fft120G,  "FFT Strict Low Pass #lambda=75 min", "l" );
+#if( ALLOW_FFT_SMOOTH_MIN_COEF )
+  leg->AddEntry( fftMattG,  "FFT 10% largest contributing frequ", "l" );
+#endif
 //  leg->AddEntry( butterG,  "4^{th} order Butterworth, #lambda_{crit}=240 min", "l" );
 //  leg->AddEntry( bsplineG,  "6^{th} order B-Spline, knot distance 240/2 min", "l" );
 //  leg->AddEntry( sgG,  "Savitzy-Golay N_{left}=35, N_{right}=35, 5^{th} Order", "l" );
 //  leg->AddEntry( sgG220,  "Savitzy-Golay N_{left}=20, N_{right}=20, 2^{th} Order", "l" );
-  leg->AddEntry( sgG320,  "Savitzy-Golay N_{left}=20, N_{right}=20, 3^{th} Order", "l" );
-  leg->AddEntry( sgG420,  "Savitzy-Golay N_{left}=20, N_{right}=20, 4^{th} Order", "l" );
-  leg->AddEntry( sgG520,  "Savitzy-Golay N_{left}=20, N_{right}=20, 5^{th} Order", "l" );
-  leg->AddEntry( sgG620,  "Savitzy-Golay N_{left}=20, N_{right}=20, 6^{th} Order", "l" );
+//  leg->AddEntry( sgG320,  "Savitzy-Golay N_{left}=20, N_{right}=20, 3^{th} Order", "l" );
+//  leg->AddEntry( sgG420,  "Savitzy-Golay N_{left}=20, N_{right}=20, 4^{th} Order", "l" );
+//  leg->AddEntry( sgG520,  "Savitzy-Golay N_{left}=20, N_{right}=20, 5^{th} Order", "l" );
+//  leg->AddEntry( sgG620,  "Savitzy-Golay N_{left}=20, N_{right}=20, 6^{th} Order", "l" );
 
   leg->SetBorderSize( 0 );
   leg->Draw();
