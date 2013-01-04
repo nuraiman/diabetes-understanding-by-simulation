@@ -34,25 +34,26 @@
 #include "dubs/ArtificialPancrease.hh"
 
 //Some forward declarations
-class NLSimple;
-class WtGui;
 class Div;
-class DateTimeSelect;
+class WtGui;
+class NLSimple;
 class DubEventEntry;
+class DateTimeSelect;
 
 class DubUser;
 class UsersModel;
 class TimeTextPair;
 class ModelSettings;
 class WtConsGraphModel;
-class WtTimeRangeVecModel;
 class ConsentrationGraph;
+class WtTimeRangeVecModel;
+class GeneticallyOptimizeTab;
 
-class ClarkErrorGridGraph;
+class OverlayCanvas;
+class MemGuiTimeDate;
 class ModelSettingsTab;
 class MemVariableSpinBox;
-class MemGuiTimeDate;
-class OverlayCanvas;
+class ClarkErrorGridGraph;
 
 class NotesTab;
 class NLSimplePtr;
@@ -240,6 +241,8 @@ public:
     Wt::Dbo::ptr<DubUser> dubUserPtr(){ return m_userDbPtr; }
 //    Wt::Dbo::Session &dbSession() { return m_dubsSession; }
 
+    GeneticallyOptimizeTab *geneticOptimizationTab() { return m_optimizationTab; }
+
   private:
 
     Wt::WApplication *m_app;
@@ -257,6 +260,8 @@ public:
     Div  *m_upperEqnDiv;
     Wt::WPopupMenu *m_fileMenuPopup;
     Wt::WTabWidget *m_tabs;
+
+    GeneticallyOptimizeTab *m_optimizationTab;
 
     boost::shared_ptr<NLSimpleDisplayModel> m_nlSimleDisplayModel;
 
@@ -393,6 +398,11 @@ class GeneticallyOptimizeTab : public Wt::WContainerWidget
   MemGuiTimeDate *m_endTrainingTimeSelect;
   MemGuiTimeDate *m_startTrainingTimeSelect;
 
+  //m_currentOptThread: points to the thread currently doing the optimization.
+  //  note: this is necassary since using WSerer::post(...) seems to freeze
+  //        the gui.
+  boost::shared_ptr<boost::thread> m_currentOptThread;
+
 public:
   GeneticallyOptimizeTab( WtGui *wtGuiParent,
                          Wt::WContainerWidget *parent = NULL  );
@@ -411,6 +421,15 @@ public:
   void startMinuit2Optimization();
   void syncGraphDataToNLSimple();
   void updateDateSelectLimits();
+
+  //optimizationFinished(): called at the end of optimization to clean up
+  //  m_currentOptThread.
+  void optimizationFinished();
+
+  void setChi2XRangeAuto();
+  void setChi2YRangeAuto();
+  void setChi2XRange( double ymin, double ymax );
+  void setChi2YRange( double ymin, double ymax );
 };//class GeneticallyOptimizeTab
 
 

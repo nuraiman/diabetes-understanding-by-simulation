@@ -52,6 +52,8 @@ class Div : public Wt::WContainerWidget
 
 class DateTimeSelect : public Wt::WContainerWidget
 {
+protected:
+  Wt::WApplication *m_app;
   Wt::WLineEdit *m_lineEdit;
 
   Wt::JSignal<std::string> *m_timeSelected;  //string is in format '07/23/2010 12:15:00 pm'
@@ -112,6 +114,7 @@ protected:
   typedef boost::shared_ptr<Lock> LockShrdPtr;
 
   Wt::WDoubleSpinBox *m_spinBox;
+  Wt::WApplication *m_app;
 
   LockShrdPtr getLock();
 

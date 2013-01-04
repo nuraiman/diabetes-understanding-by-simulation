@@ -241,6 +241,12 @@ void DubsApplication::showLoginScreen()
 
 
 
+WtGui *DubsApplication::gui()
+{
+  return m_gui;
+}
+
+
 void DubsApplication::logout()
 {
   boost::recursive_mutex::scoped_lock lock( m_mutex );

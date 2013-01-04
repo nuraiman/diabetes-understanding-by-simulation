@@ -35,6 +35,8 @@ public:
 
   bool isMobile() const;
 
+  WtGui *gui();
+
 protected:
   WtGui *m_gui;
   DubsSession m_dubsSession;

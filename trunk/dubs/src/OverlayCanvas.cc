@@ -218,34 +218,40 @@ void OverlayCanvas::loadInitOverlayCanvasJs()
 
   LOAD_JAVASCRIPT(app, "js/OverlayCanvas.js", "OverlayCanvas", wtjsOverlayOnClick);
   const string onclickSlotJS = "function(s,e){ this.WT.OverlayOnClick(s,e);}";
-  JSlot *onclickSlot = new JSlot( onclickSlotJS, this );
+  boost::shared_ptr<JSlot> onclickSlot( new JSlot( onclickSlotJS, this ) );
   clicked().connect( *onclickSlot );
+  m_jslots.push_back( onclickSlot );
 
   LOAD_JAVASCRIPT(app, "js/OverlayCanvas.js", "OverlayCanvas", wtjsOverlayOnMouseDown);
   const string onMouseDownSlotJS = "function(s,e){ this.WT.OverlayOnMouseDown(s,e);}";
-  JSlot *onmousedown = new JSlot( onMouseDownSlotJS, this );
+  boost::shared_ptr<JSlot> onmousedown( new JSlot( onMouseDownSlotJS, this ) );
   mouseWentDown().connect( *onmousedown );
+  m_jslots.push_back( onmousedown );
 
   LOAD_JAVASCRIPT(app, "js/OverlayCanvas.js", "OverlayCanvas", wtjsOverlayOnMouseUp);
   const string onMouseUpSlotJS = "function(s,e){ this.WT.OverlayOnMouseUp(s,e);}";
-  JSlot *onmouseup = new JSlot( onMouseUpSlotJS, this );
+  boost::shared_ptr<JSlot> onmouseup( new JSlot( onMouseUpSlotJS, this ) );
   mouseWentUp().connect( *onmouseup );
+  m_jslots.push_back( onmouseup );
 
   LOAD_JAVASCRIPT(app, "js/OverlayCanvas.js", "OverlayCanvas", wtjsOverlayOnMouseOut);
   const string onMouseOutSlotJS = "function(s,e){ this.WT.OverlayOnMouseOut(s.id); }";
-  JSlot *onmouseout = new JSlot( onMouseOutSlotJS, this );
+  boost::shared_ptr<JSlot> onmouseout( new JSlot( onMouseOutSlotJS, this ) );
   mouseWentOut().connect( *onmouseout );
+  m_jslots.push_back( onmouseout );
 
   LOAD_JAVASCRIPT(app, "js/OverlayCanvas.js", "OverlayCanvas", wtjsOverlayOnMouseOver);
   const string onMouseOverSlotJS = "function(s,e){ this.WT.OverlayOnMouseOver(s,e); }";
-  JSlot *onmouseoverSlot = new JSlot( onMouseOverSlotJS, this );
+  boost::shared_ptr<JSlot> onmouseoverSlot( new JSlot( onMouseOverSlotJS, this ) );
   mouseWentOver().connect( *onmouseoverSlot );
+  m_jslots.push_back( onmouseoverSlot );
 
   // Now need to do onmousemove... and then connect all the signals...
   LOAD_JAVASCRIPT(app, "js/OverlayCanvas.js", "OverlayCanvas", wtjsOverlayOnMouseMove);
   const string onMouseMoveSlotJS = "function(s,e){ this.WT.OverlayOnMouseMove(s,e); }";
-  JSlot *onmousemoveSlot = new JSlot( onMouseMoveSlotJS, this );
+  boost::shared_ptr<JSlot> onmousemoveSlot( new JSlot( onMouseMoveSlotJS, this ) );
   mouseMoved().connect( *onmousemoveSlot );
+  m_jslots.push_back( onmousemoveSlot );
 
   LOAD_JAVASCRIPT(app, "js/OverlayCanvas.js", "OverlayCanvas", wtjsOverlayOnKeyPress);
 //  const string onKeyPressSlotJS = "function(s,e){ this.WT.OverlayOnKeyPress('" + id() + "',s,e); }";
@@ -336,7 +342,20 @@ Wt::JSignal<std::string> *OverlayCanvas::jsException()
 
 OverlayCanvas::~OverlayCanvas()
 {
-
+  if( m_userDraggedSignal )
+    delete m_userDraggedSignal;
+  if( m_userSingleClickedSignal )
+    delete m_userSingleClickedSignal;
+  if( m_keyPressWhileMousedOverSignal )
+    delete m_keyPressWhileMousedOverSignal;
+  if( m_controlMouseDown )
+    delete m_controlMouseDown;
+  if( m_controlMouseMove )
+    delete m_controlMouseMove;
+  if( m_jsException )
+    delete m_jsException;
+  if( m_alignWithParentSlot )
+    delete m_alignWithParentSlot;
 }//~WPaintedWidget()
 
 
