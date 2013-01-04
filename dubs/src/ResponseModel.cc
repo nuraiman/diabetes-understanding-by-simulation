@@ -1037,7 +1037,8 @@ ptime NLSimple::findSteadyStateStartTime( ptime t_start, ptime t_end )
   }//if( m_startSteadyStateTimes.empty() )
 
 
-  if( t_start == kGenericT0 && t_end == kGenericT0) return m_startSteadyStateTimes[0];
+  if( t_start == kGenericT0 && t_end == kGenericT0)
+    return m_startSteadyStateTimes[0];
 
 
   foreach( const ptime &t, m_startSteadyStateTimes )
@@ -1051,7 +1052,7 @@ ptime NLSimple::findSteadyStateStartTime( ptime t_start, ptime t_end )
   }//foreach(...)
 
   ostringstream msg;
-  msg << "double NLSimple::findSteadyStateTime( t0, tEnd ):"
+  msg << "double NLSimple::findSteadyStateStartTime( t0, tEnd ):"
        << " I was unable to find any approproate steady state start times,"
        << " between " << t_start << " and " << t_end;
   cerr << msg.str() << endl;
@@ -2057,7 +2058,7 @@ void NLSimple::parameterRange( int par, double &lowX, double &highX )
 //                                           NLSimple::Chi2CalbackFcn genBestCallBackFcn,
 //                                           NLSimple::ContinueFcn continueFcn )
 //{
-//  return GeneticEvalUtils::perform_optimiation( this, endPredChi2Weight,
+//  return GeneticEvalUtils::perform_genetic_optimization( this, endPredChi2Weight,
 //                                                timeRanges, genBestCallBackFcn,
 //                                                continueFcn );
 //}//geneticallyOptimizeModel
@@ -2112,8 +2113,10 @@ TimeRangeVec NLSimple::subtractTimeRanges( const TimeRangeVec &wanted_ranges,
 
   foreach( const TimeRange &wanted, wanted_ranges )
   {
-    if( !wanted.intersects( not_wanted ) ) answer.push_back( wanted );
-    else
+    if( !wanted.intersects( not_wanted ) )
+    {
+      answer.push_back( wanted );
+    }else
     {
       const TimeRange to_be_removed = wanted.intersection( not_wanted );
 
@@ -2137,7 +2140,7 @@ TimeRangeVec NLSimple::subtractTimeRanges( const TimeRangeVec &wanted_ranges,
       {
         //to_be_removed takes a chunk out of the wanted range
         const TimeRange first_part( wanted.begin(), to_be_removed.begin() );
-        const TimeRange second_part( wanted.last(), to_be_removed.last() );
+        const TimeRange second_part( to_be_removed.last(), wanted.last() );
         answer.push_back( first_part );
         answer.push_back( second_part );
       }//if/else to figure out what time ranges(s) are wanted
@@ -2162,9 +2165,7 @@ TimeRangeVec NLSimple::getNonExcludedTimeRanges( TimeRangeVec wantedTimeRanges )
     TimeRangeVec this_range( 1, wanted );
 
     foreach( const TimeRange &not_wanted, m_doNotUseTimeRanges )
-    {
       this_range = subtractTimeRanges( this_range, not_wanted );
-    }//foreach NOT-wanted range
 
     answer.insert( answer.end(), this_range.begin(), this_range.end() );
   }//foreach wanted range
@@ -2172,11 +2173,14 @@ TimeRangeVec NLSimple::getNonExcludedTimeRanges( TimeRangeVec wantedTimeRanges )
 
   cerr << "TimeRangeVec NLSimple::getNonExcludedTimeRanges(...): from input"
        << " ranges: ";
-  foreach( const TimeRange &range, wantedTimeRanges ) cerr << range << ", ";
+  foreach( const TimeRange &range, wantedTimeRanges )
+    cerr << range << ", ";
   cerr << endl << "And NOT_WANTED ranges: ";
-  foreach( const TimeRange &range, m_doNotUseTimeRanges ) cerr << range << ", ";
+  foreach( const TimeRange &range, m_doNotUseTimeRanges )
+    cerr << range << ", ";
   cerr << endl << "We are keeping: ";
-  foreach( const TimeRange &range, m_doNotUseTimeRanges ) cerr << range << ", ";
+  foreach( const TimeRange &range, m_doNotUseTimeRanges )
+    cerr << range << ", ";
   cerr << endl << endl;
 
 
@@ -2872,11 +2876,25 @@ bool NLSimple::saveToFile( std::string filename )
 
 
 
-double NLSimple::getFitDof() const { return m_effectiveDof; }
-void NLSimple::setFitDof( double dof ) { m_effectiveDof = dof; }
+double NLSimple::getFitDof() const
+{
+  return m_effectiveDof;
+}
 
-double ModelTestFCN::Up() const { return m_modelPtr->getFitDof(); }
-void ModelTestFCN::SetErrorDef(double dof) {  m_modelPtr->setFitDof(dof); }
+void NLSimple::setFitDof( double dof )
+{
+  m_effectiveDof = dof;
+}
+
+double ModelTestFCN::Up() const
+{
+  return m_modelPtr->getFitDof();
+}
+
+void ModelTestFCN::SetErrorDef(double dof)
+{
+  m_modelPtr->setFitDof(dof);
+}
 
 
 ModelTestFCN::ModelTestFCN( NLSimple *modelPtr,
@@ -2909,7 +2927,7 @@ double ModelTestFCN::testParamaters(const std::vector<double>& x, bool updateMod
     }//if( crap )
   }//foreach( parameter )
 
-  const time_duration cgmsDelay = m_modelPtr->m_settings.m_cgmsDelay;
+//  const time_duration cgmsDelay = m_modelPtr->m_settings.m_cgmsDelay;
   const time_duration predTime = m_modelPtr->m_settings.m_predictAhead;
   m_modelPtr->setModelParameters( x ); //calls resetPredictions()
 
@@ -2918,7 +2936,8 @@ double ModelTestFCN::testParamaters(const std::vector<double>& x, bool updateMod
 
   double chi2 = 0.0;
 
-  // foreach( double xi, x ) cout << " " << xi;
+  // foreach( double xi, x )
+  //   cout << " " << xi;
   // cout << endl;
 
   foreach( const TimeRange &tr, m_timeRanges )

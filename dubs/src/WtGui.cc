@@ -2372,9 +2372,10 @@ GeneticallyOptimizeTab::~GeneticallyOptimizeTab()
 {
   if( m_currentOptThread )
   {
-    cerr << SRC_LOCATION << "\n\tWarning, m_currentOptThread is still going!!" << endl;
+    cerr << SRC_LOCATION
+         << "\n\tWarning, m_currentOptThread is still going!!" << endl;
+//    m_parentWtGui->
     m_currentOptThread->join();
-    m_currentOptThread.reset();
   }//
 }//~GeneticallyOptimizeTab()
 
@@ -2392,6 +2393,13 @@ void GeneticallyOptimizeTab::updateDateSelectLimits()
 
 void GeneticallyOptimizeTab::startMinuit2Optimization()
 {
+  if( m_currentOptThread )
+  {
+    WApplication::UpdateLock appLock( m_parentWtGui->app() );
+    m_parentWtGui->app()->doJavaScript( "alert( 'Currently bussy performing another optimization, sorry :(' );", false );
+    return;
+  }//if( m_currentOptThread )
+
   boost::function<void(void)> worker;
   worker = boost::bind( &GeneticallyOptimizeTab::doMinuit2Optimization, this );
 //  WServer::instance()->post( m_parentWtGui->app()->sessionId(), worker );
@@ -2399,33 +2407,55 @@ void GeneticallyOptimizeTab::startMinuit2Optimization()
 }//void GeneticallyOptimizeTab::startMinuit2Optimization()
 
 
+
 void GeneticallyOptimizeTab::doMinuit2Optimization()
 {
-  NLSimplePtr model( m_parentWtGui, false,
-                     "Failed to get thread lock for Minuit2 minimization. "
-                     "Are you trying to optimize the same model twice at the "
-                     "same time?"
-                     + string(SRC_LOCATION) );
-  if( !model )
-    return;
-
   WText *text = NULL;
+  TimeRangeVec timeRange;
 
   {
+    NLSimplePtr model( m_parentWtGui, false,
+                       "Failed to get thread lock for Minuit2 minimization. "
+                       "Are you trying to optimize the same model twice at the "
+                       "same time?"
+                       + string(SRC_LOCATION) );
+    if( !model )
+      return;
+
     WApplication::UpdateLock appLock( m_parentWtGui->app() );
     m_startOptimization->hide();
     text = new WText( "<font color=\"blue\"><b>Currently Optimizing</b></font>", XHTMLUnsafeText );
     m_layout->addWidget( text, WBorderLayout::North );
+
+    PosixTime startTime = m_startTrainingTimeSelect->currentValue();
+    PosixTime endTime = m_endTrainingTimeSelect->currentValue();
+
+    startTime = std::max( startTime, model->m_cgmsData.getStartTime() );
+    endTime = std::min( endTime, model->m_cgmsData.getEndTime() );
+
+    timeRange.push_back( TimeRange(startTime, endTime) );
+
     m_parentWtGui->app()->triggerUpdate();
   }//
 
 
-
-  model->fitModelToDataViaMinuit2( model->m_settings.m_lastPredictionWeight );
-
+  try
+  {
+    GeneticEvalUtils::perform_migrad_optimization( m_parentWtGui, timeRange );
+//  model->fitModelToDataViaMinuit2( model->m_settings.m_lastPredictionWeight );
+  }catch( std::exception &e )
+  {
+    WApplication::UpdateLock appLock( m_parentWtGui->app() );
+    doJavaScript( "alert( 'Optimization failed due to: " + string(e.what()) + "');" );
+    m_parentWtGui->app()->triggerUpdate();
+  }//try / catch
 
   {
     WApplication::UpdateLock appLock( m_parentWtGui->app() );
+
+    m_parentWtGui->syncDisplayToModel();
+    m_parentWtGui->updateClarkAnalysis();
+
     m_startOptimization->show();
     m_layout->removeWidget( text );
     m_parentWtGui->app()->triggerUpdate();
@@ -2434,7 +2464,6 @@ void GeneticallyOptimizeTab::doMinuit2Optimization()
     worker = boost::bind( &GeneticallyOptimizeTab::optimizationFinished, this );
     WServer::instance()->post( m_parentWtGui->app()->sessionId(), worker );
   }//
-
 }//void GeneticallyOptimizeTab::doMinuit2Optimization()
 
 
@@ -2443,10 +2472,12 @@ void GeneticallyOptimizeTab::optimizationFinished()
   if( !m_currentOptThread )
   {
     cerr << SRC_LOCATION << "\n\t!m_currentOptThread" << endl;
+    return;
   }
 
 
   WApplication::UpdateLock appLock( m_parentWtGui->app() );
+
   m_currentOptThread->join();
   m_currentOptThread.reset();
 }//void optimizationFinished()
@@ -2486,6 +2517,13 @@ void GeneticallyOptimizeTab::setChi2YRange( double ymin, double ymax )
 
 void GeneticallyOptimizeTab::startOptimization()
 {
+  if( m_currentOptThread )
+  {
+    WApplication::UpdateLock appLock( m_parentWtGui->app() );
+    m_parentWtGui->app()->doJavaScript( "alert( 'Currently bussy performing another optimization, sorry :(' );", false );
+    return;
+  }//if( m_currentOptThread )
+
   boost::function<void(void)> worker;
   worker = boost::bind( &GeneticallyOptimizeTab::doGeneticOptimization, this );
 
@@ -2567,7 +2605,7 @@ void GeneticallyOptimizeTab::doGeneticOptimization()
   cerr << "about to do the workptr" << endl;
   try
   {
-    GeneticEvalUtils::perform_optimiation( m_parentWtGui,
+    GeneticEvalUtils::perform_genetic_optimization( m_parentWtGui,
                                            timeRange, chi2Calback, continueFcn );
 
 //    model->geneticallyOptimizeModel( model->m_settings.m_lastPredictionWeight,
@@ -2585,9 +2623,6 @@ void GeneticallyOptimizeTab::doGeneticOptimization()
     cerr << msg << endl;
   }//try / catch
 
-  m_parentWtGui->syncDisplayToModel();
-  m_parentWtGui->updateClarkAnalysis();
-
   //just to make sure we don't loose all this work
   const std::string &fileName = m_parentWtGui->currentFileName();
   if( fileName != "" )
@@ -2595,6 +2630,9 @@ void GeneticallyOptimizeTab::doGeneticOptimization()
 
   {
     WApplication::UpdateLock appLock( m_parentWtGui->app() );
+    m_parentWtGui->syncDisplayToModel();
+    m_parentWtGui->updateClarkAnalysis();
+
     m_stopOptimization->hide();
     m_startOptimization->show();
     m_layout->removeWidget( text );

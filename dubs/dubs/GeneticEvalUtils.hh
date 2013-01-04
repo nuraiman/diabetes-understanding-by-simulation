@@ -25,11 +25,15 @@ extern "C"
 namespace GeneticEvalUtils
 {
 
-double perform_optimiation( WtGui *gui,
+
+double perform_genetic_optimization( WtGui *gui,
                           std::vector<boost::posix_time::time_period> timeRanges,
                           boost::function<void (double bestChi2)> genBestCallBackFcn,
                           boost::function<bool (void)> continueFcn
                           );
+
+double perform_migrad_optimization( WtGui *gui,
+                                 std::vector<boost::posix_time::time_period> timeRanges );
 
 bool eval_ga_struggle_score( population *pop, entity *dude );
 bool seed_initial_parameters( population *pop, entity *adam );
