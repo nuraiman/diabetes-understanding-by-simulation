@@ -40,6 +40,7 @@
 
 #include "dubs/WtGui.hh"
 #include "dubs/WtUtils.hh"
+#include "dubs/DubsApplication.hh"
 #include "dubs/ArtificialPancrease.hh"
 
 using namespace Wt;
@@ -77,6 +78,10 @@ DateTimeSelect::DateTimeSelect( const std::string &labelText,
     m_bottom( WDate(1901,1,1), WTime(0,0,0) ),
     m_dateTime( initialTime )
 {
+  m_app = wApp;
+  if( !m_app )
+    throw runtime_error( SRC_LOCATION + ": unable to get wApp" );
+
   setInline(true);
   setStyleClass( "DateTimeSelect" );
 
@@ -302,6 +307,11 @@ MemVariableSpinBox::MemVariableSpinBox( const string &label,
   : WContainerWidget( parent ),
     m_spinBox( new WDoubleSpinBox() )
 {
+  m_app = wApp;  //Get WApplication now, so we can update things outside main event loop
+
+  if( !m_app )
+    throw runtime_error( SRC_LOCATION + ": unable to get wApp" );
+
   setStyleClass( "MemVariableSpinBox" );
   if( label != "" ) (new WLabel( label, this ))->setBuddy( m_spinBox );
   addWidget( m_spinBox );
@@ -316,15 +326,28 @@ MemVariableSpinBox::MemVariableSpinBox( const string &label,
 
 MemVariableSpinBox::LockShrdPtr MemVariableSpinBox::getLock()
 {
-  WtGui *gui = dynamic_cast<WtGui *>(wApp);
-  if( !gui ) return LockShrdPtr();
+  DubsApplication *app = dynamic_cast<DubsApplication *>(m_app);
+  if( !app )
+  {
+    cerr << "\n\n!app, m_app=" << m_app << endl << endl << endl;
+    return LockShrdPtr();
+  }
+
+  WtGui *gui = app->gui();
+
+  if( !gui )
+  {
+    //shouldnt ever happen
+    cerr << "\n\n!gui\n\n\n" << endl;
+    return LockShrdPtr();
+  }
 
   LockShrdPtr lock( new Lock(gui->modelMutex(), boost::try_to_lock ) );
 
   if( !(*lock) )
   {
     const string msg = "Sorry, you can't change this value while your computing model parameters";
-    wApp->doJavaScript( "alert( \"" + msg + "\" )", true );
+    m_app->doJavaScript( "alert( \"" + msg + "\" )", true );
     cerr << endl << msg << endl;
     updateGuiFromMemmory();
     return LockShrdPtr();
@@ -400,7 +423,8 @@ void IntSpinBox::updateMemmoryFromGui()
 {
   LockShrdPtr lock = getLock();
   assert( lock.get() );
-  if( !(*lock) ) return;
+  if( !(*lock) )
+    return;
   (*m_memVariable) = floor( m_spinBox->value() + 0.5 );
 }//
 
@@ -408,7 +432,8 @@ void DoubleSpinBox::updateMemmoryFromGui()
 {
   LockShrdPtr lock = getLock();
   assert( lock.get() );
-  if( !(*lock) ) return;
+  if( !(*lock) )
+    return;
   (*m_memVariable) = m_spinBox->value();
 }//
 
@@ -444,7 +469,7 @@ void MemGuiTimeDate::updateMemmoryFromGui()
   typedef boost::recursive_mutex::scoped_lock Lock;
   typedef boost::shared_ptr<Lock> LockShrdPtr;
 
-  WtGui *gui = dynamic_cast<WtGui *>(wApp);
+  WtGui *gui = dynamic_cast<WtGui *>(m_app);
 
   if( gui )
   {
@@ -453,7 +478,7 @@ void MemGuiTimeDate::updateMemmoryFromGui()
     if( !(*lock) )
     {
       const string msg = "Sorry, you can't change this value while your computing model parameters";
-      wApp->doJavaScript( "alert( \"" + msg + "\" )", true );
+      m_app->doJavaScript( "alert( \"" + msg + "\" )", true );
       cerr << endl << msg << endl;
       updateGuiFromMemmory();
       return;

@@ -88,6 +88,7 @@ set( sources
     src/DubsApplication.cc
     src/OverlayCanvas.cc
     js/OverlayCanvas.js
+    src/GeneticEvalFcns.cc
 )
 
 
@@ -108,6 +109,7 @@ set( headers
     dubs/DubsSession.hh
     dubs/DubsApplication.hh
     dubs/OverlayCanvas.hh
+    dubs/GeneticEvalFcns.hh
 )
 
 

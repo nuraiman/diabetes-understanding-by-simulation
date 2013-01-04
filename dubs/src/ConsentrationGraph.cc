@@ -216,8 +216,15 @@ std::string ConsentrationGraph::getGraphTypeStr() const
   return "";
 }//getGraphTypeStr
 
-TimeDuration ConsentrationGraph::getDt() const { return m_dt; }
-boost::posix_time::ptime ConsentrationGraph::getT0() const { return m_t0; }
+TimeDuration ConsentrationGraph::getDt() const
+{
+  return m_dt;
+}
+
+boost::posix_time::ptime ConsentrationGraph::getT0() const
+{
+  return m_t0;
+}
 
 boost::posix_time::ptime ConsentrationGraph::getStartTime() const
 {

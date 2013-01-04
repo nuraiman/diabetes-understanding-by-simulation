@@ -98,6 +98,9 @@ protected:
   Wt::JSignal<std::string> *m_jsException;
 
   Wt::JSlot *m_alignWithParentSlot;  //depreciated - should be removed or something
+
+
+  std::vector< boost::shared_ptr<Wt::JSlot> > m_jslots;
 private:
   Wt::Chart::WAbstractChart* m_parent;
 };//class OverlayCanvas

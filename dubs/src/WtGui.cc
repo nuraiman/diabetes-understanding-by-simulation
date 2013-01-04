@@ -91,6 +91,7 @@
 #include "dubs/ProgramOptions.hh"
 #include "dubs/CgmsDataImport.hh"
 #include "dubs/WtChartClasses.hh"
+#include "dubs/GeneticEvalFcns.hh"
 #include "dubs/DubsApplication.hh"
 #include "dubs/WtUserManagment.hh"
 #include "dubs/WtCreateNLSimple.hh"
@@ -120,8 +121,11 @@ NLSimplePtr::NLSimplePtr( WtGui *gui, const bool waite, const std::string &failu
 
   if( m_parent )
   {
-    if( waite ) m_lock.reset( new RecursiveScopedLock( m_parent->m_modelMutex ) );
-    else m_lock.reset( new RecursiveScopedLock( m_parent->m_modelMutex, boost::try_to_lock ) );
+    if( waite )
+    {
+      m_lock.reset( new RecursiveScopedLock( m_parent->m_modelMutex ) );
+    }else
+      m_lock.reset( new RecursiveScopedLock( m_parent->m_modelMutex, boost::try_to_lock ) );
   }//if( gui )
 
   if( !m_parent || !m_lock->owns_lock() )
@@ -189,6 +193,7 @@ WtGui::WtGui( Wt::Dbo::ptr<DubUser> user, Wt::WApplication *app, Wt::WContainerW
     m_upperEqnDiv( NULL ),
     m_fileMenuPopup( NULL ),
     m_tabs( NULL ),
+    m_optimizationTab( NULL ),
     m_nlSimleDisplayModel( new NLSimpleDisplayModel( this, NULL ) ),
     m_overviewTab( NULL ),
     m_bsModel( NULL ),
@@ -607,8 +612,9 @@ void WtGui::init()
   /*Div *optionsTabDiv = new Div( "optionsTabDiv" );
   m_tabs->addTab( optionsTabDiv, "Options" );*/
 
-  GeneticallyOptimizeTab *optimizationTab = new GeneticallyOptimizeTab( this );
-  m_tabs->addTab( optimizationTab, "Optimize" );
+
+  m_optimizationTab = new GeneticallyOptimizeTab( this );
+  m_tabs->addTab( m_optimizationTab, "Optimize" );
 
   Div *errorGridTabDiv = new Div( "errorGridTabDiv" );
   WBorderLayout *errorGridTabLayout = new WBorderLayout();
@@ -2188,7 +2194,8 @@ void ModelSettingsTab::init()
 
 
 GeneticallyOptimizeTab::GeneticallyOptimizeTab( WtGui *wtGuiParent, Wt::WContainerWidget *parent )
-  : WContainerWidget( parent ), m_parentWtGui( wtGuiParent )
+  : WContainerWidget( parent ),
+    m_parentWtGui( wtGuiParent )
 {
   setInline(false);
   setStyleClass( "GeneticallyOptimizeTab" );
@@ -2269,7 +2276,6 @@ GeneticallyOptimizeTab::GeneticallyOptimizeTab( WtGui *wtGuiParent, Wt::WContain
       if( !transaction.commit() )
         cerr << "\nDid not commit adding to the chi2 of the optimization\n" << endl;
     }//if( user && user.session() )
-
   }
 
 
@@ -2280,10 +2286,16 @@ GeneticallyOptimizeTab::GeneticallyOptimizeTab( WtGui *wtGuiParent, Wt::WContain
   m_chi2Graph->setXSeriesColumn(0);
   m_chi2Graph->setLegendEnabled(false);
   m_chi2Graph->setPlotAreaPadding( 70, Wt::Bottom );
-  m_chi2Graph->axis(Chart::YAxis).setTitle( "Best &chi;2" );
+  m_chi2Graph->axis(Chart::YAxis).setTitle( L"Best \x03A7\x00B2" );
   m_chi2Graph->setMinimumSize( 200, 150 );
   m_chi2Graph->axis(Chart::XAxis).setTitle( "Generation Number" );
   m_chi2Graph->addSeries( Chart::WDataSeries( 1, Chart::LineSeries ) );
+
+  if( m_chi2DbModel->rowCount() < 2 )
+  {
+    setChi2XRange( 0.0, 1.0 );
+    setChi2YRange( 0.0, 10000.0 );
+  }
 
 
   Div *graphsDiv = new Div();
@@ -2349,14 +2361,22 @@ GeneticallyOptimizeTab::GeneticallyOptimizeTab( WtGui *wtGuiParent, Wt::WContain
   m_stopOptimization->hide();
   m_stopOptimization->clicked().connect( boost::bind( &GeneticallyOptimizeTab::setContinueOptimizing, this, false ) );
 
-  m_minuit2Optimization = new WPushButton( "Minuit2 Fine Tune", buttonDiv );
+  m_minuit2Optimization = new WPushButton( "Simplex Fine Tune", buttonDiv );
   m_minuit2Optimization->clicked().connect( this, &GeneticallyOptimizeTab::startMinuit2Optimization );
 
   syncGraphDataToNLSimple();
 }//GeneticallyOptimizeTab
 
 
-GeneticallyOptimizeTab::~GeneticallyOptimizeTab() {};
+GeneticallyOptimizeTab::~GeneticallyOptimizeTab()
+{
+  if( m_currentOptThread )
+  {
+    cerr << SRC_LOCATION << "\n\tWarning, m_currentOptThread is still going!!" << endl;
+    m_currentOptThread->join();
+    m_currentOptThread.reset();
+  }//
+}//~GeneticallyOptimizeTab()
 
 
 void GeneticallyOptimizeTab::updateDateSelectLimits()
@@ -2372,20 +2392,22 @@ void GeneticallyOptimizeTab::updateDateSelectLimits()
 
 void GeneticallyOptimizeTab::startMinuit2Optimization()
 {
-  new boost::thread( boost::bind( &GeneticallyOptimizeTab::doMinuit2Optimization, this ) );
+  boost::function<void(void)> worker;
+  worker = boost::bind( &GeneticallyOptimizeTab::doMinuit2Optimization, this );
+//  WServer::instance()->post( m_parentWtGui->app()->sessionId(), worker );
+  m_currentOptThread.reset( new boost::thread( worker ) );
 }//void GeneticallyOptimizeTab::startMinuit2Optimization()
 
 
 void GeneticallyOptimizeTab::doMinuit2Optimization()
 {
-  //m_parentWtGui->attachThread();
-
   NLSimplePtr model( m_parentWtGui, false,
                      "Failed to get thread lock for Minuit2 minimization. "
                      "Are you trying to optimize the same model twice at the "
                      "same time?"
                      + string(SRC_LOCATION) );
-  if( !model ) return;
+  if( !model )
+    return;
 
   WText *text = NULL;
 
@@ -2394,8 +2416,7 @@ void GeneticallyOptimizeTab::doMinuit2Optimization()
     m_startOptimization->hide();
     text = new WText( "<font color=\"blue\"><b>Currently Optimizing</b></font>", XHTMLUnsafeText );
     m_layout->addWidget( text, WBorderLayout::North );
-    if( appLock )
-      m_parentWtGui->app()->triggerUpdate();
+    m_parentWtGui->app()->triggerUpdate();
   }//
 
 
@@ -2407,18 +2428,72 @@ void GeneticallyOptimizeTab::doMinuit2Optimization()
     WApplication::UpdateLock appLock( m_parentWtGui->app() );
     m_startOptimization->show();
     m_layout->removeWidget( text );
-    if( appLock )
-      m_parentWtGui->app()->triggerUpdate();
+    m_parentWtGui->app()->triggerUpdate();
+
+    boost::function<void(void)> worker;
+    worker = boost::bind( &GeneticallyOptimizeTab::optimizationFinished, this );
+    WServer::instance()->post( m_parentWtGui->app()->sessionId(), worker );
   }//
 
 }//void GeneticallyOptimizeTab::doMinuit2Optimization()
 
 
+void GeneticallyOptimizeTab::optimizationFinished()
+{
+  if( !m_currentOptThread )
+  {
+    cerr << SRC_LOCATION << "\n\t!m_currentOptThread" << endl;
+  }
+
+
+  WApplication::UpdateLock appLock( m_parentWtGui->app() );
+  m_currentOptThread->join();
+  m_currentOptThread.reset();
+}//void optimizationFinished()
+
+void GeneticallyOptimizeTab::setChi2XRangeAuto()
+{
+  m_chi2Graph->axis(Chart::XAxis).setAutoLimits( Chart::MinimumValue | Chart::MaximumValue );
+}
+
+void GeneticallyOptimizeTab::setChi2YRangeAuto()
+{
+  m_chi2Graph->axis(Chart::YAxis).setAutoLimits( Chart::MinimumValue | Chart::MaximumValue );
+}
+
+
+void GeneticallyOptimizeTab::setChi2XRange( double ymin, double ymax )
+{
+  if( ymin > ymax )
+    swap( ymin, ymax );
+
+  if( fabs(ymin-ymax) < 0.01 )
+    ymax += 1.0;
+
+  m_chi2Graph->axis(Chart::XAxis).setRange( ymin, ymax );
+}//void setChi2XRange( double ymin, double ymax )
+
+void GeneticallyOptimizeTab::setChi2YRange( double ymin, double ymax )
+{
+  if( ymin > ymax )
+    swap( ymin, ymax );
+
+  if( fabs(ymin-ymax) < 0.01 )
+    ymax += 1.0;
+
+  m_chi2Graph->axis(Chart::YAxis).setRange( ymin, ymax );
+}//setChi2YRange( double ymin, double ymax )
+
 void GeneticallyOptimizeTab::startOptimization()
 {
-  WServer::instance()->post( m_parentWtGui->app()->sessionId(),
-                             boost::bind( &GeneticallyOptimizeTab::doGeneticOptimization, this ) );
-//  new boost::thread( boost::bind( &GeneticallyOptimizeTab::doGeneticOptimization, this ) );
+  boost::function<void(void)> worker;
+  worker = boost::bind( &GeneticallyOptimizeTab::doGeneticOptimization, this );
+
+//  cerr << "Launching optimization in a new thread" << endl;
+//  WServer::instance()->post( m_parentWtGui->app()->sessionId(),
+//                             boost::bind( &GeneticallyOptimizeTab::doGeneticOptimization, this ) );
+
+  m_currentOptThread.reset( new boost::thread( worker ) );
 }//void GeneticallyOptimizeTab::startOptimization()
 
 
@@ -2426,22 +2501,23 @@ void GeneticallyOptimizeTab::doGeneticOptimization()
 {
   //std::vector<Wt::WWidget *> m_disableWhenBusyItems;
   //foreach( WWidget *w, m_disableWhenBusyItems ) w->setDisabled(true);
-  //m_parentWtGui->attachThread();
+
+//  m_parentWtGui->app()->attachThread(true);
 
   setContinueOptimizing( true );
-
-  NLSimplePtr model( m_parentWtGui, false,
-                     "Failed to get thread lock for genetic minimization. "
-                     "Are you trying to optimize the same model twice at the "
-                     "same time?"
-                     + string( SRC_LOCATION ) );
-  if( !model )
-    return;
 
   WText *text = NULL;
   TimeRangeVec timeRange;
 
   {
+    NLSimplePtr model( m_parentWtGui, false,
+                       "Failed to get thread lock for genetic minimization. "
+                       "Are you trying to optimize the same model twice at the "
+                       "same time?"
+                       + string( SRC_LOCATION ) );
+    if( !model )
+      return;
+
     WApplication::UpdateLock appLock( m_parentWtGui->app() );
     //if( appLock )
 
@@ -2457,8 +2533,8 @@ void GeneticallyOptimizeTab::doGeneticOptimization()
     m_startOptimization->hide();
     text = new WText( "<font color=\"blue\"><b>Currently Optimizing</b></font>", XHTMLUnsafeText );
     m_layout->addWidget( text, WBorderLayout::North );
-    if( appLock )
-      m_parentWtGui->app()->triggerUpdate();
+//    if( appLock )
+    m_parentWtGui->app()->triggerUpdate();
   }//
 
 //  m_bestChi2.clear();
@@ -2484,17 +2560,18 @@ void GeneticallyOptimizeTab::doGeneticOptimization()
     }//if( user && user.session() )
   }
 
-
-
-  NLSimple::Chi2CalbackFcn chi2Calback = boost::bind( &GeneticallyOptimizeTab::optimizationUpdateFcn, this, _1);
-  NLSimple::ContinueFcn continueFcn = boost::bind( &GeneticallyOptimizeTab::continueOptimizing, this);
+  boost::function<void(double)> chi2Calback = boost::bind( &GeneticallyOptimizeTab::optimizationUpdateFcn, this, _1);
+  boost::function<bool(void)> continueFcn = boost::bind( &GeneticallyOptimizeTab::continueOptimizing, this);
 
 
   cerr << "about to do the workptr" << endl;
   try
   {
-    model->geneticallyOptimizeModel( model->m_settings.m_lastPredictionWeight,
-                                     timeRange, chi2Calback, continueFcn );
+    GeneticEvalUtils::perform_optimiation( m_parentWtGui,
+                                           timeRange, chi2Calback, continueFcn );
+
+//    model->geneticallyOptimizeModel( model->m_settings.m_lastPredictionWeight,
+//                                     timeRange, chi2Calback, continueFcn );
   }catch( exception &e )
   {
     string msg = "Warning: Optimization failed:\n";
@@ -2513,18 +2590,21 @@ void GeneticallyOptimizeTab::doGeneticOptimization()
 
   //just to make sure we don't loose all this work
   const std::string &fileName = m_parentWtGui->currentFileName();
-  if( fileName != "" ) m_parentWtGui->saveCurrentModel();
+  if( fileName != "" )
+    m_parentWtGui->saveCurrentModel();
 
   {
     WApplication::UpdateLock appLock( m_parentWtGui->app() );
     m_stopOptimization->hide();
     m_startOptimization->show();
     m_layout->removeWidget( text );
-    if( appLock )
-      m_parentWtGui->app()->triggerUpdate();
+    m_parentWtGui->app()->triggerUpdate();
+    WServer::instance()->post( m_parentWtGui->app()->sessionId(),
+                                 boost::bind( &GeneticallyOptimizeTab::optimizationFinished, this ) );
   }//
 
   //foreach( WWidget *w, m_disableWhenBusyItems ) w->setDisabled(false);
+
 }//void doGeneticOptimization()
 
 
@@ -2577,7 +2657,8 @@ void GeneticallyOptimizeTab::optimizationUpdateFcn( double chi2 )
   if( m_saveAfterEachGeneration->isChecked() )
   {
    const std::string &fileName = m_parentWtGui->currentFileName();
-   if( fileName != "" ) m_parentWtGui->saveCurrentModel();
+   if( fileName != "" )
+     m_parentWtGui->saveCurrentModel();
   }//if( we want to save the model )
 
   // Push the changes to the browser

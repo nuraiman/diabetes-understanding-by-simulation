@@ -65,7 +65,7 @@ function( x0, x1, y0, y1, e )
    //  shiftkey = n[9];
    //  mouseWheelDelta = n[10];
 
-  var result = '' + x0 + '&' + x1 + '&' + y0 + '&' + y1;
+    var result = "" + x0 + '&' + x1 + '&' + y0 + '&' + y1;
   var button = this.button(e);
   if(!button)
   {

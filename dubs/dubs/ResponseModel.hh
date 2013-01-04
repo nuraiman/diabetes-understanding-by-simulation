@@ -68,15 +68,18 @@
 *    --have a default range selector (so times when cgms isn't in use won't be used)
 *******************************************************************************/
 
-class TVirtualPad;
+
 class NLSimple;
-
-
 class EventDef;
-//class TSpline3;
+class ModelTestFCN;
 namespace magnet{ namespace math{ class Spline; } }
 
 class CustomEventAmplitudeCache;
+
+#if( USE_CERNS_ROOT )
+class TVirtualPad;
+//class TSpline3;
+#endif
 
 enum EventDefType
 {
@@ -201,6 +204,7 @@ class NLSimple
 
 
     //Start constructors/member-functions
+    NLSimple( const NLSimple &rhs );
     NLSimple( std::string fileName );
     NLSimple( const std::string &description,
               double basalUnitsPerKiloPerhour,
@@ -284,6 +288,11 @@ class NLSimple
     void setModelParameters( const std::vector<double> &newPar );
     void setModelParameterErrors( std::vector<double> &newParErrorLow,
                                   std::vector<double> &newParErrorHigh );
+
+
+    //Function to get the valid range of parameters.  'parNum' is NLSimplePars
+    //  then followed by custom event parameter values
+    static void parameterRange( int parNum, double &lowX, double &highX );
 
     TimeDuration findCgmsDelayFromFingerStick() const;
     double findCgmsErrorFromFingerStick( const TimeDuration cgms_delay ) const;
@@ -372,16 +381,25 @@ class NLSimple
     double getFitDof() const;
     void setFitDof( double dof );
 
+    //Functions added when converting to GAUL genetic algorithm
+    const ModelSettings &settings() const { return m_settings; }
+    const EventDefMap &customEventDefs() const { return m_customEventDefs; }
+    const ConsentrationGraph &customEvents() const { return m_customEvents; }
+    DVec &paramaters() { return m_paramaters; }
+    DVec &paramaterErrorPlus() { return m_paramaterErrorPlus; }
+    DVec &paramaterErrorMinus() { return m_paramaterErrorMinus; }
+    const PTimeVec &startSteadyStateTimes() const { return m_startSteadyStateTimes; }
+
 
     //For model fiting, specifying nMinutesPredict<=0.0 means don't use cgms
     //  data tomake predictions, in which case endPredChi2Weight is predicted
     //  as what weight to give to the derivative based chi2
-    typedef boost::function<bool (void)> ContinueFcn;
-    typedef boost::function<void (double bestChi2)> Chi2CalbackFcn;
-    double geneticallyOptimizeModel( double endPredChi2Weight,
-                                     TimeRangeVec timeRanges = EmptyTimeRangeVec,
-                                     Chi2CalbackFcn genBestCallBackFcn = Chi2CalbackFcn(),
-                                     ContinueFcn continueFcn = ContinueFcn() );
+//    typedef boost::function<bool (void)> ContinueFcn;
+//    typedef boost::function<void (double bestChi2)> Chi2CalbackFcn;
+//    double geneticallyOptimizeModel( double endPredChi2Weight,
+//                                     TimeRangeVec timeRanges = EmptyTimeRangeVec,
+//                                     Chi2CalbackFcn genBestCallBackFcn = Chi2CalbackFcn(),
+//                                     ContinueFcn continueFcn = ContinueFcn() );
 
     double fitModelToDataViaMinuit2( double endPredChi2Weight,
                                      TimeRangeVec timeRanges = EmptyTimeRangeVec );
@@ -429,6 +447,11 @@ class NLSimple
 
 
 //An interace for NLSimple to Minuit2 and the Genetic Optimizer
+/*
+ *Note 20130103: ModelTestFCN class is not thread safe, and you should not use
+ *               it with a NLSimple model that current is being used for a GUI,
+ *               unless there is a lock (via NLSimplePtr) the entire time.
+*/
 class ModelTestFCN : public ROOT::Minuit2::FCNBase, public TMVA::IFitterTarget
 {
   public:
@@ -443,16 +466,14 @@ class ModelTestFCN : public ROOT::Minuit2::FCNBase, public TMVA::IFitterTarget
     //the function that does the actual work
     double testParamaters(const std::vector<double>& x, bool updateModel ) const;
 
+    //ModelTestFCN actually makes a copy of `modelPtr` so as to not modify
+    //  the original model passed in
     ModelTestFCN( NLSimple *modelPtr,
                   double endPredChi2Weight,
                   std::vector<TimeRange> timeRanges );
 
-    virtual ~ModelTestFCN(){}
-
-public:
-    //XXX - temporary hack for evaluating GAUL
-    boost::function<bool (void)> m_shouldCntinueFcn;
-    boost::function<void (double bestChi2)> m_bestChi2CalbackFcn;
+    virtual ~ModelTestFCN()
+    {}
 
   private:
     NLSimple *m_modelPtr;
