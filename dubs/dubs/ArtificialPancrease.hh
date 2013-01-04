@@ -15,10 +15,6 @@
 
 const double kFailValue = -9999.9;
 
-class TApplication;
-extern TApplication *gTheApp; //I think I could get rid of this and just us gApplication
-
-
 typedef std::vector<double>               DVec;
 typedef boost::posix_time::ptime          PosixTime;
 typedef boost::posix_time::time_duration  TimeDuration;

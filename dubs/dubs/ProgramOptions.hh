@@ -8,7 +8,6 @@
 // so I should have the gui in a seperate file, but in the interest of easy
 //  programming, I'll do this later (maybe)
 
-//We have to hide anything boost from ROOTS CINT
 
 #include <boost/program_options.hpp>
 

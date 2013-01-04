@@ -40,7 +40,7 @@
 #include "dubs/ResponseModel.hh"
 #include "dubs/KineticModels.hh"
 #include "dubs/CgmsDataImport.hh"
-#include "dubs/GeneticEvalFcns.hh"
+#include "dubs/GeneticEvalUtils.hh"
 #include "dubs/ConsentrationGraph.hh"
 #include "dubs/ArtificialPancrease.hh"
 #include "dubs/RungeKuttaIntegrater.hh"
@@ -55,9 +55,6 @@ using namespace std;
 using namespace boost;
 using namespace boost::posix_time;
 
-#if(USE_CERNS_ROOT)
-extern TApplication *gTheApp;
-#endif
 
 //To make the code prettier
 #define foreach         BOOST_FOREACH
@@ -108,10 +105,8 @@ double perform_optimiation( WtGui *gui,
   dataForOpt.m_genSigmaMult       = settings.m_genSigmaMult;
   dataForOpt.m_genConvergCriteria = settings.m_genConvergCriteria;
   dataForOpt.m_fittnesFunc        = fittnesFunc;
+  dataForOpt.m_genSigma           = 10.0;
 
-
-  if( dataForOpt.m_genSigmaMult <= 0.0 )
-    dataForOpt.m_genSigmaMult = 10.0;
 
   //Get ready for optimization
   model->paramaters().clear();
@@ -336,7 +331,7 @@ bool generation_start_hook( const int generation, population *pop )
     ymax = *std::max_element( data->m_generationsBestChi2.begin(), data->m_generationsBestChi2.end() );
 
     const double nChi2 = static_cast<double>( data->m_generationsBestChi2.size() );
-    data->m_gui->geneticOptimizationTab()->setChi2XRange( 0.0, nChi2 + 2 );
+    data->m_gui->geneticOptimizationTab()->setChi2XRange( 0.0, nChi2 + 1 );
     data->m_gui->geneticOptimizationTab()->setChi2YRange( ymin, 1.2*ymax );
     data->m_gui->syncDisplayToModel();
     data->m_gui->app()->triggerUpdate();
@@ -354,11 +349,49 @@ bool generation_start_hook( const int generation, population *pop )
   // b) equal, do nothing
   // c) larger than m_genNStepImprove, then multiply the present sigma by m_genSigmaMult
   //
-  //If convergence hasn't improvedmore than m_genConvergCriteria in the last
+  //If convergence hasn't improved more than m_genConvergCriteria in the last
   //  m_genConvergNsteps, then consider minimization complete
-  if( generation < data->m_genConvergCriteria )
-    return true;
 
+  const int nstep = data->m_genConvergNsteps;
+
+  vector<double> &chi2s = data->m_generationsBestChi2;
+
+  if( (nstep<=0) || (generation < nstep) || (chi2s.size()<size_t(nstep)) )
+  {
+    cerr << "generation < data->m_genConvergCriteria" << endl;
+    return true;
+  }
+
+  vector<double>::const_iterator pos = chi2s.begin() + chi2s.size() - nstep;
+  const double minus_n_val = *pos;
+  const double improvment = minus_n_val - bestChi2;
+
+  if( improvment < data->m_genConvergCriteria )
+  {
+    cerr << "Improvment is only " << improvment << " over the last " << nstep
+         << " generations, where convergence criteria is "
+         << data->m_genConvergCriteria << endl;
+    return false;
+  }//if( improvment < data->m_genConvergCriteria )
+
+  int num_improvments = -1;
+  double prev_chi2 = DBL_MAX;
+  for( ; pos != chi2s.end(); ++pos )
+  {
+    if( (*pos) < prev_chi2 )
+      ++num_improvments;
+    prev_chi2 = *pos;
+  }//for( ; pos != chi2s.end(); ++pos )
+
+  cerr << "Saw " << num_improvments << " improvments over the last " << nstep
+       << " generations, changing sigma from " << data->m_genSigma << " to ";
+
+  if( num_improvments < data->m_genNStepImprove )
+    data->m_genSigma /= data->m_genSigmaMult;
+  else if( num_improvments > data->m_genNStepImprove )
+    data->m_genSigma *= data->m_genSigmaMult;
+
+  cerr << data->m_genSigma << "." << endl;
 
   return true;
 }//bool generation_start_hook( const int generation, population *pop )
@@ -394,7 +427,7 @@ void mutate_ga_params( population *pop, entity *father, entity *son )
   double *chromosome = ((double *)(son->chromosome[chromo]));
 //  double *fatherchromo = ((double *)(father->chromosome[chromo]));
 
-  const double equiv_sigma = (highX - lowX) / data->m_genSigmaMult;
+  const double equiv_sigma = (highX - lowX) / data->m_genSigma;
   const double amount = equiv_sigma * random_unit_gaussian();
 
   chromosome[point] += amount;

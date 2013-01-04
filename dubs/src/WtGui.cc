@@ -2228,7 +2228,7 @@ GeneticallyOptimizeTab::GeneticallyOptimizeTab( WtGui *wtGuiParent, Wt::WContain
 
 
   Chart::WDataSeries cgmsSeries(WtGui::kCgmsData, Chart::LineSeries);
-  cgmsSeries.setShadow(WShadow(3, 3, WColor(0, 0, 0, 127), 3));
+//  cgmsSeries.setShadow(WShadow(3, 3, WColor(0, 0, 0, 127), 3));
   m_graph->addSeries( cgmsSeries );
 
   //Chart::WDataSeries fingerSeries( WtGui::kFingerStickData, Chart::PointSeries );
@@ -2286,7 +2286,7 @@ GeneticallyOptimizeTab::GeneticallyOptimizeTab( WtGui *wtGuiParent, Wt::WContain
   m_chi2Graph->setXSeriesColumn(0);
   m_chi2Graph->setLegendEnabled(false);
   m_chi2Graph->setPlotAreaPadding( 70, Wt::Bottom );
-  m_chi2Graph->axis(Chart::YAxis).setTitle( L"Best \x03A7\x00B2" );
+  m_chi2Graph->axis(Chart::YAxis).setTitle( L"Best \x03C7\x00B2" );
   m_chi2Graph->setMinimumSize( 200, 150 );
   m_chi2Graph->axis(Chart::XAxis).setTitle( "Generation Number" );
   m_chi2Graph->addSeries( Chart::WDataSeries( 1, Chart::LineSeries ) );
@@ -2849,7 +2849,7 @@ CustomEventTab::CustomEventTab( WtGui *wtGuiParent,
   //m_bsGraph->axis(Chart::XAxis).setScale(Chart::DateTimeScale);
   m_currentCEChart->axis(Chart::XAxis).setTitle( "Minutes After Beginning" );
   Chart::WDataSeries series( 1, Chart::LineSeries);
-  series.setShadow(WShadow(3, 3, WColor(0, 0, 0, 127), 3));
+//  series.setShadow(WShadow(3, 3, WColor(0, 0, 0, 127), 3));
   m_currentCEChart->addSeries( series );
 
   if( m_eventTypesModel->rowCount() )

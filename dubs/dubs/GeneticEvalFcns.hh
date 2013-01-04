@@ -60,7 +60,8 @@ struct GenOptData
   int m_genConvergNsteps;
   int m_genNStepMutate;
   int m_genNStepImprove;
-  double m_genSigmaMult;  //How many 'sigma' the entire range of valid values spans
+  double m_genSigma;  //How many 'sigma' the entire range of valid values spans
+  double m_genSigmaMult;
   double m_genConvergCriteria;
 
   WtGui *m_gui;

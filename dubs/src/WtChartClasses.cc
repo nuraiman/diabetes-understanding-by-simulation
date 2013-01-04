@@ -20,12 +20,12 @@
 #include <Wt/Chart/WCartesianChart>
 #include <Wt/Chart/WChart2DRenderer>
 
-#include "WtGui.hh"
-#include "ResponseModel.hh"
-#include "CgmsDataImport.hh"
-#include "WtChartClasses.hh"
-#include "ConsentrationGraph.hh"
-#include "ArtificialPancrease.hh"
+#include "dubs/WtGui.hh"
+#include "dubs/ResponseModel.hh"
+#include "dubs/CgmsDataImport.hh"
+#include "dubs/WtChartClasses.hh"
+#include "dubs/ConsentrationGraph.hh"
+#include "dubs/ArtificialPancrease.hh"
 
 
 using namespace Wt;
