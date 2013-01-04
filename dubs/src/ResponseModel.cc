@@ -76,7 +76,7 @@ extern "C"
 #include "dubs/ResponseModel.hh"
 #include "dubs/KineticModels.hh"
 #include "dubs/CgmsDataImport.hh"
-#include "dubs/GeneticEvalFcns.hh"
+#include "dubs/GeneticEvalUtils.hh"
 #include "dubs/ArtificialPancrease.hh"
 #include "dubs/RungeKuttaIntegrater.hh"
 
