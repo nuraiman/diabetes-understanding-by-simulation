@@ -91,10 +91,10 @@
 #include "dubs/ProgramOptions.hh"
 #include "dubs/CgmsDataImport.hh"
 #include "dubs/WtChartClasses.hh"
-#include "dubs/GeneticEvalFcns.hh"
 #include "dubs/DubsApplication.hh"
 #include "dubs/WtUserManagment.hh"
 #include "dubs/WtCreateNLSimple.hh"
+#include "dubs/GeneticEvalUtils.hh"
 #include "dubs/ConsentrationGraph.hh"
 
 
