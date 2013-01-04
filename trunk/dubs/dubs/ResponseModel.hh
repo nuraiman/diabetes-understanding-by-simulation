@@ -19,7 +19,10 @@
 #include "dubs/ArtificialPancrease.hh" //contains useful typedefs and constants
 
 #include "Minuit2/FCNBase.h"
+
+#if( USE_CERNS_ROOT )
 #include "TMVA/IFitterTarget.h"
+#endif
 
 
 //Eventually, when I add more models, I'll set up a inheritance hiegharchy
@@ -452,7 +455,10 @@ class NLSimple
  *               it with a NLSimple model that current is being used for a GUI,
  *               unless there is a lock (via NLSimplePtr) the entire time.
 */
-class ModelTestFCN : public ROOT::Minuit2::FCNBase, public TMVA::IFitterTarget
+class ModelTestFCN : public ROOT::Minuit2::FCNBase
+#if( USE_CERNS_ROOT )
+    , public TMVA::IFitterTarget
+#endif
 {
   public:
     //function forMinuit2
@@ -461,7 +467,7 @@ class ModelTestFCN : public ROOT::Minuit2::FCNBase, public TMVA::IFitterTarget
     virtual void SetErrorDef(double dof);
 
     //Function for TMVA fitters
-    virtual Double_t EstimatorFunction( std::vector<Double_t>& parameters );
+    virtual double EstimatorFunction( std::vector<double>& parameters );
 
     //the function that does the actual work
     double testParamaters(const std::vector<double>& x, bool updateModel ) const;
@@ -488,7 +494,10 @@ class ModelTestFCN : public ROOT::Minuit2::FCNBase, public TMVA::IFitterTarget
 
 //An interace for NLSimple to Minuit2 and the Genetic Optimizer
 // To find the CGMS delay behind fingersticks
-class CgmsFingerCorrFCN : public ROOT::Minuit2::FCNBase, public TMVA::IFitterTarget
+class CgmsFingerCorrFCN : public ROOT::Minuit2::FCNBase
+#if( USE_CERNS_ROOT )
+    , public TMVA::IFitterTarget
+#endif
 {
   public:
     //function forMinuit2
@@ -497,7 +506,7 @@ class CgmsFingerCorrFCN : public ROOT::Minuit2::FCNBase, public TMVA::IFitterTar
     virtual void SetErrorDef(double dof);
 
     //Function for TMVA fitters
-    virtual Double_t EstimatorFunction( std::vector<Double_t>& parameters );
+    virtual double EstimatorFunction( std::vector<double>& parameters );
 
     //the function that does the actual work
     double testParamaters(const std::vector<double>& x ) const;
@@ -524,7 +533,10 @@ class CgmsFingerCorrFCN : public ROOT::Minuit2::FCNBase, public TMVA::IFitterTar
 //  (modeled with yatesGlucoseAbsorptionRate(...)) are fit for.
 //  This class to be used with ROOT::Minuit2::MnMigrad, or TMVA based fitters
 //  As with everything else, this class is very un-optimized
-class FitNLSimpleEvent: public ROOT::Minuit2::FCNBase, public TMVA::IFitterTarget
+class FitNLSimpleEvent: public ROOT::Minuit2::FCNBase
+#if( USE_CERNS_ROOT )
+    , public TMVA::IFitterTarget
+#endif
 {
   //TO DO:1)When fitting multiple events of the same type, right now Minuit2
   //        will treat the paramaters of each event seperately.  I should add
@@ -534,7 +546,7 @@ class FitNLSimpleEvent: public ROOT::Minuit2::FCNBase, public TMVA::IFitterTarge
 
   public:
     FitNLSimpleEvent( const NLSimple *model );
-    ~FitNLSimpleEvent(){};
+    ~FitNLSimpleEvent(){}
 
     //Event type to be fitted for is determined via fitResult->getGraphType()
     //  *fitResult and *pars must remain to be valid objects
@@ -556,7 +568,7 @@ class FitNLSimpleEvent: public ROOT::Minuit2::FCNBase, public TMVA::IFitterTarge
     virtual void SetErrorDef(double dof);
 
     //Function for TMVA fitters
-    virtual Double_t EstimatorFunction( std::vector<Double_t>& parameters );
+    virtual double EstimatorFunction( std::vector<double>& parameters );
 
   private:
     const NLSimple *m_model; //model passed in to the constructor

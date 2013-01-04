@@ -31,6 +31,10 @@
 #include "TLegendEntry.h"
 #include "TApplication.h"
 #include "TMath.h"
+
+//Roots TMVA includes
+#include "TMVA/IFitterTarget.h"
+#include "TMVA/GeneticAlgorithm.h"
 #endif
 
 //Roots Minuit2 includes
@@ -42,11 +46,6 @@
 #include "Minuit2/MnUserParameterState.h"
 #include "Minuit2/MnPrint.h"
 #include "Minuit2/SimplexMinimizer.h"
-
-//Roots TMVA includes
-#include "TMVA/IFitterTarget.h"
-#include "TMVA/GeneticAlgorithm.h"
-
 
 
 #include <boost/ref.hpp>
@@ -84,10 +83,6 @@ extern "C"
 using namespace std;
 using namespace boost;
 using namespace boost::posix_time;
-
-#if(USE_CERNS_ROOT)
-extern TApplication *gTheApp;
-#endif
 
 //To make the code prettier
 #define foreach         BOOST_FOREACH
@@ -659,7 +654,7 @@ double CgmsFingerCorrFCN::operator()(const std::vector<double>& x) const
   return testParamaters(x);
 }//operator()
 
-Double_t CgmsFingerCorrFCN::EstimatorFunction( std::vector<Double_t>& parameters )
+double CgmsFingerCorrFCN::EstimatorFunction( std::vector<double>& parameters )
 {
   return testParamaters(parameters);
 }//EstimatorFunction(...)
@@ -1905,7 +1900,7 @@ double NLSimple::geneticallyOptimizeModel( double endPredChi2Weight,
 
   cerr << "Performing genetic optiiztion" << endl;
 
-  std::vector<Double_t> gvec = m_paramaters;
+  std::vector<double> gvec = m_paramaters;
 
   m_paramaters.clear();
   resetPredictions();
@@ -1919,8 +1914,8 @@ double NLSimple::geneticallyOptimizeModel( double endPredChi2Weight,
   Int_t fNsteps       = m_settings.m_genConvergNsteps;
   Int_t fSC_steps     = m_settings.m_genNStepMutate;
   Int_t fSC_rate      = m_settings.m_genNStepImprove;
-  Double_t fSC_factor = m_settings.m_genSigmaMult;
-  Double_t fConvCrit  = m_settings.m_genConvergCriteria;
+  double fSC_factor = m_settings.m_genSigmaMult;
+  double fConvCrit  = m_settings.m_genConvergCriteria;
   //When the number of improvments within the last fSC_steps
   // a) smaller than fSC_rate, then divide present sigma by fSC_factor
   // b) equal, do nothing
@@ -1988,9 +1983,9 @@ double NLSimple::geneticallyOptimizeModel( double endPredChi2Weight,
 
     //ga.GetGeneticPopulation().Print(0);
     std::cout << "---Generation " << generation << " yeilded---" << std::endl;
-    vector<Double_t> currentPars = ga.GetGeneticPopulation().GetGenes(0)->GetFactors();
+    vector<double> currentPars = ga.GetGeneticPopulation().GetGenes(0)->GetFactors();
     cout << "Parameters: ";
-    foreach( Double_t p, currentPars ) cout << p << "  ";
+    foreach( double p, currentPars ) cout << p << "  ";
     cout << endl;
 
     const bool updateModel = !(genBestCallBackFcn == NULL);
@@ -2017,7 +2012,7 @@ double NLSimple::geneticallyOptimizeModel( double endPredChi2Weight,
   }//if( !wasCanceled )
 
   cout << "Final paramaters are: ";
-  foreach( Double_t d, gvec ) cout << d << "  ";
+  foreach( double d, gvec ) cout << d << "  ";
   cout << endl;
 
   setModelParameters(gvec);
@@ -2449,7 +2444,7 @@ DVec NLSimple::chi2DofStudy( double endPredChi2Weight,
     chi2Hists[parNum]->Draw();
   }//for( loop over paramaters )
 
-  gTheApp->Run(kTRUE);
+  gApplication->Run(kTRUE);
 
   return dof;
 }//chi2DofStudy
@@ -2607,9 +2602,9 @@ void NLSimple::draw( bool pause,
   if( !xPred->GetN() )   { delete xPred;   xPred   = NULL; }
   if( !insConc->GetN() ) { delete insConc; insConc = NULL; }
 
-  if( pause && gTheApp )
+  if( pause && gApplication )
   {
-    gTheApp->Run(kTRUE);
+    gApplication->Run(kTRUE);
     if( gPad )  { delete gPad; gPad = NULL; }
     if( cgmsBG )  delete cgmsBG;
     if( predBG )  delete predBG;
@@ -2897,7 +2892,7 @@ ModelTestFCN::ModelTestFCN( NLSimple *modelPtr,
 
 
 
-Double_t ModelTestFCN::EstimatorFunction( std::vector<Double_t>& parameters )
+double ModelTestFCN::EstimatorFunction( std::vector<double>& parameters )
 {
   return this->operator()(parameters);
 }//EstimatorFunction
@@ -3153,7 +3148,7 @@ void FitNLSimpleEvent::SetErrorDef(double dof)
 }//FitNLSimpleEvent::SetErrorDef(double dof)
 
     //Function for TMVA fitters
-Double_t FitNLSimpleEvent::EstimatorFunction( std::vector<Double_t>& parameters )
+double FitNLSimpleEvent::EstimatorFunction( std::vector<double>& parameters )
 {
   return operator()(parameters);
 }//FitNLSimpleEvent::EstimatorFunction( std::vector<double>& parameters )

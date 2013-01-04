@@ -115,7 +115,6 @@ void setStyle()
 #if(USE_CERNS_ROOT)
 void testFFTAA();
 void testFiltering();
-extern TApplication *gTheApp;
 #endif  //#if(USE_CERNS_ROOT)
 
 
@@ -123,7 +122,7 @@ extern TApplication *gTheApp;
 void cgmFilterStudy()
 {
   Int_t dummy_arg = 0;
-  gTheApp = gApplication = (TApplication *)new TApplication( "App", &dummy_arg, (char **)NULL );
+  gApplication = (TApplication *)new TApplication( "App", &dummy_arg, (char **)NULL );
 
   using namespace boost;
   using namespace boost::posix_time;

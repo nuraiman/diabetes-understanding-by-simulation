@@ -22,19 +22,19 @@ option( BUILD_AS_DESKTOP_APP "Build as a standalone dektop type application" OFF
 option( USE_CERNS_ROOT "Use CERNs ROOT libraries" OFF )
 option( USE_GSL_FFT "Use the GSLs fast fourier routines, instead of FFTW3" ON )
 
-IF(NOT CMAKE_BUILD_TYPE)
-    SET(CMAKE_BUILD_TYPE Debug CACHE STRING
+if(NOT CMAKE_BUILD_TYPE)
+    set(CMAKE_BUILD_TYPE Debug CACHE STRING
         "Choose the type of build, options are: None Debug Release RelWithDebInfo MinSizeRel."
         FORCE)
-ENDIF(NOT CMAKE_BUILD_TYPE)
+endif(NOT CMAKE_BUILD_TYPE)
 
 
 #-----------------------------------------------------------------------------
 
 if( BUILD_AS_DESKTOP_APP )
-    SET(EXECNAME dubs)
+    set(EXECNAME dubs)
 else( BUILD_AS_DESKTOP_APP )
-    SET(EXECNAME dubs.wt)
+    set(EXECNAME dubs.wt)
 endif( BUILD_AS_DESKTOP_APP )
 
 
@@ -53,11 +53,11 @@ else(TRY_TO_STATIC_LINK)
 endif(TRY_TO_STATIC_LINK)
 
 
-include(FindWt.cmake)
+include(cmake/FindWt.cmake)
 #FIND_PACKAGE( Wt REQUIRED )
 
 SET( GSL_FIND_QUIETLY ON )
-include(FindGSL.cmake)
+include(cmake/FindGSL.cmake)
 #FIND_PACKAGE( GSL REQUIRED )
 
 
@@ -88,7 +88,7 @@ set( sources
     src/DubsApplication.cc
     src/OverlayCanvas.cc
     js/OverlayCanvas.js
-    src/GeneticEvalFcns.cc
+    src/GeneticEvalUtils.cc
 )
 
 
@@ -109,7 +109,7 @@ set( headers
     dubs/DubsSession.hh
     dubs/DubsApplication.hh
     dubs/OverlayCanvas.hh
-    dubs/GeneticEvalFcns.hh
+    dubs/GeneticEvalUtils.hh
 )
 
 
@@ -136,17 +136,22 @@ set( headers
 add_executable( ${EXECNAME} main.cc ${sources} ${headers} )
 
 
-include(FindROOT.cmake)
-#FIND_PACKAGE( ROOT REQUIRED )
-INCLUDE_DIRECTORIES( ${ROOT_INCLUDE_DIR} )
+if(LINK_TO_CERN_ROOT)
+    include(cmake/FindROOT.cmake)
+    include_directories( ${ROOT_INCLUDE_DIR} )
+    exec_program(${ROOT_CONFIG} ARGS "--cflags" OUTPUT_VARIABLE ROOT_CXX_FLAGS)
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${ROOT_CXX_FLAGS}")
+    target_link_libraries( ${EXECNAME} ${ROOT_LIBRARIES} TMVA Minuit Minuit2 )
+else(LINK_TO_CERN_ROOT)
+    add_subdirectory( external_libs/Minuit2 )
+    target_link_libraries( ${EXECNAME} minuit2 )
+    include_directories( external_libs/Minuit2/inc )
+endif(LINK_TO_CERN_ROOT)
 
-EXEC_PROGRAM(${ROOT_CONFIG} ARGS "--cflags" OUTPUT_VARIABLE ROOT_CXX_FLAGS)
-SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${ROOT_CXX_FLAGS}")
-target_link_libraries( ${EXECNAME} ${ROOT_LIBRARIES} TMVA Minuit Minuit2 )
+
 
 if(BUILD_AS_DESKTOP_APP)
-    TARGET_LINK_LIBRARIES(${EXECNAME} ${QT_LIBRARIES})
-#    TARGET_LINK_LIBRARIES(${CCT_NAME} ${QT_LIBRARIES})
+    target_link_libraries(${EXECNAME} ${QT_LIBRARIES})
 endif(BUILD_AS_DESKTOP_APP)
 
 if(USE_CERNS_ROOT)
@@ -154,7 +159,7 @@ if(USE_CERNS_ROOT)
 endif(USE_CERNS_ROOT)
 
 
-INCLUDE_DIRECTORIES(
+include_directories(
     ${Wt_INCLUDE_DIR}
     ${Wt_INCLUDE_DIR}/..  #necassary when including Wt/Auth/Dbo/AuthInfo (I think is a Wt bug)
     ${Boost_INCLUDE_DIR}
@@ -199,6 +204,11 @@ target_link_libraries (
     -lfftw3
 )
 ENDIF()
+
+
+
+
+
 
 #When I link statically to the Wt libraries on OSX, I also have to
 #  link to the following libraries

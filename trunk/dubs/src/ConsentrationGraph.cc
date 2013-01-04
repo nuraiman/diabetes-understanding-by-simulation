@@ -14,21 +14,21 @@
 #include <algorithm>
 
 
-#include "TVirtualFFT.h"
+
 #if(USE_CERNS_ROOT)
-//ROOT includes (using root 5.14)
-#include "TSystem.h"
-#include "TStyle.h"
 #include "TF1.h"
-#include "TGraph.h"
 #include "TH1.h"
-#include "TCanvas.h"
-#include "TApplication.h"
-#include "TLegend.h"
 #include "TROOT.h"
 #include "TMath.h"
+#include "TGraph.h"
+#include "TStyle.h"
+#include "TCanvas.h"
+#include "TLegend.h"
+#include "TSystem.h"
 #include "TPaveText.h"
 #include "TDecompLU.h"
+#include "TVirtualFFT.h"
+#include "TApplication.h"
 #endif //#if(USE_CERNS_ROOT)
 
 //GSL includes
@@ -1873,9 +1873,9 @@ TGraph* ConsentrationGraph::draw( string options,
   }//if( !size() )
 
 
-  assert(gTheApp);
+  assert(gApplication);
   // int dummy_arg = 0;
-  // if( !gTheApp ) gTheApp = new TApplication("App", &dummy_arg, (char **)NULL);
+  // if( !gApplication ) gApplication = new TApplication("App", &dummy_arg, (char **)NULL);
 
   if( !gPad )
       new TCanvas();
@@ -1924,7 +1924,7 @@ TGraph* ConsentrationGraph::draw( string options,
 
   if( pause )
   {
-    gTheApp->Run(kTRUE);
+    gApplication->Run(kTRUE);
     delete gPad;
     delete graph;
 

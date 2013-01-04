@@ -4,8 +4,8 @@
 #include <boost/function.hpp>
 #include <boost/date_time/posix_time/posix_time.hpp>
 
-#include "ArtificialPancrease.hh"
-#include "RungeKuttaIntegrater.hh"
+#include "dubs/ArtificialPancrease.hh"
+#include "dubs/RungeKuttaIntegrater.hh"
 
 using namespace std;
 using namespace boost;

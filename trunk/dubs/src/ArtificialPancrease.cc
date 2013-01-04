@@ -11,7 +11,6 @@
 #include <iostream>
 
 
-//ROOT includes (using root 5.14)
 #if(USE_CERNS_ROOT)
 #include "TF1.h"
 #include "TH1.h"
@@ -52,9 +51,6 @@
 #define foreach         BOOST_FOREACH
 #define reverse_foreach BOOST_REVERSE_FOREACH
 
-#if(USE_CERNS_ROOT)
-TApplication *gTheApp = (TApplication *)NULL;
-#endif
 
 using namespace std;
 
@@ -90,7 +86,7 @@ int _main( int /*argc*/, char** /*argv*/ )
   // TCanvas *can = new TCanvas();
   // mmData.draw("", "", false);
   // can->SetCanvasSize( 1500, 800 );
-  // gTheApp->Run(kTRUE);
+  // gApplication->Run(kTRUE);
   // NLSimple test("");
   // test.runGui();
 
@@ -365,8 +361,8 @@ void testKineticModels()
 void setStyle()
 {
   Int_t dummy_arg = 0;
-//  gTheApp = new TApplication("App", &dummy_arg, (char **)NULL);
-  gTheApp = (TApplication *)new TRint( "App", &dummy_arg, (char **)NULL);
+//  gApplication = new TApplication("App", &dummy_arg, (char **)NULL);
+  gApplication = (TApplication *)new TRint( "App", &dummy_arg, (char **)NULL);
 
   TStyle *myStyle = gROOT->GetStyle("Plain"); //base style on Plain
 
