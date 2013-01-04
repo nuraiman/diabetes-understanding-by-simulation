@@ -34,6 +34,16 @@
 
 #include <Wt/WApplication>
 
+//Roots Minuit2 includes
+#include "Minuit2/FCNBase.h"
+#include "Minuit2/FunctionMinimum.h"
+#include "Minuit2/MnMigrad.h"
+#include "Minuit2/MnMinos.h"
+#include "Minuit2/MnUserParameters.h"
+#include "Minuit2/MnUserParameterState.h"
+#include "Minuit2/MnPrint.h"
+#include "Minuit2/SimplexMinimizer.h"
+
 #include "external_libs/spline/spline.hpp"
 
 #include "dubs/WtGui.hh"
@@ -68,7 +78,7 @@ namespace GeneticEvalUtils
 {
 
 
-double perform_optimiation( WtGui *gui,
+double perform_genetic_optimization( WtGui *gui,
                           std::vector<TimeRange> timeRanges,
                           boost::function<void (double bestChi2)> genBestCallBackFcn,
                           boost::function<bool (void)> continueFcn
@@ -226,7 +236,7 @@ double perform_optimiation( WtGui *gui,
   ga_extinction( pop );
 
   return bestchi2;
-}//double perform_optimiation(...)
+}//double perform_genetic_optimization(...)
 
 
 // Called at the beginning of each generation
@@ -546,5 +556,173 @@ bool eval_ga_struggle_score( population *pop, entity *dude )
 
   return true;
 }//bool eval_ga_struggle_score(population *pop, entity *dude)
+
+
+
+
+
+
+
+double perform_migrad_optimization( WtGui *gui, vector<TimeRange> timeRanges )
+{
+  using namespace ROOT::Minuit2;
+
+  boost::shared_ptr<NLSimple> model;
+
+  {
+    const string error_msg = "Failed to get thread lock at " + SRC_LOCATION;
+    NLSimplePtr guismodel( gui, true, error_msg );
+    model.reset( new NLSimple(*guismodel) );
+  }
+
+  vector<double> startingVal( NLSimple::NumNLSimplePars );
+  startingVal[NLSimple::BGMultiplier]            = 0.0;
+  startingVal[NLSimple::CarbAbsorbMultiplier]    = 30.0 / 9.0;
+  startingVal[NLSimple::XMultiplier]             = 0.040;
+  startingVal[NLSimple::PlasmaInsulinMultiplier] = 0.00015;
+
+  //
+  vector<double> paramaters = model->paramaters();
+  if( paramaters.size() && paramaters[0] != kFailValue )
+  {
+    assert( paramaters.size() >= NLSimple::NumNLSimplePars );
+    startingVal = paramaters;
+    cout << "fitModelToDataViaMinuit2(...): using the existing model parameters"
+         << " as starting values:";
+    foreach( double d, startingVal )
+      cout << " " << d;
+    cout << endl;
+  }//if( use existing parameters )
+
+  cerr << "\n\nInput time ranges:" << endl;
+  foreach( const TimeRange &r, timeRanges )
+    cerr << "\t" << r.begin() << " through " << r.end() << endl;
+
+  timeRanges = model->getNonExcludedTimeRanges( timeRanges );
+
+  cerr << "\n\nOutput time ranges:" << endl;
+  foreach( const TimeRange &r, timeRanges )
+    cerr << "\t" << r.begin() << " through " << r.end() << endl;
+
+  const ModelSettings &settings = model->settings();
+  const double endPredChi2Weight = settings.m_lastPredictionWeight;
+
+  model->paramaters().clear();
+  model->resetPredictions();
+  model->findSteadyStateBeginings(3);
+
+  ModelTestFCN modelFCN( model.get(), endPredChi2Weight, timeRanges );
+  modelFCN.SetErrorDef(10.0);
+
+  MnUserParameters upar;
+
+  //Have a switch statment to get a warning if we change NLSimplePars
+  for( NLSimple::NLSimplePars par = NLSimple::NLSimplePars(0);
+       par < NLSimple::NumNLSimplePars;
+       par = NLSimple::NLSimplePars(par+1) )
+  {
+    double lowX, highX;
+    NLSimple::parameterRange( par, lowX, highX );
+
+    switch(par)
+    {
+      case NLSimple::BGMultiplier:
+        upar.Add( "BGMult"   , startingVal[par], 0.1 );
+        upar.SetLimits( "BGMult", lowX, highX );
+      break;
+
+      case NLSimple::CarbAbsorbMultiplier:
+        upar.Add( "CarbMult" , startingVal[par], 0.1 );
+        upar.SetLimits( "CarbMult", lowX, highX );
+      break;
+
+      case NLSimple::XMultiplier:
+        upar.Add( "XMult"    , startingVal[par], 0.1 );
+        upar.SetLimits( "XMult", lowX, highX );
+      break;
+
+      case NLSimple::PlasmaInsulinMultiplier:
+        upar.Add( "InsulMult", startingVal[par], 0.1 );
+        upar.SetLimits( "InsulMult", lowX, highX );
+      break;
+      case NLSimple::NumNLSimplePars:
+        assert(0);
+      break;
+        assert(0);
+    };//swtich(par)
+  }//for( loop over NLSimplePars )
+
+  size_t parNum = (size_t)NLSimple::NumNLSimplePars;
+  const ConsentrationGraph &customEvents = model->customEvents();
+  const NLSimple::EventDefMap &customEventDefs = model->customEventDefs();
+
+
+  foreach( const NLSimple::EventDefPair &et, customEventDefs )
+  {
+    const size_t nPoints = et.second.getNPoints();
+    for( size_t pointN = 0; pointN < nPoints; ++pointN, ++parNum )
+    {
+      ostringstream name;
+      name << et.second.getName() << "_" << pointN;
+
+      if( !customEvents.hasValueNear( et.first ) )
+        continue;
+      cout << "Adding paramater named " << name.str() << " to minuit optimization" << endl;
+
+      upar.Add( name.str(), et.second.getPar( static_cast<int>(pointN) ), 0.1 );
+      double lowX, highX;
+      NLSimple::parameterRange( static_cast<int>(pointN), lowX, highX );
+      upar.SetLimits( name.str(), lowX, highX );
+    }//for
+  }//foreach( custom event def )
+
+
+  MnMigrad migrad(modelFCN, upar);
+
+  cout<<"start migrad "<< endl;
+  FunctionMinimum min = migrad();
+
+  if(!min.IsValid())
+  {
+    //try with higher strategy
+    std::cout<<"FM is invalid, try with strategy = 2."<<std::endl;
+    MnMigrad migrad(modelFCN, upar, 2);
+    min = migrad();
+  }
+
+  cout << "minimum: " << min << endl;
+  // MinimumParameters paramaters = min.Parameters();
+
+  double chi2 = 0.0;
+  const vector<double> genes = min.UserState().Params();
+
+  {
+    const string error_msg = "Failed to get thread after optimization at "
+                             + SRC_LOCATION;
+
+    NLSimplePtr guismodel( gui, true, error_msg );
+    guismodel->setModelParameters( genes );
+
+    cout << "Done with Simplex optimization" << endl;
+    cout << "Final paramaters are: ";
+    foreach( double d, genes )
+      cout << d << "  ";
+    cout << endl;
+
+    guismodel->findSteadyStateBeginings( 3.0 );
+    guismodel->updateXUsingCgmsInfo();
+
+    timeRanges = guismodel->getNonExcludedTimeRanges();
+    ModelTestFCN fitFcn( guismodel.get(), endPredChi2Weight, timeRanges );
+
+    chi2 = fitFcn.testParamaters( genes, true );
+  }
+
+  return chi2;
+}//perform_migrad_optimization
+
+
+
+
 
 }//namespace GeneticEvalUtils
