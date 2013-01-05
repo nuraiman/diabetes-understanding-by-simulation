@@ -56,13 +56,13 @@ protected:
   Wt::WApplication *m_app;
   Wt::WLineEdit *m_lineEdit;
 
-  Wt::JSignal<std::string> *m_timeSelected;  //string is in format '07/23/2010 12:15:00 pm'
-  Wt::JSignal<std::string> *m_sectionBoxClosed;  //string is in format '07/23/2010 12:15:00 pm'
+  boost::scoped_ptr< Wt::JSignal<std::string> > m_timeSelected;  //string is in format '07/23/2010 12:15:00 pm'
+  boost::scoped_ptr< Wt::JSignal<std::string> > m_sectionBoxClosed;  //string is in format '07/23/2010 12:15:00 pm'
 
 #if( USE_JSLOTS_WITH_DateTimeSelect )
-  Wt::JSlot *m_setTopSlot;
-  Wt::JSlot *m_setBottomSlot;
-  Wt::JSlot *m_setDateTimeSlot;
+  boost::scoped_ptr<Wt::JSlot> m_setTopSlot;
+  boost::scoped_ptr<Wt::JSlot> m_setBottomSlot;
+  boost::scoped_ptr<Wt::JSlot> m_setDateTimeSlot;
 #endif //USE_JSLOTS_WITH_DateTimeSelect
 
   Wt::WDateTime    m_top;

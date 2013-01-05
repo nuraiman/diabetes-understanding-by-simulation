@@ -125,9 +125,9 @@ DateTimeSelect::DateTimeSelect( const std::string &labelText,
   const string bottomSlotJs = "function(s,date){" + jsref + ".datetimepicker('option','minDate',date);}";
   const string setDateTimeSlotJs = "function(s,date){" + jsref + ".datetimepicker('setDate',date);}";
 
-  m_setTopSlot      = new JSlot( topSlotJs, this );
-  m_setBottomSlot   = new JSlot( bottomSlotJs, this );
-  m_setDateTimeSlot = new JSlot( setDateTimeSlotJs, this );
+  m_setTopSlot.reset( new JSlot( topSlotJs, this ) );
+  m_setBottomSlot.reset( new JSlot( bottomSlotJs, this ) );
+  m_setDateTimeSlot.reset( new JSlot( setDateTimeSlotJs, this ) );
 #endif  //USE_JSLOTS_WITH_DateTimeSelect
 
 
@@ -313,9 +313,13 @@ MemVariableSpinBox::MemVariableSpinBox( const string &label,
     throw runtime_error( SRC_LOCATION + ": unable to get wApp" );
 
   setStyleClass( "MemVariableSpinBox" );
-  if( label != "" ) (new WLabel( label, this ))->setBuddy( m_spinBox );
+  if( label != "" )
+    (new WLabel( label, this ))->setBuddy( m_spinBox );
+
   addWidget( m_spinBox );
-  if( units != "" ) new WLabel( units, this );
+
+  if( units != "" )
+    new WLabel( units, this );
 
   m_spinBox->setRange( lower, upper );
   m_spinBox->setTextSize( 6 );
@@ -370,8 +374,8 @@ IntSpinBox::IntSpinBox( int *memVariable,
        m_memVariable(memVariable)
 {
   m_spinBox->setSingleStep( 1.0 );
+  m_spinBox->setDecimals( 0 );
   updateGuiFromMemmory();
-
 }
 
 DoubleSpinBox::DoubleSpinBox( double *memVariable,

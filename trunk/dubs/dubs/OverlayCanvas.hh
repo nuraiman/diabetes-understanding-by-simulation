@@ -99,6 +99,10 @@ protected:
 
   Wt::JSlot *m_alignWithParentSlot;  //depreciated - should be removed or something
 
+#if( TEST_OverlayDragEvent )
+  Wt::JSignal<OverlayDragEvent> *m_overlayEvent;
+#endif  //TEST_OverlayDragEvent
+
 
   std::vector< boost::shared_ptr<Wt::JSlot> > m_jslots;
 private:

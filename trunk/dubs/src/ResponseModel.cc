@@ -2101,7 +2101,8 @@ bool NLSimple::removeInfoAfter( const PosixTime &cgmsEndTime, bool removeCgms )
   }//if( lastPBGPoint != m_predictedBloodGlucose.end() )
 
 
-  if(removeCgms) return (nUpdated == 3);
+  if( removeCgms )
+    return (nUpdated == 3);
   return (nUpdated == 2);
 }//removeInfoAfter
 

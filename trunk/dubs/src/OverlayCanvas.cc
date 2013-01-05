@@ -137,6 +137,7 @@ OverlayCanvas::OverlayCanvas( Wt::Chart::WAbstractChart *parent,
     m_controlMouseMove( NULL ),
     m_jsException( NULL ),
     m_alignWithParentSlot( NULL ),
+    m_overlayEvent( NULL ),
     m_parent( parent )
 {
   WChartWithLegend *chartWithLeg = dynamic_cast<WChartWithLegend *>( parent );
@@ -189,8 +190,8 @@ OverlayCanvas::OverlayCanvas( Wt::Chart::WAbstractChart *parent,
   m_userSingleClickedSignal->connect( boost::bind( &dummyMouseEvent, _1 ) );
 
 #if( TEST_OverlayDragEvent )
-  JSignal<OverlayDragEvent> *overlayTest = new JSignal<OverlayDragEvent>( this , "OverlayDragEvent" );
-  overlayTest->connect( boost::bind( &testOverlayDragEvent, _1 ) );
+  m_overlayEvent = new JSignal<OverlayDragEvent>( this , "OverlayDragEvent" );
+  m_overlayEvent->connect( boost::bind( &testOverlayDragEvent, _1 ) );
 #endif  //TEST_OverlayDragEvent
 
   clicked().connect(        boost::bind( &EventSignal< WMouseEvent >::emit,   &(parent->clicked ()), _1 ) );
@@ -356,6 +357,8 @@ OverlayCanvas::~OverlayCanvas()
     delete m_jsException;
   if( m_alignWithParentSlot )
     delete m_alignWithParentSlot;
+  if( m_overlayEvent )
+    delete m_overlayEvent;
 }//~WPaintedWidget()
 
 

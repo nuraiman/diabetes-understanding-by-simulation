@@ -388,7 +388,7 @@ bool generation_start_hook( const int generation, population *pop )
   double prev_chi2 = DBL_MAX;
   for( ; pos != chi2s.end(); ++pos )
   {
-    if( (*pos) < prev_chi2 )
+    if( ((*pos)+2.0) < prev_chi2 )  //Consider chi2 going down by 2 and improvment - note that this is very add hock
       ++num_improvments;
     prev_chi2 = *pos;
   }//for( ; pos != chi2s.end(); ++pos )
