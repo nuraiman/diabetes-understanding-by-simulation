@@ -25,8 +25,8 @@ which is Copyright (C) 2008 Emweb bvba, Kessel-Lo, Belgium.
 #define reverse_foreach BOOST_REVERSE_FOREACH
 
 
-namespace {
-
+namespace
+{
   class MyOAuth : public std::vector<const Wt::Auth::OAuthService *>
   {
   public:
@@ -40,8 +40,7 @@ namespace {
   Wt::Auth::AuthService myAuthService;
   Wt::Auth::PasswordService myPasswordService(myAuthService);
   MyOAuth myOAuthServices;
-
-}
+}//namespace
 
 void DubsSession::configureAuth()
 {
@@ -54,7 +53,6 @@ void DubsSession::configureAuth()
     return;
 
   configured = true;
-
 
   myAuthService.setAuthTokensEnabled(true, "dubslogin");
   myAuthService.setEmailVerificationEnabled(true);
@@ -73,14 +71,15 @@ void DubsSession::configureAuth()
 
   if (Wt::Auth::FacebookService::configured())
     myOAuthServices.push_back(new Wt::Auth::FacebookService(myAuthService));
-}
+}//void configureAuth()
 
-DubsSession::DubsSession(const std::string& sqliteDb)
-  : connection_(sqliteDb)
+
+DubsSession::DubsSession( const std::string& sqliteDb )
+  : connection_( sqliteDb )
 {
-  connection_.setProperty("show-queries", "true");
+  connection_.setProperty( "show-queries", "false" );
 
-  setConnection(connection_);
+  setConnection( connection_ );
 
   mapClass<AuthInfo>("auth_info");
   mapClass<AuthInfo::AuthIdentityType>("auth_identity");
@@ -94,7 +93,8 @@ DubsSession::DubsSession(const std::string& sqliteDb)
 
   dbo::Transaction transaction( *this );
 
-  try {
+  try
+  {
     createTables();
     std::cerr << "DubsSession: Created database." << std::endl;
 
@@ -104,13 +104,14 @@ DubsSession::DubsSession(const std::string& sqliteDb)
     guestUser.addIdentity(Auth::Identity::LoginName, "guest");
     myPasswordService.updatePassword(guestUser, "guest");
 */
-  } catch (std::exception& e) {
+  } catch (std::exception& e)
+  {
     std::cerr << e.what() << std::endl;
     std::cerr << "DubsSession: Using existing database" << std::endl;
-  }
+  }//try / catch
 
   transaction.commit();
-}
+}//DubsSession constructor
 
 DubsSession::~DubsSession()
 {

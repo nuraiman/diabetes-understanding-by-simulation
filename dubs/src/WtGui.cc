@@ -171,10 +171,18 @@ int NLSimplePtr::count( WtGui *gui )
 
 void NLSimplePtr::resetCount( WtGui *gui )
 {
-  cerr << SRC_LOCATION << endl
-       << "  we really should check to see if we are currently under a thread lock before reseting the count!" << endl;
-  RecursiveScopedLock lock( sm_nLockMapMutex );
-  sm_nLocksMap.erase( gui );
+  if( !gui )
+  {
+    cerr << SRC_LOCATION << "\n\tInvalid pointer passed in" << endl;
+    return;
+  }//if( !gui )
+
+  RecursiveScopedLock global_lock( sm_nLockMapMutex );
+
+  {
+    RecursiveScopedLock local_lock( gui->m_modelMutex );  //hmmmm - will this cause a
+    sm_nLocksMap.erase( gui );
+  }
 }//resetCount
 
 
